@@ -4,7 +4,7 @@ import AdminLayout from '../../admin/components/AdminLayout';
 import Loader from '../../admin/components/Loader';
 import { useAuth } from '../../admin/context/AuthContext';
 import { getRoleKey, ROLES } from '../../admin/utils/roles';
-import { batchAPI, dashboardAPI, checkApiHealth, getApiBaseUrl } from '../../admin/services/api';
+import { batchAPI, dashboardAPI, getApiBaseUrl } from '../../admin/services/api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -38,6 +38,8 @@ ChartJS.register(
   Filler
 );
 
+const LOW_STOCK_PAGE_SIZE = 5;
+
 /* ─────────────────────────────────────────────
    Admin-only dashboard (hooks always called)
 ───────────────────────────────────────────── */
@@ -54,6 +56,7 @@ const AdminDashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
+  const [lowStockPage, setLowStockPage] = useState(1);
 
   // ── Chart filters ──
   const todayStr = () => new Date().toISOString().split('T')[0];
@@ -86,17 +89,13 @@ const AdminDashboard = () => {
   const [chartData,       setChartData]       = useState(null);
   const [chartLoading,    setChartLoading]    = useState(false);
   const chartDebounce = useRef(null);
+  const chartsHydrated = useRef(false);
+  const skipInitialChartFetch = useRef(true);
 
   const loadDashboard = async () => {
     setConnectionError(null);
     setLoading(true);
     try {
-      const health = await checkApiHealth();
-      if (!health.ok) {
-        setConnectionError(health.message || 'Backend is not responding.');
-        setLoading(false);
-        return;
-      }
       const res = await batchAPI.get({ include: ['dashboard'] });
       const dashboardData = res?.data?.dashboard ?? null;
       if (!dashboardData) {
@@ -104,13 +103,27 @@ const AdminDashboard = () => {
         return;
       }
       setData(dashboardData);
+      // Seed charts from the batch payload so we skip a redundant /charts round-trip.
+      if (!chartsHydrated.current) {
+        setChartData({
+          inventory_by_category: dashboardData.inventory_by_category,
+          stock_status_by_location: dashboardData.stock_status_by_location,
+          warehouse_capacity: dashboardData.warehouse_capacity,
+          stock_trends: dashboardData.stock_trends,
+          transaction_trends: dashboardData.transaction_trends,
+        });
+        chartsHydrated.current = true;
+      }
     } catch (err) {
       const msg = err?.message || 'Connection error';
       const isAuth = err?.status === 401;
+      const isNetwork = !err?.status || err?.status === 0 || /Failed to fetch|NetworkError/i.test(msg);
       setConnectionError(
         isAuth
           ? 'Session expired or not logged in. Please log in again.'
-          : msg
+          : isNetwork
+            ? `${msg} — ensure the API is running at ${getApiBaseUrl()}.`
+            : msg
       );
       if (isAuth) {
         setTimeout(() => navigate('/admin/login'), 2000);
@@ -124,7 +137,7 @@ const AdminDashboard = () => {
     loadDashboard();
   }, []);
 
-  // Load filter options once
+  // Load filter options once (non-blocking)
   useEffect(() => {
     dashboardAPI.getFilterOptions().then(res => {
       const d = res?.data ?? {};
@@ -136,8 +149,13 @@ const AdminDashboard = () => {
     }).catch(() => {});
   }, []);
 
-  // Re-fetch chart data whenever filters change (debounced 350ms)
+  // Re-fetch chart data when the user changes filters (skip first mount —
+  // charts already came from the dashboard batch).
   useEffect(() => {
+    if (skipInitialChartFetch.current) {
+      skipInitialChartFetch.current = false;
+      return;
+    }
     clearTimeout(chartDebounce.current);
     chartDebounce.current = setTimeout(async () => {
       setChartLoading(true);
@@ -173,46 +191,14 @@ const AdminDashboard = () => {
     setFilterProductId('');
   };
 
-  if (connectionError) {
-    return (
-      <AdminLayout>
-        <div className="dashboard-connection-error">
-          <div className="dashboard-connection-error-card">
-            <h2>Could not load dashboard</h2>
-            <p className="dashboard-connection-error-message">{connectionError}</p>
-            <p className="dashboard-connection-error-hint">
-              Ensure the backend is running: <code>cd back-end && php artisan serve</code>
-              <br />
-              API base: <code>{getApiBaseUrl()}</code>
-            </p>
-            <p className="dashboard-connection-error-hint">
-              If the backend runs on a different host or port, set <code>REACT_APP_API_URL</code> in the frontend <code>.env</code> (see <code>.env.example</code>), then restart the React dev server (<code>npm start</code>).
-            </p>
-            <button type="button" className="dashboard-connection-retry" onClick={loadDashboard}>
-              Retry
-            </button>
-          </div>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  if (loading || !data) {
-    return (
-      <AdminLayout>
-        <Loader variant="page" label="Loading dashboard" />
-      </AdminLayout>
-    );
-  }
-
-  /* ── Chart options ── */
+  /* ── Chart options (safe to compute even while loading) ── */
   const barOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1f2937', padding: 12, borderRadius: 8 } },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: 'var(--bg-contrast)', padding: 12, borderRadius: 8 } },
     scales: {
-      x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 11 } }, barPercentage: 0.5, categoryPercentage: 0.8, offset: true },
-      y: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: '#6b7280', font: { size: 11 }, stepSize: 1 }, beginAtZero: true },
+      x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', font: { size: 11 } }, barPercentage: 0.5, categoryPercentage: 0.8, offset: true },
+      y: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: 'var(--text-muted)', font: { size: 11 }, stepSize: 1 }, beginAtZero: true },
     },
     layout: { padding: { left: 8, right: 8 } },
   };
@@ -221,12 +207,12 @@ const AdminDashboard = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, position: 'bottom', align: 'center', labels: { color: '#6b7280', usePointStyle: true, pointStyle: 'rect', padding: 15, font: { size: 11 } } },
-      tooltip: { backgroundColor: '#1f2937', padding: 12, borderRadius: 8 },
+      legend: { display: true, position: 'bottom', align: 'center', labels: { color: 'var(--text-muted)', usePointStyle: true, pointStyle: 'rect', padding: 15, font: { size: 11 } } },
+      tooltip: { backgroundColor: 'var(--bg-contrast)', padding: 12, borderRadius: 8 },
     },
     scales: {
-      x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 10 } } },
-      y: { grid: { color: '#e5e7eb', drawBorder: false, borderDash: [3, 3] }, ticks: { color: '#6b7280', font: { size: 11 } }, beginAtZero: true },
+      x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', font: { size: 10 } } },
+      y: { grid: { color: '#e5e7eb', drawBorder: false, borderDash: [3, 3] }, ticks: { color: 'var(--text-muted)', font: { size: 11 } }, beginAtZero: true },
     },
   };
 
@@ -234,12 +220,12 @@ const AdminDashboard = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, position: 'bottom', align: 'center', labels: { color: '#6b7280', usePointStyle: true, pointStyle: 'circle', padding: 15, font: { size: 11 } } },
-      tooltip: { backgroundColor: '#1f2937', padding: 12, borderRadius: 8 },
+      legend: { display: true, position: 'bottom', align: 'center', labels: { color: 'var(--text-muted)', usePointStyle: true, pointStyle: 'circle', padding: 15, font: { size: 11 } } },
+      tooltip: { backgroundColor: 'var(--bg-contrast)', padding: 12, borderRadius: 8 },
     },
     scales: {
-      x: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: '#6b7280', font: { size: 11 } } },
-      y: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: '#6b7280', font: { size: 11 }, stepSize: 45 }, beginAtZero: true },
+      x: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: 'var(--text-muted)', font: { size: 11 } } },
+      y: { grid: { color: '#f3f4f6', drawBorder: false }, ticks: { color: 'var(--text-muted)', font: { size: 11 }, stepSize: 45 }, beginAtZero: true },
     },
     interaction: { intersect: false, mode: 'index' },
   };
@@ -247,6 +233,10 @@ const AdminDashboard = () => {
   const stats = data?.stats ?? {};
   const pendingActions        = stats.pending_actions ?? 0;
   const lowStockItems         = data?.low_stock_items ?? [];
+  const lowStockPageCount     = Math.max(1, Math.ceil(lowStockItems.length / LOW_STOCK_PAGE_SIZE));
+  const currentLowStockPage   = Math.min(lowStockPage, lowStockPageCount);
+  const lowStockStart         = (currentLowStockPage - 1) * LOW_STOCK_PAGE_SIZE;
+  const paginatedLowStockItems = lowStockItems.slice(lowStockStart, lowStockStart + LOW_STOCK_PAGE_SIZE);
   const recentActivity        = data?.recent_activity ?? [];
   // Charts use filtered data when available, otherwise the initial batch data
   const cd = chartData;
@@ -266,15 +256,36 @@ const AdminDashboard = () => {
   };
 
   const activityMeta = {
-    sale:      { label: 'Sale',      color: '#DC2626', bg: 'rgba(220,38,38,0.08)'  },
-    transfer:  { label: 'Transfer',  color: '#2563EB', bg: 'rgba(37,99,235,0.08)'  },
-    receiving: { label: 'Receiving', color: '#059669', bg: 'rgba(5,150,105,0.08)'  },
-    activity:  { label: 'Activity',  color: '#7C3AED', bg: 'rgba(124,58,237,0.08)' },
-    audit:     { label: 'Audit',     color: '#D97706', bg: 'rgba(217,119,6,0.08)'  },
+    sale:      { label: 'Sale',      color: 'var(--text-danger)', bg: 'rgba(220,38,38,0.08)'  },
+    transfer:  { label: 'Transfer',  color: 'var(--text-info)', bg: 'rgba(37,99,235,0.08)'  },
+    receiving: { label: 'Receiving', color: 'var(--ink-teal-700)', bg: 'rgba(5,150,105,0.08)'  },
+    activity:  { label: 'Activity',  color: 'var(--ink-violet)', bg: 'rgba(124,58,237,0.08)' },
+    audit:     { label: 'Audit',     color: 'var(--ink-orange-600)', bg: 'rgba(217,119,6,0.08)'  },
   };
 
   return (
     <AdminLayout>
+      {connectionError ? (
+        <div className="dashboard-connection-error">
+          <div className="dashboard-connection-error-card">
+            <h2>Could not load dashboard</h2>
+            <p className="dashboard-connection-error-message">{connectionError}</p>
+            <p className="dashboard-connection-error-hint">
+              Ensure the backend is running: <code>cd back-end && php artisan serve</code>
+              <br />
+              API base: <code>{getApiBaseUrl()}</code>
+            </p>
+            <p className="dashboard-connection-error-hint">
+              If the backend runs on a different host or port, set <code>REACT_APP_API_URL</code> in the frontend <code>.env</code> (see <code>.env.example</code>), then restart the React dev server (<code>npm start</code>).
+            </p>
+            <button type="button" className="dashboard-connection-retry" onClick={loadDashboard}>
+              Retry
+            </button>
+          </div>
+        </div>
+      ) : (loading || !data) ? (
+        <Loader variant="page" label="Loading dashboard" />
+      ) : (
      <div className="ak-page">
       {/* HEADER */}
       <header className="ak-header">
@@ -381,7 +392,7 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {lowStockItems.map((item) => (
+                {paginatedLowStockItems.map((item) => (
                   <tr key={item.product_id}>
                     <td className="ls-td-name">{item.product_name}</td>
                     <td className="ls-td-cat">{item.category ?? '—'}</td>
@@ -398,6 +409,34 @@ const AdminDashboard = () => {
               </tbody>
             </table>
           </div>
+          {lowStockPageCount > 1 && (
+            <div className="low-stock-pagination pg-container">
+              <span className="pg-info">
+                Showing {lowStockStart + 1}–{Math.min(lowStockStart + LOW_STOCK_PAGE_SIZE, lowStockItems.length)} of {lowStockItems.length}
+              </span>
+              <div className="pg-controls" aria-label="Low stock alert pagination">
+                <button
+                  type="button"
+                  className="pg-btn"
+                  disabled={currentLowStockPage === 1}
+                  onClick={() => setLowStockPage(page => Math.max(1, page - 1))}
+                >
+                  Previous
+                </button>
+                <span className="low-stock-page-label" aria-live="polite">
+                  Page {currentLowStockPage} of {lowStockPageCount}
+                </span>
+                <button
+                  type="button"
+                  className="pg-btn"
+                  disabled={currentLowStockPage === lowStockPageCount}
+                  onClick={() => setLowStockPage(page => Math.min(lowStockPageCount, page + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       
@@ -449,7 +488,7 @@ const AdminDashboard = () => {
           ) : (
             <ul className="recent-activity-list">
               {recentActivity.map((item, idx) => {
-                const meta = activityMeta[item.type] ?? { label: item.type, color: '#6b7280', bg: '#f3f4f6' };
+                const meta = activityMeta[item.type] ?? { label: item.type, color: 'var(--text-muted)', bg: '#f3f4f6' };
                 const isAudit = item.type === 'audit';
                 return (
                   <li key={idx} className="recent-activity-item">
@@ -563,7 +602,7 @@ const AdminDashboard = () => {
           <div className="chart-card">
             <h3>Transaction Trends</h3>
             <div className="chart-wrapper">
-              <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'Purchase Orders', data: transactionTrends.purchase_values ?? [], borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'Sales', data: transactionTrends.values ?? [], borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
+              <Line data={{ labels: transactionTrends.labels, datasets: [{ label: 'Purchase Orders', data: transactionTrends.purchase_values ?? [], borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }, { label: 'Issue Outs', data: transactionTrends.values ?? [], borderColor: '#DC2626', backgroundColor: 'rgba(220,38,38,0.2)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5 }] }} options={lineOptions} />
             </div>
           </div>
         </div>
@@ -599,11 +638,12 @@ const AdminDashboard = () => {
                 <div className="chart-card">
           <h3>Warehouse Capacity</h3>
           <div className="chart-wrapper">
-            <Bar data={{ labels: warehouseCapacity.labels, datasets: [{ label: 'Capacity', data: warehouseCapacity.capacity, backgroundColor: '#D1D5DB', borderRadius: 4, barThickness: 80 }, { label: 'Occupancy', data: warehouseCapacity.occupancy, backgroundColor: '#DC2626', borderRadius: 4, barThickness: 80 }] }} options={groupedBarOptions} />
+            <Bar data={{ labels: warehouseCapacity.labels, datasets: [{ label: 'Capacity', data: warehouseCapacity.capacity, backgroundColor: 'var(--fill-slate-200)', borderRadius: 4, barThickness: 80 }, { label: 'Occupancy', data: warehouseCapacity.occupancy, backgroundColor: '#DC2626', borderRadius: 4, barThickness: 80 }] }} options={groupedBarOptions} />
           </div>
         </div>
       </div>
      </div>
+      )}
     </AdminLayout>
 
   );

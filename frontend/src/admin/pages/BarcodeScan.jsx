@@ -16,14 +16,26 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import {
   itemsAPI, productsAPI, inventoryAPI, categoriesAPI, brandsAPI,
   receivingsAPI, issuancesAPI, transfersAPI, adjustmentsAPI, barcodeScanAPI, locationsAPI, purchaseOrdersAPI,
-  istAPI,
+  istAPI, openApiFile, receivingDraftsAPI,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import LocationBadge    from '../components/LocationBadge';
 import LocationSelector from '../components/LocationSelector';
+import ReceivingReceipt from '../components/ReceivingReceipt';
+import RecordHistoryModal from '../components/RecordHistoryModal';
+import ReceivingHistoryLog from '../components/ReceivingHistoryLog';
+import CountEntryPanel from '../components/receiving/CountEntryPanel';
+import MaterialTagSheet from '../components/tags/MaterialTagSheet';
+import { getStatusConfig } from '../utils/poStatus';
 // NOTE: LocalStorage PO integration removed - dropdown shows only database POs
 import { getRoleKey, ROLES } from '../utils/roles';
+import {
+  linesForLocation as bsrLinesForLocation,
+  locationAmount as bsrLocationAmount,
+  locationItemCount as bsrLocationItemCount,
+  warehouseBreakdown as bsrWarehouseBreakdown,
+} from '../utils/poReceivingTotals';
 import '../styles/barcode_scan.css';
 import '../styles/item_management.css';
 import '../styles/po_receiving.css';
@@ -86,7 +98,7 @@ const MODES = [
     key: 'receive-po',
     label: 'Receive PO',
     apiLabel: 'RECEIVE PO',
-    color: '#10b981',
+    color: 'var(--ink-teal-600)',
     bg: '#ecfdf5',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
@@ -98,11 +110,23 @@ const MODES = [
     key: 'issue-out',
     label: 'Issue Out',
     apiLabel: 'ISSUE OUT',
-    color: '#3b82f6',
+    color: 'var(--ink-blue-400)',
     bg: '#eff6ff',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
         <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+      </svg>
+    ),
+  },
+  {
+    key: 'transfer',
+    label: 'Transfer',
+    apiLabel: 'TRANSFER',
+    color: 'var(--ink-orange-500-2)',
+    bg: '#fffbeb',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
+        <path d="M16 3l4 4-4 4"/><path d="M20 7H4"/><path d="M8 21l-4-4 4-4"/><path d="M4 17h16"/>
       </svg>
     ),
   },
@@ -120,9 +144,9 @@ const MODES = [
   },
   {
     key: 'adjust',
-    label: 'Adjust',
+    label: 'Report Incident',
     apiLabel: 'ADJUST',
-    color: '#ef4444',
+    color: 'var(--ink-red-400)',
     bg: '#fef2f2',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
@@ -141,6 +165,22 @@ const movementColor = (type = '') => {
   if (t.includes('transfer'))                         return '#f59e0b';
   if (t.includes('adjust'))                           return '#ef4444';
   return '#6b7280';
+};
+
+const auditMovementLabel = (type = '') => {
+  const labels = {
+    receiving: 'Received',
+    issuance: 'Issued out',
+    transfer: 'Transferred',
+    audit: 'Audited',
+  };
+  return labels[String(type).toLowerCase()] || String(type || 'Activity');
+};
+
+const formatAuditDate = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
 };
 
 /** List Carmen-named showrooms first in the transfer destination dropdown */
@@ -492,18 +532,6 @@ const bsrGetItemCount = (po) =>
   Array.isArray(po?.details) ? po.details.length : '—';
 const bsrIsSerialized = (line) => line?.product?.product_type === 'appliance';
 
-/**
- * Lines on a PO destined for a given warehouse — a receiver at Warehouse A should only see/receive
- * the lines whose `location_id` (or the legacy PO header `location_id`, for single-warehouse POs
- * predating per-line warehouses) matches their own warehouse. Pass `locationId` null/empty for
- * centralized/admin users who are not locked to one warehouse — they may receive any line.
- */
-const bsrLinesForLocation = (po, locationId) => {
-  const details = Array.isArray(po?.details) ? po.details : [];
-  if (!locationId) return details;
-  return details.filter((d) => String(d.location_id ?? po?.location_id) === String(locationId));
-};
-
 const BsrBarcodeIcon = ({ size = 26, color = '#9810FA' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 5v4"/><path d="M3 15v4"/><path d="M7 5v2"/><path d="M7 17v2"/>
@@ -537,6 +565,111 @@ function pickPreferredCameraDeviceId(devices, savedId) {
   const physical = devices.find((d) => !isLikelyVirtualCameraLabel(d.label));
   if (physical) return physical.deviceId;
   return devices[0].deviceId;
+}
+
+function AuditInspectionDetails({ scanResult }) {
+  const audit = scanResult.auditSnapshot || {};
+  const serial = audit.serial;
+  const history = Array.isArray(audit.history) ? audit.history : [];
+  const inventoryRows = Array.isArray(scanResult.inventoryRows) ? scanResult.inventoryRows : [];
+  const totalOnHand = inventoryRows.reduce((sum, row) => sum + Number(row.quantity_on_hand || 0), 0);
+
+  return (
+    <div className="bs-audit-dossier">
+      <div className="bs-audit-summary">
+        <div>
+          <span className="bs-audit-kicker">Audit result</span>
+          <h3>{serial ? 'Individual serialized unit' : 'Product inventory record'}</h3>
+          <p>Matched by {serial ? 'serial number' : 'product barcode'} · read-only verification</p>
+        </div>
+        <span className="bs-audit-verified">Verified</span>
+      </div>
+
+      <div className="bs-audit-metrics">
+        <div><span>Product status</span><strong>{scanResult.item.status?.status_name || 'Active'}</strong></div>
+        <div><span>Selected location</span><strong>{audit.location_name || '—'}</strong></div>
+        <div><span>Stock here</span><strong>{audit.stock_on_hand ?? 0}</strong></div>
+        <div><span>All locations</span><strong>{audit.total_on_hand ?? totalOnHand}</strong></div>
+        <div><span>Available</span><strong>{audit.total_available ?? 0}</strong></div>
+        <div><span>Inventory sites</span><strong>{audit.inventory_locations ?? inventoryRows.length}</strong></div>
+      </div>
+
+      {serial && (
+        <section className="bs-audit-section">
+          <div className="bs-audit-section-head">
+            <h4>Serialized unit information</h4>
+            <span className="bs-status-chip">{serial.status?.status_name || serial.serial_type || 'Recorded'}</span>
+          </div>
+          <div className="bs-audit-info-grid">
+            <div><span>Serial number</span><strong className="bs-mono">{serial.serial_number}</strong></div>
+            <div><span>Unit status</span><strong>{serial.status?.status_name || '—'}</strong></div>
+            <div><span>Current location</span><strong>{serial.location?.location_name || 'Not currently in stock'}</strong></div>
+            <div><span>Lifecycle state</span><strong>{serial.serial_type || '—'}</strong></div>
+            <div><span>Receiving reference</span><strong>{serial.receiving?.receiving_number || (serial.receiving_id ? `#${serial.receiving_id}` : '—')}</strong></div>
+            <div><span>Originally scanned by</span><strong>{serial.scanned_by?.name || serial.scanned_by?.username || '—'}</strong></div>
+            <div><span>Recorded</span><strong>{formatAuditDate(serial.created_at)}</strong></div>
+            <div><span>Last updated</span><strong>{formatAuditDate(serial.updated_at)}</strong></div>
+          </div>
+        </section>
+      )}
+
+      <section className="bs-audit-section">
+        <div className="bs-audit-section-head">
+          <h4>Stock by location</h4>
+          <span>{inventoryRows.length} location{inventoryRows.length === 1 ? '' : 's'}</span>
+        </div>
+        {inventoryRows.length ? (
+          <div className="bs-audit-table-wrap">
+            <table className="bs-audit-table">
+              <thead><tr><th>Location</th><th>Type</th><th>On hand</th><th>Available</th><th>Reserved</th></tr></thead>
+              <tbody>
+                {inventoryRows.map((row, index) => (
+                  <tr key={row.inventory_id || index}>
+                    <td>{row.location?.location_name || '—'}</td>
+                    <td>{row.location?.location_type || '—'}</td>
+                    <td>{row.quantity_on_hand ?? 0}</td>
+                    <td>{row.available_quantity ?? row.quantity_on_hand ?? 0}</td>
+                    <td>{row.reserved_quantity ?? 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="bs-audit-empty">No inventory rows exist for this product.</p>}
+      </section>
+
+      <section className="bs-audit-section">
+        <div className="bs-audit-section-head">
+          <h4>{serial ? 'Unit history' : 'Product movement history'}</h4>
+          <span>Latest {history.length} event{history.length === 1 ? '' : 's'}</span>
+        </div>
+        {history.length ? (
+          <div className="bs-audit-timeline">
+            {history.map((event) => (
+              <div className="bs-audit-event" key={event.id}>
+                <span className="bs-audit-event-dot" style={{ background: movementColor(event.transaction_type) }} />
+                <div>
+                  <div className="bs-audit-event-title">
+                    <strong>{auditMovementLabel(event.transaction_type)}</strong>
+                    <span>{formatAuditDate(event.created_at)}</span>
+                  </div>
+                  <p>
+                    {event.location?.location_name || 'Unknown location'}
+                    {event.to_location?.location_name ? ` → ${event.to_location.location_name}` : ''}
+                    {Number(event.quantity_delta) !== 0 ? ` · Quantity ${Number(event.quantity_delta) > 0 ? '+' : ''}${event.quantity_delta}` : ''}
+                  </p>
+                  <small>
+                    Barcode {event.barcode || '—'} · By {event.user?.name || event.user?.username || 'System'}
+                    {event.purchase_order?.po_number ? ` · PO ${event.purchase_order.po_number}` : ''}
+                  </small>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <p className="bs-audit-empty">No movement history has been recorded for this item yet.</p>}
+      </section>
+    </div>
+  );
 }
 
 const BarcodeScan = () => {
@@ -614,6 +747,16 @@ const BarcodeScan = () => {
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [txSubmitting, setTxSubmitting] = useState(false);
   const [txLogs, setTxLogs] = useState([]);
+  // Goods Received Note preview for a just-posted receiving session
+  const [receiptReceiving, setReceiptReceiving] = useState(null);
+  const openReceipt = async (receivingId) => {
+    try {
+      const res = await receivingsAPI.getById(receivingId);
+      setReceiptReceiving(res?.data || null);
+    } catch {
+      toast.error('Failed to load the receiving receipt');
+    }
+  };
   const [transferSubmode, setTransferSubmode] = useState('out'); // kept for legacy: no longer used by a selectable mode
   const [txForm, setTxForm] = useState({
     quantity: 1,
@@ -621,6 +764,7 @@ const BarcodeScan = () => {
     location_id: '',
     to_location_id: '',
     pc_id: '',
+    zone_label: '',
     adjustment_direction: 'deduct',
     ship_transfer_first: true,
     pending_transfer_id: '',
@@ -635,17 +779,84 @@ const BarcodeScan = () => {
   const [bsrPoLoading, setBsrPoLoading] = useState(false);
   const [bsrSelectedPo, setBsrSelectedPo] = useState(null);
   const [bsrProductProgress, setBsrProductProgress] = useState({});
+  // Packages received per PO line, counted rather than derived from pieces.
+  // Piece verification lets a package post fewer pieces than its nominal size,
+  // so pieces / pieces_per_package floors a genuine 2 packs down to 1.
+  const [bsrPackageProgress, setBsrPackageProgress] = useState({});
   const [bsrPoSearchQ, setBsrPoSearchQ] = useState('');
   const [bsrScannedItems, setBsrScannedItems] = useState([]);
+  // The staged delivery. Null until a PO+location is chosen. `items` are staged
+  // rows that have NOT moved stock — only Submit does that.
+  const [bsrDraft, setBsrDraft] = useState(null);
+  const [bsrSubmitting, setBsrSubmitting] = useState(false);
+  const [bsrSubmitFailures, setBsrSubmitFailures] = useState([]);
+  // Bumped after a submit to make the draft-open effect re-run when the PO and
+  // warehouse are unchanged but the previous draft has been posted and closed.
+  const [bsrDraftReloadKey, setBsrDraftReloadKey] = useState(0);
   const [bsrLocationId, setBsrLocationId] = useState('');
+  const [bsrZoneLabel, setBsrZoneLabel] = useState('');
+  const [bsrExistingZoneLabels, setBsrExistingZoneLabels] = useState([]);
   const [bsrScanInput, setBsrScanInput] = useState('');
+  const [bsrCaptureArmed, setBsrCaptureArmed] = useState(false);
   const [bsrScanning, setBsrScanning] = useState(false);
   const [bsrActiveLine, setBsrActiveLine] = useState(null);
   const [bsrScanSuccess, setBsrScanSuccess] = useState(null);
   const [bsrAlertModal, setBsrAlertModal] = useState(null);
+  // Digital tags minted for the material just received (INT-... serials).
+  // null/empty when the last receipt was a serialized appliance — the scanned
+  // serial itself is the identifier there, not a generated tag.
+  const [bsrLastTags, setBsrLastTags] = useState(null);
   /** Set of lowercase-trimmed scanned_barcode values already in the DB for the active PO. */
   const [bsrPoReceivedBarcodes, setBsrPoReceivedBarcodes] = useState(new Set());
   const [bsrPoStatusLoading, setBsrPoStatusLoading] = useState(false);
+  /** Count-entry escape hatch: material that arrives with no barcode to scan. */
+  const [bsrCountMode, setBsrCountMode] = useState(false);
+  /**
+   * Pending over-receipt confirmation. Carries `viaScan` when it came from a
+   * scan and `viaVerify` when it came from the contents-verification panel, so
+   * the confirm button re-issues against the endpoint that raised it.
+   */
+  const [bsrPendingOverage, setBsrPendingOverage] = useState(null);
+  const [bsrCountBusy, setBsrCountBusy] = useState(false);
+  /**
+   * Contents verification for a line that was already SCANNED. Scanning posts
+   * each box at its printed contents; this reconciles the line once the boxes
+   * have actually been opened and counted.
+   */
+  const [bsrVerifyMode, setBsrVerifyMode] = useState(false);
+  /** Typed pieces; null means untouched, so the field shows the expectation. */
+  const [bsrVerifyPieces, setBsrVerifyPieces] = useState(null);
+  /**
+   * Whether a line's contents have been verified, keyed by po_detail_id.
+   * Seeded from `contents_verified` on scan-status; set true locally after a
+   * successful verify or count (counting a line IS verifying it). A line with
+   * zero receipts reports this true vacuously (no box has been opened yet), so
+   * callers must gate the "unverified" prompt on receipts > 0.
+   */
+  const [bsrContentsVerified, setBsrContentsVerified] = useState({});
+  /** Top-up mode: entering loose pieces to complete a short package on a line. */
+  const [bsrTopUpMode, setBsrTopUpMode] = useState(false);
+  const [bsrTopUpPieces, setBsrTopUpPieces] = useState(null);
+
+  // Receive PO: "Select PO" vs "History" tab, and the shared PO History modal.
+  const [bsrTab, setBsrTab] = useState('select'); // 'select' | 'history'
+  const [historyRecord, setHistoryRecord] = useState(null);
+  const [historyMilestones, setHistoryMilestones] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const openPoHistory = (poId) => {
+    setHistoryLoading(true);
+    Promise.all([
+      purchaseOrdersAPI.getById(poId),
+      purchaseOrdersAPI.history(poId),
+    ])
+      .then(([poRes, historyRes]) => {
+        setHistoryRecord(poRes?.data || null);
+        setHistoryMilestones(Array.isArray(historyRes?.data) ? historyRes.data : []);
+      })
+      .catch(() => { setHistoryRecord(null); setHistoryMilestones([]); })
+      .finally(() => setHistoryLoading(false));
+  };
 
   // ── IST Transfer Scan state ──────────────────────────────────────────────
   const [istList,          setIstList]          = useState([]);
@@ -798,9 +1009,10 @@ const BarcodeScan = () => {
   const issuancePreviewKeyRef = useRef('');
   const bsrInputRef = useRef(null);
   const bsrScanTimerRef = useRef(null);
+  const bsrCaptureArmedRef = useRef(false);
   const bsrProcessingRef = useRef(false); // synchronous lock — prevents double-fire
-  // True while a PO is selected in BSR mode — used by applyDecodedBarcode to block
-  // continuous camera auto-scan; only the manual Scan (circular) button fires scans.
+  // True while a PO is selected in BSR mode; automatic camera reads use the
+  // receiving handler's synchronous request lock.
   const bsrModeActiveRef = useRef(false);
 
   /* ── hydrate location enforcement fields ── */
@@ -843,6 +1055,8 @@ const BarcodeScan = () => {
       setBsrSelectedPo(null);
       setBsrScannedItems([]);
       setBsrProductProgress({});
+      setBsrPackageProgress({});
+      setBsrContentsVerified({});
       setBsrPoSearchQ('');
       return;
     }
@@ -943,7 +1157,7 @@ const BarcodeScan = () => {
         try {
           const lookupRes = await barcodeScanAPI.lookup(code);
           const lookupPayload = lookupRes?.data;
-          if (lookupPayload?.status === 'PENDING_CONSUMABLE') {
+          if (lookupPayload?.status === 'PENDING_INSTALLATION_MATERIAL') {
             playScanFeedback(false);
             toast.warning('This product registration is pending approval');
             return;
@@ -995,7 +1209,7 @@ const BarcodeScan = () => {
           toast.error(lookupErr.message || 'Barcode lookup failed.');
           return;
         }
-        if (lookupPayload?.status === 'PENDING_CONSUMABLE') {
+        if (lookupPayload?.status === 'PENDING_INSTALLATION_MATERIAL') {
           playScanFeedback(false);
           toast.warning('This product registration is pending approval');
           return;
@@ -1152,6 +1366,7 @@ const BarcodeScan = () => {
           }
           body.location_id = Number(txForm.location_id);
           body.quantity = qtyEngine;
+          body.zone_label = txForm.zone_label || null;
         }
         if (engineTransactionType === 'audit') {
           body.location_id = Number(txForm.location_id);
@@ -1417,15 +1632,23 @@ const BarcodeScan = () => {
   }, []);
 
   const applyDecodedBarcode = useCallback((decodedText) => {
-    if (scanningRef.current) return;
     // In BSR mode the circular Scan button is the only trigger — block auto-scan.
-    if (bsrModeActiveRef.current) return;
     const code = String(decodedText || '').replace(/\s+/g, '').trim();
     if (!code) return;
+    if (bsrModeActiveRef.current && !bsrCaptureArmedRef.current) return;
+    if (bsrModeActiveRef.current && bsrProcessingRef.current) {
+      if (code === lastCodeRef.current) lastTimeRef.current = Date.now();
+      return;
+    }
+    if (scanningRef.current) return;
     const now = Date.now();
     if (code === lastCodeRef.current && now - lastTimeRef.current < CAMERA_SAME_CODE_MS) return;
     lastCodeRef.current = code;
     lastTimeRef.current = now;
+    if (bsrModeActiveRef.current) {
+      bsrCaptureArmedRef.current = false;
+      setBsrCaptureArmed(false);
+    }
     setLastDecoded(code);
     setBarcodeInput(code);
     handleScanRef.current?.(code);
@@ -1567,6 +1790,8 @@ const BarcodeScan = () => {
   };
 
   const stopCamera = async () => {
+    bsrCaptureArmedRef.current = false;
+    setBsrCaptureArmed(false);
     await stopReaderAndTracks();
     setCameraActive(false);
   };
@@ -1581,6 +1806,15 @@ const BarcodeScan = () => {
     }
     // In BSR mode block the circular button while a scan or modal is already active.
     if (bsrModeActiveRef.current && bsrProcessingRef.current) return;
+    if (bsrModeActiveRef.current) {
+      if (bsrCaptureArmedRef.current) {
+        bsrCaptureArmedRef.current = false;
+        setBsrCaptureArmed(false);
+        return;
+      }
+      bsrCaptureArmedRef.current = true;
+      setBsrCaptureArmed(true);
+    }
     if (scanningRef.current) {
       toast.info('Still processing the previous scan — try again in a moment.');
       return;
@@ -1598,12 +1832,17 @@ const BarcodeScan = () => {
     }
     if (!code) code = tryDecodeVideoCenterCropZxing(v);
     if (!code || code.length < 2) {
+      if (bsrModeActiveRef.current) return;
       toast.warning('No barcode found. Center the code in the frame, add light, and tap Scan again.');
       return;
     }
     const now = Date.now();
     lastCodeRef.current = code;
     lastTimeRef.current = now;
+    if (bsrModeActiveRef.current) {
+      bsrCaptureArmedRef.current = false;
+      setBsrCaptureArmed(false);
+    }
     setLastDecoded(code);
     setBarcodeInput(code);
     handleScanRef.current?.(code);
@@ -1635,6 +1874,10 @@ const BarcodeScan = () => {
       navigate('/admin/issuance-scan');
       return;
     }
+    if (mode.key === 'transfer') {
+      navigate('/admin/transfers');
+      return;
+    }
     setScanMode(mode);
     setModeIndex(idx);
     setScanResult(null);
@@ -1651,6 +1894,8 @@ const BarcodeScan = () => {
     setBsrSelectedPo(null);
     setBsrScannedItems([]);
     setBsrProductProgress({});
+    setBsrPackageProgress({});
+    setBsrContentsVerified({});
     setBsrPoSearchQ('');
     setBsrScanInput('');
     setBsrActiveLine(null);
@@ -1672,6 +1917,7 @@ const BarcodeScan = () => {
     setBsrScannedItems([]);
     setBsrActiveLine(null);
     setBsrScanInput('');
+    setBsrZoneLabel('');
     setBsrPoReceivedBarcodes(new Set());
     // Explicitly clear the camera same-code debounce buffer on PO transition
     // so the camera cannot re-fire the previous PO's last scanned code.
@@ -1683,10 +1929,17 @@ const BarcodeScan = () => {
     const receivableDetailIds = new Set(receivableLines.map((d) => d.po_detail_id).filter(Boolean));
 
     const prog = {};
+    const verifiedSeed = {};
     receivableLines.forEach((d) => {
-      if (d.po_detail_id) prog[d.po_detail_id] = 0;
+      if (d.po_detail_id) {
+        prog[d.po_detail_id] = 0;
+        // Nothing received yet, so there is no unopened box to flag.
+        verifiedSeed[d.po_detail_id] = true;
+      }
     });
     setBsrProductProgress(prog);
+    setBsrPackageProgress({ ...prog });
+    setBsrContentsVerified(verifiedSeed);
 
     // Load existing receiving data for this PO from the database so that:
     // 1. Progress bars start at actual received quantities, not zero.
@@ -1701,15 +1954,25 @@ const BarcodeScan = () => {
 
         const receivedBarcodes = new Set();
         const updatedProg = { ...prog };
+        const updatedPkgProg = { ...prog };
+        const updatedVerified = { ...verifiedSeed };
         lines.forEach((line) => {
           if (line.po_detail_id != null && line.already_received > 0) {
             updatedProg[line.po_detail_id] = line.already_received;
+          }
+          if (line.po_detail_id != null && line.already_received_packages > 0) {
+            updatedPkgProg[line.po_detail_id] = line.already_received_packages;
+          }
+          if (line.po_detail_id != null) {
+            updatedVerified[line.po_detail_id] = !!line.contents_verified;
           }
           (line.scanned_barcodes || []).forEach((bc) => {
             if (bc) receivedBarcodes.add(bc.trim().toLowerCase());
           });
         });
         setBsrProductProgress(updatedProg);
+        setBsrPackageProgress(updatedPkgProg);
+        setBsrContentsVerified(updatedVerified);
         setBsrPoReceivedBarcodes(receivedBarcodes);
 
         // Restore the scanned-items list from the DB history (newest first), scoped to this
@@ -1722,7 +1985,7 @@ const BarcodeScan = () => {
             id: entry.receiving_detail_id ?? Date.now() + idx,
             barcode: entry.scanned_barcode ?? '',
             productName: entry.product_name ?? 'Unknown',
-            serial: entry.is_serialized ? (entry.scanned_barcode ?? null) : null,
+            serial: entry.serial_number ?? entry.scanned_barcode ?? null,
             packages: entry.is_serialized ? null : 1,
             qty: entry.is_serialized ? null : entry.quantity_amount,
             productId: entry.product_id,
@@ -1740,6 +2003,79 @@ const BarcodeScan = () => {
     setTimeout(() => bsrInputRef.current?.focus(), 100);
   };
 
+  /**
+   * Open or resume the staged delivery for this PO at this warehouse.
+   *
+   * This has to be an effect rather than a step inside handleBsrSelectPo,
+   * because the warehouse is chosen AFTER the purchase order: only
+   * strict-location roles have bsrLocationId pre-filled, so for an admin or
+   * centralized user it is still empty when the PO is picked. Opening the
+   * draft there left bsrDraft null and every scan hit the "no delivery is
+   * open" guard.
+   *
+   * bsrDraftReloadKey is what re-runs this after a submit, when the PO and
+   * location have not changed but the old draft has been posted and closed.
+   */
+  useEffect(() => {
+    if (scanMode?.key !== 'receive-po' || !bsrSelectedPo || !bsrLocationId) {
+      setBsrDraft(null);
+      return;
+    }
+
+    const poId = bsrSelectedPo?.po_id ?? bsrSelectedPo?.id;
+    if (!poId) {
+      setBsrDraft(null);
+      return;
+    }
+
+    let cancelled = false;
+    receivingDraftsAPI.open({ po_id: poId, location_id: bsrLocationId })
+      .then((res) => {
+        if (cancelled) return;
+        if (res?.data?.action === 'rejected') {
+          setBsrDraft(null);
+          setBsrAlertModal({
+            type: 'error',
+            title: 'Cannot Receive',
+            message: res.data.reason,
+          });
+          return;
+        }
+        setBsrDraft(res?.data ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setBsrDraft(null);
+      });
+
+    return () => { cancelled = true; };
+  }, [scanMode?.key, bsrSelectedPo, bsrLocationId, bsrDraftReloadKey]);
+
+  useEffect(() => {
+    if (scanMode?.key !== 'receive-po' || !bsrSelectedPo || !bsrLocationId) {
+      setBsrExistingZoneLabels([]);
+      return;
+    }
+
+    let cancelled = false;
+    inventoryAPI.getWarehouseBatches()
+      .then((res) => {
+        if (cancelled) return;
+        const batches = Array.isArray(res?.data) ? res.data : [];
+        const labels = [...new Set(
+          batches
+            .filter((batch) => String(batch.location_id) === String(bsrLocationId))
+            .map((batch) => String(batch.zone_label || '').trim())
+            .filter(Boolean),
+        )].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        setBsrExistingZoneLabels(labels);
+      })
+      .catch(() => {
+        if (!cancelled) setBsrExistingZoneLabels([]);
+      });
+
+    return () => { cancelled = true; };
+  }, [scanMode?.key, bsrSelectedPo, bsrLocationId]);
+
   // Clear the scan input buffer and cancel any pending debounce whenever the
   // active line changes. Prevents a serial number typed for one product from
   // leaking into the next product's scan when the user switches lines.
@@ -1753,9 +2089,16 @@ const BarcodeScan = () => {
     // against the new product context if the camera is still aimed at it.
     lastCodeRef.current = '';
     lastTimeRef.current = 0;
+    // A count in progress belongs to the line it was opened for.
+    setBsrCountMode(false);
+    setBsrVerifyMode(false);
+    setBsrVerifyPieces(null);
+    setBsrPendingOverage(null);
+    // Tags belong to the receipt that minted them, not the line in general.
+    setBsrLastTags(null);
   }, [bsrActiveLine?.po_detail_id]);
 
-  const handleBsrScan = useCallback(async (raw) => {
+  const handleBsrScan = useCallback(async (raw, acceptOverage = false) => {
     // Synchronous ref lock — blocks any second invocation that arrives before
     // the first one's React state update (bsrScanning) has propagated.
     if (bsrProcessingRef.current) return;
@@ -1772,13 +2115,18 @@ const BarcodeScan = () => {
       setBsrScanInput('');
       return;
     }
+    if (!bsrDraft) {
+      bsrProcessingRef.current = true;
+      setBsrAlertModal({ type: 'error', title: 'No Delivery Open', message: 'No delivery is open. Re-select the purchase order.' });
+      setBsrScanInput('');
+      return;
+    }
     // Cancel any pending debounce so the timer can't fire a second time.
     if (bsrScanTimerRef.current) { clearTimeout(bsrScanTimerRef.current); bsrScanTimerRef.current = null; }
 
     const isSerialized = bsrIsSerialized(bsrActiveLine);
-    // Pre-compute here so they are available for both pre-checks and the scan body.
+    // Pre-compute here so it is available for both pre-checks and the scan body.
     const pcs = Number(bsrActiveLine.product?.pieces_per_package) || 1;
-    const pkgs = 1;
 
     // ── Duplicate / already-received pre-checks (all run before any API call) ──
 
@@ -1792,7 +2140,7 @@ const BarcodeScan = () => {
     const inSession = bsrScannedItems.some(
       (item) => item.barcode && item.barcode.trim().toLowerCase() === normalizedCode,
     );
-    if (inSession) {
+    if (inSession && isSerialized) {
       bsrProcessingRef.current = true;
       setBsrAlertModal({
         type: 'error',
@@ -1818,7 +2166,7 @@ const BarcodeScan = () => {
     // 2. Pre-check: is this PO line already fully received according to local progress?
     //    This catches both DB-initialised progress and within-session progress,
     //    avoiding a full round-trip just to get a rejection back from the server.
-    {
+    if (!acceptOverage) {
       const ordered    = Number(bsrActiveLine.quantity_ordered || 0);
       const orderedPcs = isSerialized ? ordered : ordered * pcs;
       const prevReceived = bsrProductProgress[bsrActiveLine.po_detail_id] || 0;
@@ -1839,71 +2187,158 @@ const BarcodeScan = () => {
     setBsrScanInput('');
     setBsrScanning(true);
     try {
-      const res = await inventoryAPI.scanTransaction({
-        barcode: raw.trim(),
-        transaction_type: 'receiving',
-        location_id: bsrLocationId,
-        po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
+      const res = await receivingDraftsAPI.stageItem(bsrDraft.draft_id, {
         po_detail_id: bsrActiveLine.po_detail_id,
-        quantity: pkgs,
+        entry_mode: 'scanned',
+        barcode: raw.trim(),
       });
-      const data = res?.data ?? res;
-      const action = data?.action ?? data?.status;
-      if (action === 'rejected') {
-        // Match both "already received" and "already been recorded as received / Duplicate prevented"
-        const isAlreadyReceived = /already.*received|duplicate.*prevented/i.test(data?.reason || '');
+
+      const payload = res?.data;
+
+      if (payload?.action === 'rejected') {
         setBsrAlertModal({
           type: 'error',
-          title: isAlreadyReceived ? 'Barcode Already Received' : 'Scan Rejected',
-          message: data?.reason || 'Scan rejected.',
+          title: 'Cannot Stage This Item',
+          message: payload.reason,
         });
         return;
       }
-      const qtyReceived       = data?.quantity_received ?? (isSerialized ? 1 : pkgs * pcs);
-      const packageUnitLabel  = data?.packages_unit_label ?? 'pkg';
-      const remainingPackages = data?.remaining_packages ?? null;
-      const productName = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
-      const productId   = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
-      const poDetailId  = bsrActiveLine.po_detail_id;
-      const ordered     = Number(bsrActiveLine.quantity_ordered || 0);
-      // quantity_ordered is in packages for consumables; convert to pieces for progress tracking
-      const orderedPcs  = isSerialized ? ordered : ordered * pcs;
-      const prevReceived = bsrProductProgress[poDetailId] || 0;
-      const newReceived  = prevReceived + qtyReceived;
 
-      setBsrScannedItems((prev) => [
-        {
-          id: Date.now(), barcode: raw.trim(), productName,
-          serial: isSerialized ? raw.trim() : null,
-          packages: isSerialized ? null : pkgs,
-          qty: isSerialized ? null : qtyReceived,
-          productId, poDetailId, at: new Date().toLocaleTimeString(),
-        },
-        ...prev,
-      ]);
-      setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
-      // Keep the local received-barcodes set in sync so subsequent scans of the
-      // same barcode in this session are caught by the pre-check above.
-      setBsrPoReceivedBarcodes((prev) => new Set([...prev, normalizedCode]));
-
-      // Immediately reflect the updated PO status (Partially Received / Completed)
-      // in both the BSR list and the selected PO, using the value the server just
-      // persisted — no second network request needed.
-      if (data?.po_status) {
-        const activePo = bsrSelectedPo;
-        const activePoId = activePo?.po_id ?? activePo?.id;
-        setBsrPoList((prev) => prev.map((po) =>
-          (po.po_id ?? po.id) === activePoId
-            ? { ...po, status: { ...(po.status || {}), status_name: data.po_status } }
-            : po,
-        ));
-        setBsrSelectedPo((prev) => prev
-          ? { ...prev, status: { ...(prev.status || {}), status_name: data.po_status } }
-          : prev,
+      // An overage is shown, never blocked. The clerk has to be able to stage
+      // what is physically on the floor before deciding what to do about it.
+      if (payload?.warning) {
+        toast.warning(
+          payload.warning.limit === 'packages'
+            ? `Staged — this is ${payload.warning.overage_packages} package(s) more than ordered.`
+            : `Staged — this is ${payload.warning.overage} piece(s) more than ordered.`,
         );
       }
 
-      // Broadcast to ApprovalQueue and InventoryManagement so they re-fetch instantly.
+      setBsrDraft(payload.draft);
+      // No blocking success modal in the staging flow (the staged list below is
+      // the feedback), so release the lock here rather than on a modal dismiss.
+      bsrProcessingRef.current = false;
+      setTimeout(() => bsrInputRef.current?.focus(), 80);
+    } catch (e) {
+      setBsrAlertModal({ type: 'error', title: 'Scan Failed', message: e?.message || 'Scan failed.' });
+    } finally {
+      setBsrScanning(false);
+      // On rejection, bsrProcessingRef stays locked until the error modal is
+      // dismissed (handleBsrAlertDismiss releases it), so no duplicate scan can
+      // slip through while the clerk is reading the message.
+    }
+  }, [bsrLocationId, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes, bsrDraft]);
+
+  /**
+   * Post a hand count for the active PO line (material that arrived with no
+   * barcode). Mirrors handleBsrScan's lock discipline, response unwrapping and
+   * progress bookkeeping so the two receiving paths cannot drift.
+   *
+   * The lock matters more here than on the scan path: the count endpoint has no
+   * barcode to dedupe on, so a double-submit genuinely posts twice.
+   */
+  const bsrPostCount = useCallback(async ({ units, actualPieces = null }) => {
+    if (!bsrActiveLine || bsrProcessingRef.current) return;
+    if (!bsrLocationId) {
+      setBsrAlertModal({ type: 'error', title: 'Location Required', message: 'Select a receiving location first.' });
+      return;
+    }
+    if (!bsrDraft) {
+      setBsrAlertModal({ type: 'error', title: 'No Delivery Open', message: 'No delivery is open. Re-select the purchase order.' });
+      return;
+    }
+    bsrProcessingRef.current = true; // lock — set before any await
+    setBsrCountBusy(true);
+    try {
+      const res = await receivingDraftsAPI.stageItem(bsrDraft.draft_id, {
+        po_detail_id: bsrActiveLine.po_detail_id,
+        entry_mode: 'counted',
+        quantity: units,
+        actual_pieces: actualPieces,
+      });
+
+      const payload = res?.data;
+
+      if (payload?.action === 'rejected') {
+        setBsrAlertModal({
+          type: 'error',
+          title: 'Cannot Stage This Count',
+          message: payload.reason,
+        });
+        return;
+      }
+
+      if (payload?.warning) {
+        toast.warning(
+          payload.warning.limit === 'packages'
+            ? `Staged — this is ${payload.warning.overage_packages} package(s) more than ordered.`
+            : `Staged — this is ${payload.warning.overage} piece(s) more than ordered.`,
+        );
+      }
+
+      setBsrDraft(payload.draft);
+      setBsrCountMode(false);
+    } catch (err) {
+      setBsrAlertModal({ type: 'error', title: 'Count Failed', message: err?.message || 'Failed to post count.' });
+    } finally {
+      bsrProcessingRef.current = false;
+      setBsrCountBusy(false);
+    }
+  }, [bsrActiveLine, bsrLocationId, bsrDraft]);
+
+  /**
+   * Reconcile an already-SCANNED line to the piece count the clerk verified
+   * after opening the packages. Scanning posts each box at its printed
+   * contents, so this applies the delta rather than posting a fresh receipt —
+   * which is why it must never be routed through receiveCount.
+   */
+  const bsrPostVerify = useCallback(async (packages, actualPieces, acceptOverage = false) => {
+    if (!bsrActiveLine || bsrProcessingRef.current) return;
+    if (!bsrLocationId) {
+      setBsrAlertModal({ type: 'error', title: 'Location Required', message: 'Select a receiving location first.' });
+      return;
+    }
+    bsrProcessingRef.current = true; // lock — set before any await
+    setBsrCountBusy(true);
+    try {
+      const res = await inventoryAPI.receiveVerify({
+        po_detail_id:   bsrActiveLine.po_detail_id,
+        location_id:    bsrLocationId,
+        packages:       packages,
+        actual_pieces:  actualPieces,
+        ...(acceptOverage ? { accept_overage: true } : {}),
+      });
+      const data   = res?.data ?? res;
+      const action = data?.action ?? data?.status;
+
+      if (action === 'over_receipt') {
+        // `viaVerify` sends the confirmation back to receive-verify. Falling
+        // through to the count endpoint would post a fresh receipt on top of
+        // the boxes already scanned — double-receiving the goods.
+        setBsrPendingOverage({ ...data, packages, actualPieces, viaVerify: true });
+        return;
+      }
+      if (action === 'rejected') {
+        setBsrAlertModal({ type: 'error', title: 'Verification Rejected', message: data?.reason || 'Verification rejected.' });
+        return;
+      }
+
+      // applied — the endpoint returns the line's ABSOLUTE posted total, so
+      // progress is replaced rather than incremented.
+      const productName  = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
+      const productId    = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
+      const poDetailId   = bsrActiveLine.po_detail_id;
+      const pcs          = Number(bsrActiveLine.product?.pieces_per_package) || 1;
+      const orderedPcs   = Number(bsrActiveLine.quantity_ordered || 0) * pcs;
+      const newReceived  = Number(data?.posted_after ?? actualPieces) || 0;
+
+      setBsrPendingOverage(null);
+      setBsrVerifyMode(false);
+      setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
+      // bsrPackageProgress is deliberately untouched: verification corrects how
+      // many PIECES were in the boxes, not how many boxes arrived.
+      setBsrContentsVerified((prev) => ({ ...prev, [poDetailId]: true }));
+
       window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
         detail: {
           transaction_type: 'receiving',
@@ -1912,44 +2347,93 @@ const BarcodeScan = () => {
         },
       }));
 
-      const lineComplete = orderedPcs > 0 && newReceived >= orderedPcs;
-      let nextLine = null;
-      if (lineComplete) {
-        const updatedProgress = { ...bsrProductProgress, [poDetailId]: newReceived };
-        nextLine = bsrLinesForLocation(bsrSelectedPo, myLocationId).find((d) => {
-          if (d.po_detail_id === poDetailId) return false;
-          const dOrdered = Number(d.quantity_ordered || 0);
-          const dPps = Number(d.product?.pieces_per_package) || 1;
-          const dIsSerialized = d.product?.product_type === 'appliance';
-          const dOrderedPcs = dIsSerialized ? dOrdered : dOrdered * dPps;
-          return dOrderedPcs > 0 && (updatedProgress[d.po_detail_id] || 0) < dOrderedPcs;
-        }) || null;
+      const delta = Number(data?.delta ?? 0);
+      setBsrAlertModal({
+        type: 'success',
+        title: 'Contents Verified',
+        message: `${productName}: ${newReceived} pcs recorded${orderedPcs > 0 ? ` of ${orderedPcs} pcs on this line` : ''}`
+          + `${delta === 0 ? ' — count matched.' : delta < 0 ? ` — ${Math.abs(delta)} pcs short of what was scanned.` : ` — ${delta} pcs more than was scanned.`}`,
+      });
+    } catch (err) {
+      setBsrAlertModal({ type: 'error', title: 'Verification Failed', message: err?.message || 'Failed to verify contents.' });
+    } finally {
+      bsrProcessingRef.current = false;
+      setBsrCountBusy(false);
+    }
+  }, [bsrActiveLine, bsrLocationId, bsrSelectedPo]);
+
+  /**
+   * Post loose pieces that complete a short package — e.g. a carton nominally
+   * holding 82 pieces that only had 68 inside. Posts with packages_received = 0
+   * on the backend, so it tops up the piece count without claiming another
+   * package against the PO's package budget.
+   */
+  const bsrPostTopUp = useCallback(async (pieces, acceptOverage = false) => {
+    if (!bsrActiveLine || bsrProcessingRef.current) return;
+    if (!bsrLocationId) {
+      setBsrAlertModal({ type: 'error', title: 'Location Required', message: 'Select a receiving location first.' });
+      return;
+    }
+    bsrProcessingRef.current = true; // lock — set before any await
+    setBsrCountBusy(true);
+    try {
+      const res = await inventoryAPI.receiveTopUp({
+        po_detail_id: bsrActiveLine.po_detail_id,
+        location_id:  bsrLocationId,
+        pieces:       pieces,
+        ...(acceptOverage ? { accept_overage: true } : {}),
+      });
+      const data   = res?.data ?? res;
+      const action = data?.action ?? data?.status;
+
+      if (action === 'over_receipt') {
+        // `viaTopUp` routes the confirm button back to receiveTopUp — never to
+        // receiveCount, which would claim a package and reintroduce the bug
+        // where a short-package top-up silently counted as a whole new box.
+        setBsrPendingOverage({ ...data, pieces, viaTopUp: true });
+        return;
+      }
+      if (action === 'rejected') {
+        setBsrAlertModal({ type: 'error', title: 'Top-Up Rejected', message: data?.reason || 'Top-up rejected.' });
+        return;
       }
 
-      // Show success modal — scanning is blocked until user clicks Done.
-      setBsrScanSuccess({
-        productName,
-        barcode: raw.trim(),
-        isSerialized,
-        pkgs,
-        pcs,
-        qtyReceived,
-        newReceived,
-        ordered,
-        orderedPcs,
-        lineComplete,
-        nextLine,
-        packageUnitLabel,
-        remainingPackages,
+      // applied — loose pieces added on top of whatever was already posted;
+      // packages_received stayed 0 server-side so bsrPackageProgress is untouched.
+      const productName  = bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Unknown Product';
+      const productId    = bsrActiveLine.product_id || bsrActiveLine.product?.product_id;
+      const poDetailId   = bsrActiveLine.po_detail_id;
+      const pcs          = Number(bsrActiveLine.product?.pieces_per_package) || 1;
+      const orderedPcs   = Number(bsrActiveLine.quantity_ordered || 0) * pcs;
+      const qtyReceived  = data?.quantity_received ?? Number(pieces || 0);
+      const prevReceived = bsrProductProgress[poDetailId] || 0;
+      const newReceived  = prevReceived + qtyReceived;
+
+      setBsrPendingOverage(null);
+      setBsrTopUpMode(false);
+      setBsrTopUpPieces(null);
+      setBsrProductProgress((prev) => ({ ...prev, [poDetailId]: newReceived }));
+
+      window.dispatchEvent(new CustomEvent('inventory-scan-applied', {
+        detail: {
+          transaction_type: 'receiving',
+          po_id: bsrSelectedPo?.po_id ?? bsrSelectedPo?.id,
+          product_id: productId,
+        },
+      }));
+
+      setBsrAlertModal({
+        type: 'success',
+        title: 'Missing Pieces Added',
+        message: `${qtyReceived} pcs of ${productName} added${orderedPcs > 0 ? ` — ${newReceived} of ${orderedPcs} pcs on this line` : ''}.`,
       });
-    } catch (e) {
-      setBsrAlertModal({ type: 'error', title: 'Scan Failed', message: e?.message || 'Scan failed.' });
+    } catch (err) {
+      setBsrAlertModal({ type: 'error', title: 'Top-Up Failed', message: err?.message || 'Failed to add missing pieces.' });
     } finally {
-      setBsrScanning(false);
-      // Do NOT release bsrProcessingRef here — it stays locked until the modal
-      // is dismissed, so no duplicate scan can slip through.
+      bsrProcessingRef.current = false;
+      setBsrCountBusy(false);
     }
-  }, [bsrLocationId, bsrSelectedPo, bsrActiveLine, bsrProductProgress, bsrScannedItems, bsrPoReceivedBarcodes, myLocationId]);
+  }, [bsrActiveLine, bsrLocationId, bsrProductProgress, bsrSelectedPo]);
 
   const handleBsrScanSuccessDone = useCallback(() => {
     const result = bsrScanSuccess;
@@ -1976,6 +2460,73 @@ const BarcodeScan = () => {
     bsrProcessingRef.current = false;
     setTimeout(() => bsrInputRef.current?.focus(), 80);
   }, []);
+
+  /** Remove a staged row. This is the fix for a mis-selected line. */
+  const handleBsrRemoveStaged = useCallback(async (itemId) => {
+    if (!bsrDraft) return;
+    try {
+      const res = await receivingDraftsAPI.removeItem(bsrDraft.draft_id, itemId);
+      setBsrDraft(res?.data?.draft ?? null);
+      setBsrSubmitFailures((prev) => prev.filter((f) => f.draft_item_id !== itemId));
+    } catch {
+      toast.error('Could not remove that row');
+    }
+  }, [bsrDraft]);
+
+  /** Correct the pieces on a staged row after opening a short box. */
+  const handleBsrAdjustStaged = useCallback(async (itemId, actualPieces) => {
+    if (!bsrDraft) return;
+    try {
+      const res = await receivingDraftsAPI.updateItem(bsrDraft.draft_id, itemId, {
+        actual_pieces: actualPieces,
+      });
+      setBsrDraft(res?.data?.draft ?? null);
+    } catch {
+      toast.error('Could not update that row');
+    }
+  }, [bsrDraft]);
+
+  /**
+   * The only action that moves stock. All-or-nothing: a blocked submit leaves
+   * the draft exactly as it was, with the offending rows flagged.
+   */
+  const handleBsrSubmitDraft = useCallback(async (acceptOverage = false) => {
+    if (!bsrDraft || bsrSubmitting) return;
+    setBsrSubmitting(true);
+    setBsrSubmitFailures([]);
+    try {
+      const res = await receivingDraftsAPI.submit(bsrDraft.draft_id, acceptOverage);
+      const payload = res?.data;
+
+      if (payload?.action === 'failed') {
+        setBsrSubmitFailures(payload.failures || []);
+        setBsrAlertModal({
+          type: 'error',
+          title: 'Nothing Was Posted',
+          message: payload.message || 'Fix the flagged rows and submit again.',
+        });
+        return;
+      }
+
+      setBsrLastTags(
+        Array.isArray(payload?.tags) && payload.tags.length > 0
+          ? { tags: payload.tags, productName: 'This delivery' }
+          : null,
+      );
+      setBsrDraft(null);
+      toast.success(`Posted ${payload.items_posted} item(s) — ${payload.receiving_number}`);
+
+      // Posted progress has moved, so re-read it. Bumping the reload key opens
+      // the next delivery — handleBsrSelectPo no longer does that itself, and
+      // the effect's other deps are unchanged by a submit.
+      await handleBsrSelectPo(bsrSelectedPo);
+      setBsrDraftReloadKey((k) => k + 1);
+    } catch {
+      toast.error('Submit failed');
+    } finally {
+      setBsrSubmitting(false);
+    }
+  }, [bsrDraft, bsrSubmitting, bsrSelectedPo]);
 
   const handleBsrInputChange = (e) => {
     setBsrScanInput(e.target.value);
@@ -2083,6 +2634,7 @@ const BarcodeScan = () => {
         barcode:            raw.trim(),
         transfer_detail_id: detailId,
         quantity:           1,
+        quantity_unit:      istActiveLine.product?.product_type === 'appliance' ? 'piece' : 'package',
       });
       const data = res?.data ?? res;
 
@@ -2296,6 +2848,28 @@ const BarcodeScan = () => {
   }, [scanResult]);
 
   const currentModeKey = (scanMode || MODES[modeIndex])?.key;
+  const operationHeader = {
+    audit: {
+      eyebrow: 'Inventory · Audit',
+      title: 'Inventory Audit Scan',
+      subtitle: 'Scan a product barcode or serial number to review its complete information, current status, stock locations, and movement history.',
+    },
+    'issue-out': {
+      eyebrow: 'Inventory · Issuance',
+      title: 'Issue Out Scan',
+      subtitle: 'Scan items for issuance, confirm the required quantity and condition, then deduct stock from the selected location.',
+    },
+    transfer: {
+      eyebrow: 'Inventory · Transfer',
+      title: 'Inventory Transfer Scan',
+      subtitle: 'Scan items to move inventory between authorized warehouse and showroom locations.',
+    },
+    adjust: {
+      eyebrow: 'Inventory · Adjustment',
+      title: 'Inventory Adjustment Scan',
+      subtitle: 'Scan an item, verify its current stock, and record an authorized inventory correction.',
+    },
+  }[currentModeKey];
 
   /* When FROM LOCATION changes, show stock for that row (or null if no record there) */
   useEffect(() => {
@@ -2382,6 +2956,7 @@ const BarcodeScan = () => {
                 product_id: productId,
                 quantity_amount: qtyNum,
                 condition: txForm.condition || 'Good',
+                zone_label: txForm.zone_label || null,
               },
             ],
           });
@@ -2394,6 +2969,8 @@ const BarcodeScan = () => {
             qty: qtyNum,
             location: getLocationName(locationId),
             at: new Date().toLocaleTimeString(),
+            receivingId: res?.data?.receiving_id || null,
+            poId: txForm.pc_id || null,
           }, ...prev].slice(0, 8));
         } else {
           const engRes = await inventoryAPI.scanTransaction({
@@ -2401,6 +2978,7 @@ const BarcodeScan = () => {
             transaction_type: 'receiving',
             location_id: Number(locationId),
             quantity: qtyNum,
+            zone_label: txForm.zone_label || null,
           });
           const eng = engRes?.data;
           if (!eng || typeof eng !== 'object' || eng.action === 'rejected') {
@@ -2572,13 +3150,13 @@ const BarcodeScan = () => {
   const receivePoSetupGrid = (
     <div className="bs-action-grid">
       <div className="bs-filter-col">
-        <label title="Per scan: full amount for consumables; appliances always add 1 unit per scan.">QUANTITY</label>
+        <label title="Per scan: full amount for installation materials; appliances always add 1 unit per scan.">QUANTITY</label>
         <input
           type="number"
           min="1"
           value={txForm.quantity}
           onChange={(e) => setTxForm((p) => ({ ...p, quantity: e.target.value }))}
-          title="Consumables: units added per scan. Appliances: treated as 1 (serialized)."
+          title="Installation materials: units added per scan. Appliances: treated as 1 (serialized)."
         />
       </div>
       <div className="bs-filter-col">
@@ -2617,6 +3195,16 @@ const BarcodeScan = () => {
             );
           })}
         </select>
+      </div>
+      <div className="bs-filter-col">
+        <label>ZONE LABEL (OPTIONAL)</label>
+        <input
+          type="text"
+          placeholder="e.g. Aisle 3, Shelf B"
+          value={txForm.zone_label}
+          onChange={(e) => setTxForm((p) => ({ ...p, zone_label: e.target.value }))}
+          title="Where this batch is physically shelved — shown on the Warehouse Map."
+        />
       </div>
     </div>
   );
@@ -2712,8 +3300,8 @@ const BarcodeScan = () => {
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                         <span style={{
                           fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.05em',
-                          color: hMode?.color || '#6b7280',
-                          background: hMode?.bg || '#f3f4f6',
+                          color: hMode?.color || 'var(--text-muted)',
+                          background: hMode?.bg || 'var(--bg-hover)',
                           padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap',
                         }}>
                           {h.mode}
@@ -2774,65 +3362,115 @@ const BarcodeScan = () => {
   if (scanMode?.key === 'receive-po' && !bsrSelectedPo) {
     return (
       <AdminLayout>
-        <div className="bsr-page">
-          <div className="bsr-header-card">
-            <button className="bs-topback-btn" onClick={exitScanMode} style={{ marginRight: 12, flexShrink: 0 }} type="button">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
-              Back
-            </button>
-            <div className="bsr-header-icon"><BsrBarcodeIcon size={26} color="#9810FA" /></div>
-            <div className="bsr-header-text">
-              <h1>BARCODE SCAN RECEIVE</h1>
-              <p>Scan products from approved purchase orders</p>
-            </div>
-          </div>
-          <div className="bsr-search-card">
-            <div className="bsr-search-inner">
-              <BsrSearchIcon />
-              <input
-                className="bsr-search-input"
-                placeholder="Search by PO ID or supplier..."
-                value={bsrPoSearchQ}
-                onChange={(e) => setBsrPoSearchQ(e.target.value)}
-              />
-            </div>
-          </div>
-          {bsrPoLoading ? (
-            <Loader label="Loading purchase orders" />
-          ) : bsrFilteredPos.length === 0 ? (
-            <div className="bsr-empty">No approved purchase orders found.</div>
-          ) : bsrFilteredPos.map((po) => {
-            const poId = po.po_id ?? po.id;
-            const totalAmt = Number(po.total_amount || po.grand_total || 0);
-            const statusName  = po?.status?.status_name ?? po?.status_name ?? '';
-            const isPartial   = /partial/i.test(statusName);
-            const isCompleted = /complet/i.test(statusName);
-            const badgeClass  = isCompleted ? 'bsr-badge--completed' : isPartial ? 'bsr-badge--partial' : 'bsr-badge--approved';
-            const badgeLabel  = isCompleted ? 'COMPLETED' : isPartial ? 'PARTIALLY RECEIVED' : statusName.toUpperCase() || 'APPROVED';
-            return (
-              <button key={poId} type="button" className="bsr-po-card" onClick={() => handleBsrSelectPo(po)}>
-                <div className="bsr-po-card-top">
-                  <div className="bsr-po-left">
-                    <span className="bsr-po-number">{po.po_number || `PO #${poId}`}</span>
-                    <span className={`bsr-badge ${badgeClass}`}><BsrCheckIcon /> {badgeLabel}</span>
-                  </div>
-                  <div className="bsr-po-amount">
-                    <span className="bsr-amount-label">TOTAL AMOUNT</span>
-                    <span className="bsr-amount-value">{bsrFmtCurrency(totalAmt)}</span>
-                  </div>
-                </div>
-                <div className="bsr-po-card-meta">
-                  <div className="bsr-meta-col"><span className="bsr-meta-label">SUPPLIER</span><span className="bsr-meta-value">{bsrGetSupplierName(po)}</span></div>
-                  <div className="bsr-meta-col"><span className="bsr-meta-label">APPROVED BY</span><span className="bsr-meta-value">{bsrGetApprovedBy(po)}</span></div>
-                  <div className="bsr-meta-col"><span className="bsr-meta-label">EXPECTED DELIVERY</span><span className="bsr-meta-value">{bsrFmtDate(po.expected_delivery_date)}</span></div>
-                  <div className="bsr-meta-col">
-                    <span className="bsr-meta-label">ITEMS</span>
-                    <span className="bsr-meta-value">{typeof bsrGetItemCount(po) === 'number' ? `${bsrGetItemCount(po)} items` : '—'}</span>
-                  </div>
-                </div>
+        <div className="ak-page bsr-page">
+          <header className="ak-header">
+            <div className="ak-header-row">
+              <div>
+                <p className="ak-eyebrow">Inventory · Receiving</p>
+                <h1 className="ak-title">Barcode Scan Receive</h1>
+                <p className="ak-sub">Select an approved purchase order, then scan its products into the receiving location.</p>
+              </div>
+              <button className="bs-topback-btn" onClick={exitScanMode} type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+                Back
               </button>
-            );
-          })}
+            </div>
+          </header>
+
+          <div className="bsr-tab-nav">
+            <button type="button" className={`bsr-tab-btn${bsrTab === 'select' ? ' bsr-tab-btn--active' : ''}`} onClick={() => setBsrTab('select')}>
+              Select PO
+            </button>
+            <button type="button" className={`bsr-tab-btn${bsrTab === 'history' ? ' bsr-tab-btn--active' : ''}`} onClick={() => setBsrTab('history')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+              </svg>
+              History
+            </button>
+          </div>
+
+          {bsrTab === 'history' ? (
+            <ReceivingHistoryLog locations={locations} onSelectPo={openPoHistory} />
+          ) : (
+            <>
+              <div className="bsr-search-card">
+                <div className="bsr-search-inner">
+                  <BsrSearchIcon />
+                  <input
+                    className="bsr-search-input"
+                    placeholder="Search by PO ID or supplier..."
+                    value={bsrPoSearchQ}
+                    onChange={(e) => setBsrPoSearchQ(e.target.value)}
+                  />
+                </div>
+              </div>
+              {bsrPoLoading ? (
+                <Loader label="Loading purchase orders" />
+              ) : bsrFilteredPos.length === 0 ? (
+                <div className="bsr-empty">No approved purchase orders found.</div>
+              ) : bsrFilteredPos.map((po) => {
+                const poId = po.po_id ?? po.id;
+                const scoped    = !!myLocationId;
+                const totalAmt  = scoped
+                  ? bsrLocationAmount(po, myLocationId)
+                  : Number(po.total_amount || po.grand_total || 0);
+                const itemCount = scoped ? bsrLocationItemCount(po, myLocationId) : bsrGetItemCount(po);
+                const breakdown = scoped ? [] : bsrWarehouseBreakdown(po);
+                const showBreakdown = !scoped && breakdown.length > 1;
+                const statusName  = po?.status?.status_name ?? po?.status_name ?? '';
+                const isPartial   = /partial/i.test(statusName);
+                const isCompleted = /complet/i.test(statusName);
+                const badgeClass  = isCompleted ? 'bsr-badge--completed' : isPartial ? 'bsr-badge--partial' : 'bsr-badge--approved';
+                const badgeLabel  = isCompleted ? 'COMPLETED' : isPartial ? 'PARTIALLY RECEIVED' : statusName.toUpperCase() || 'APPROVED';
+                return (
+                  <button key={poId} type="button" className="bsr-po-card" onClick={() => handleBsrSelectPo(po)}>
+                    <div className="bsr-po-card-top">
+                      <div className="bsr-po-left">
+                        <span className="bsr-po-number">{po.po_number || `PO #${poId}`}</span>
+                        <span className={`bsr-badge ${badgeClass}`}><BsrCheckIcon /> {badgeLabel}</span>
+                      </div>
+                      <div className="bsr-po-amount">
+                        <span className="bsr-amount-label">TOTAL AMOUNT</span>
+                        <span className="bsr-amount-value">{bsrFmtCurrency(totalAmt)}</span>
+                        {scoped && (
+                          <span className="bsr-amount-scope">for {enforcedLocationName || 'your warehouse'}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bsr-po-card-meta">
+                      <div className="bsr-meta-col"><span className="bsr-meta-label">SUPPLIER</span><span className="bsr-meta-value">{bsrGetSupplierName(po)}</span></div>
+                      <div className="bsr-meta-col"><span className="bsr-meta-label">APPROVED BY</span><span className="bsr-meta-value">{bsrGetApprovedBy(po)}</span></div>
+                      <div className="bsr-meta-col"><span className="bsr-meta-label">EXPECTED DELIVERY</span><span className="bsr-meta-value">{bsrFmtDate(po.expected_delivery_date)}</span></div>
+                      <div className="bsr-meta-col">
+                        <span className="bsr-meta-label">ITEMS</span>
+                        <span className="bsr-meta-value">{typeof itemCount === 'number' ? `${itemCount} items` : '—'}</span>
+                      </div>
+                    </div>
+                    {showBreakdown && (
+                      <div className="bsr-po-breakdown">
+                        {breakdown.map((b) => (
+                          <span key={b.locationId} className="bsr-breakdown-chip">
+                            {b.locationName} <strong>{bsrFmtCurrency(b.amount)}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </>
+          )}
+
+          <RecordHistoryModal
+            isOpen={!!historyRecord}
+            onClose={() => setHistoryRecord(null)}
+            kind="Purchase Order"
+            record={historyRecord}
+            statusLabel={historyRecord ? getStatusConfig(historyRecord.status?.status_name).label : ''}
+            statusColor={historyRecord ? getStatusConfig(historyRecord.status?.status_name).color : 'draft'}
+            milestones={historyMilestones}
+            loading={historyLoading}
+          />
         </div>
       </AdminLayout>
     );
@@ -2843,7 +3481,7 @@ const BarcodeScan = () => {
   ───────────────────────────────────────────── */
   if (scanMode?.key === 'receive-po' && bsrSelectedPo) {
     const poDetails = bsrLinesForLocation(bsrSelectedPo, myLocationId);
-    const totalScanned = bsrScannedItems.length;
+    const totalScanned = bsrDraft?.staged_count ?? 0;
 
     // True only when every ordered line has been fully received.
     const isFullyReceived = poDetails.length > 0 && poDetails.every((d) => {
@@ -2855,11 +3493,19 @@ const BarcodeScan = () => {
       return dOrdPcs === 0 || (bsrProductProgress[d.po_detail_id] || 0) >= dOrdPcs;
     });
 
+    // Whether anything has actually been POSTED against this PO — which is what
+    // the GRN reports. Deliberately not the staged count: staged rows are not on
+    // the receipt, and the staged count resets to zero after every submit, so
+    // keying the Done button off it left a partial receipt unable to print its
+    // own GRN. A partial delivery needs its paperwork as much as a complete one.
+    const hasPostedReceipts = Object.values(bsrProductProgress).some((v) => v > 0);
+    const canPrintGrn = hasPostedReceipts || isFullyReceived;
+
     const handleBsrSaveExit = () => {
       const hasScans = Object.values(bsrProductProgress).some((v) => v > 0);
       const doExit = () => {
         void stopCamera();
-        setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({});
+        setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({}); setBsrContentsVerified({});
         setBsrScanInput(''); setBsrActiveLine(null);
       };
       if (hasScans) {
@@ -2876,15 +3522,29 @@ const BarcodeScan = () => {
     };
     return (
       <AdminLayout>
-        <div className="bsr-page">
-          <div className="bsr-header-card">
-            <div className="bsr-header-icon"><BsrBarcodeIcon size={26} color="#9810FA" /></div>
-            <div className="bsr-header-text">
-              <h1>BARCODE SCAN RECEIVE</h1>
-              <p>Scan products from approved purchase orders</p>
+        <div className="ak-page bsr-page">
+          <header className="ak-header">
+            <div className="ak-header-row">
+              <div>
+                <p className="ak-eyebrow">Inventory · Receiving</p>
+                <h1 className="ak-title">Barcode Scan Receive</h1>
+                <p className="ak-sub">Scan and verify products from the selected approved purchase order.</p>
+              </div>
+              <div className="ak-actions">
+                <span className="bsr-receiving-badge"><BsrCheckIcon /> Receiving: {bsrSelectedPo?.po_number}</span>
+                <button className="bs-topback-btn" onClick={handleBsrSaveExit} type="button">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+                  Back
+                </button>
+              </div>
             </div>
-            <div className="bsr-receiving-badge"><BsrCheckIcon /> Receiving: {bsrSelectedPo?.po_number}</div>
-          </div>
+          </header>
+          {bsrDraft && bsrDraft.staged_count > 0 && (
+            <div className="bsr-draft-badge" role="status">
+              Unsubmitted delivery — {bsrDraft.staged_count} item(s) staged,
+              {' '}{bsrDraft.staged_pieces} pcs not yet in inventory.
+            </div>
+          )}
           {/* ── Alert / validation modal (centered, blocks all input) ── */}
           {bsrAlertModal && (
             <div className="bsr-alert-overlay" role="dialog" aria-modal="true">
@@ -2970,9 +3630,64 @@ const BarcodeScan = () => {
                     const pps = Number(prod.pieces_per_package) || 1;
                     const orderedPcs = isSerial ? ordered : ordered * pps;
                     const received = bsrProductProgress[detailId] || 0;
+                    // Counted, not derived — see bsrPackageProgress. Legacy rows
+                    // predate packages_received and report 0 packages against real
+                    // stock, so those alone fall back to the old division rather
+                    // than claiming nothing arrived.
+                    const receivedPkgs = bsrPackageProgress[detailId]
+                      || (received > 0 ? Math.floor(received / pps) : 0);
                     const pct = orderedPcs > 0 ? Math.min(100, (received / orderedPcs) * 100) : 0;
-                    const done = received >= orderedPcs && orderedPcs > 0;
+                    // A line with zero receipts reports contents_verified true
+                    // vacuously (there is no unopened box on it yet) — treat an
+                    // undefined flag the same way so an unseeded row stays quiet.
+                    const verified = bsrContentsVerified[detailId] !== false;
+                    // The packages counted claim more pieces than actually posted:
+                    // a "complete package" that arrived short inside.
+                    const shortfallPcs = (!isSerial && received > 0) ? (receivedPkgs * pps) - received : 0;
+                    const quantitiesMet = received >= orderedPcs && orderedPcs > 0;
+                    // Fully-received-but-unverified must NOT read as done — the
+                    // clerk still has to confirm what was actually inside.
+                    const done = quantitiesMet && (isSerial || verified);
+                    const showUnverifiedPrompt = !isSerial && received > 0 && !verified;
+                    // Staged rows count toward the progress the clerk reads: they
+                    // are boxes already accounted for on the floor, and a line
+                    // that ignored them would tell someone to go on scanning
+                    // stock they have already handled. Because these are derived
+                    // from bsrDraft, removing a staged row makes the figure fall
+                    // again immediately.
+                    //
+                    // Staged stays visually distinct from posted rather than
+                    // being silently added in, because only posted stock exists
+                    // in inventory — and `done`, the shortfall prompt and the
+                    // GRN all still key off posted alone, further down.
+                    const stagedRows = (bsrDraft?.items || [])
+                      .filter((it) => it.po_detail_id === detailId);
+                    const staged = stagedRows.reduce((sum, it) => sum + it.quantity_amount, 0);
+                    const stagedPkgs = stagedRows.reduce((sum, it) => sum + (it.packages_received || 0), 0);
+                    const totalPcs  = received + staged;
+                    const totalPkgs = receivedPkgs + stagedPkgs;
+                    // The staged segment continues from the posted one and the
+                    // pair is clamped, so a staged over-receipt cannot push the
+                    // bar past its track.
+                    const stagedPct = orderedPcs > 0
+                      ? Math.min((staged / orderedPcs) * 100, 100 - pct)
+                      : 0;
                     const isActive = bsrActiveLine?.po_detail_id === detailId;
+                    const openLineFor = (mode) => (e) => {
+                      e.stopPropagation();
+                      setBsrActiveLine(d);
+                      setBsrCountMode(false);
+                      setBsrPendingOverage(null);
+                      if (mode === 'topup') {
+                        setBsrVerifyMode(false);
+                        setBsrTopUpPieces(null);
+                        setBsrTopUpMode(true);
+                      } else if (mode === 'verify') {
+                        setBsrTopUpMode(false);
+                        setBsrVerifyPieces(null);
+                        setBsrVerifyMode(true);
+                      }
+                    };
                     return (
                       <div
                         key={detailId || pid || i}
@@ -2987,6 +3702,15 @@ const BarcodeScan = () => {
                             {prod.product_type === 'appliance'
                               ? <span className="bsr-serialized-badge">SERIAL</span>
                               : <span className="bsr-bulk-badge">BULK</span>}
+                            {/* Which half of a split aircon this line is.
+                                Picking the wrong line here means scanning
+                                cartons against the wrong half, and the two
+                                read almost identically by name alone. */}
+                            {(prod.unit_role === 'indoor' || prod.unit_role === 'outdoor') && (
+                              <span className={`bsr-role-badge bsr-role-${prod.unit_role}`}>
+                                {prod.unit_role === 'indoor' ? 'INDOOR' : 'OUTDOOR'}
+                              </span>
+                            )}
                             {isActive && <span className="bsr-active-badge">SCANNING NOW</span>}
                           </div>
                         </div>
@@ -2994,13 +3718,39 @@ const BarcodeScan = () => {
                           <span className="bsr-item-progress-label">Progress:</span>
                           <span className={`bsr-item-qty ${done ? 'bsr-item-qty--done' : 'bsr-item-qty--zero'}`}>
                             {isSerial
-                              ? `${received} / ${ordered} units`
-                              : `${Math.floor(received / pps)} / ${ordered} pkg`}
+                              ? `${totalPcs} / ${ordered} units`
+                              : `${totalPkgs} / ${ordered} pkg  ·  ${totalPcs} / ${orderedPcs} pcs`}
                           </span>
+                          {staged > 0 && (
+                            <span className="bsr-line-staged">
+                              incl. {staged} staged — not yet in inventory
+                            </span>
+                          )}
                         </div>
                         <div className="bsr-progress-bar-wrap">
                           <div className={`bsr-progress-bar-fill ${done ? 'bsr-progress-bar-fill--done' : ''}`} style={{ width: `${pct}%` }}/>
+                          {stagedPct > 0 && (
+                            <div className="bsr-progress-bar-staged" style={{ width: `${stagedPct}%` }} />
+                          )}
                         </div>
+                        {shortfallPcs > 0 && (
+                          <button
+                            type="button"
+                            className="bsr-shortfall-btn"
+                            onClick={openLineFor('topup')}
+                          >
+                            {shortfallPcs} pcs short — add missing pieces
+                          </button>
+                        )}
+                        {showUnverifiedPrompt && (
+                          <button
+                            type="button"
+                            className="bsr-unverified-btn"
+                            onClick={openLineFor('verify')}
+                          >
+                            Contents not verified — confirm what was inside
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -3037,7 +3787,7 @@ const BarcodeScan = () => {
                             <span className="bsr-success-label">Received</span>
                             <span className="bsr-success-value">
                               1 {bsrScanSuccess.packageUnitLabel}
-                              <span style={{ color: '#6b7280', fontWeight: 400, marginLeft: 4 }}>({bsrScanSuccess.qtyReceived} pcs)</span>
+                              <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 4 }}>({bsrScanSuccess.qtyReceived} pcs)</span>
                             </span>
                           </div>
                           <div className="bsr-success-row">
@@ -3059,7 +3809,7 @@ const BarcodeScan = () => {
                       {!bsrScanSuccess.isSerialized && bsrScanSuccess.remainingPackages !== null && (
                         <div className="bsr-success-row">
                           <span className="bsr-success-label">Remaining</span>
-                          <span className="bsr-success-value" style={{ color: bsrScanSuccess.remainingPackages <= 0 ? '#16a34a' : '#d97706' }}>
+                          <span className="bsr-success-value" style={{ color: bsrScanSuccess.remainingPackages <= 0 ? 'var(--text-success)' : 'var(--ink-orange-600)' }}>
                             {bsrScanSuccess.remainingPackages <= 0
                               ? `0 ${bsrScanSuccess.packageUnitLabel}(s) — fully received`
                               : `${bsrScanSuccess.remainingPackages} ${bsrScanSuccess.packageUnitLabel}(s) left`
@@ -3075,6 +3825,13 @@ const BarcodeScan = () => {
                 </div>
               )}
 
+              {bsrLastTags && (
+                <MaterialTagSheet
+                  tags={bsrLastTags.tags}
+                  productName={bsrLastTags.productName}
+                />
+              )}
+
               <div className="bsr-card">
                 <div className="bsr-card-head">
                   <div className="bsr-card-icon bsr-card-icon--scan"><BsrBarcodeIcon size={18} color="#9810FA" /></div>
@@ -3082,7 +3839,19 @@ const BarcodeScan = () => {
                     <span className="bsr-card-title">SCAN BARCODE</span>
                     {bsrActiveLine ? (
                       <p className="bsr-card-subtitle">
+                        {/* The last thing read before cartons start going
+                            through. If this is one half of a split aircon,
+                            say so here rather than only in the picker. */}
+                        {(bsrActiveLine.product?.unit_role === 'indoor'
+                          || bsrActiveLine.product?.unit_role === 'outdoor') && (
+                          <span className={`bsr-role-badge bsr-role-${bsrActiveLine.product.unit_role}`}>
+                            {bsrActiveLine.product.unit_role === 'indoor' ? 'INDOOR' : 'OUTDOOR'}
+                          </span>
+                        )}
                         <strong>{bsrActiveLine.product?.product_name || bsrActiveLine.product?.name || 'Selected Item'}</strong>
+                        {bsrActiveLine.product?.ac_type_name && (
+                          <span className="bsr-card-actype"> · {bsrActiveLine.product.ac_type_name}</span>
+                        )}
                       </p>
                     ) : (
                       <p className="bsr-card-subtitle bsr-card-subtitle--warn">Select an item from the left panel to begin</p>
@@ -3101,7 +3870,37 @@ const BarcodeScan = () => {
                     />
                   )}
                 </div>
+                <div className="bsr-location-row">
+                  <label className="bsr-location-label">ZONE LABEL (OPTIONAL)</label>
+                  <input
+                    type="text"
+                    className="bsr-location-select"
+                    placeholder="Select or enter a zone"
+                    value={bsrZoneLabel}
+                    onChange={(e) => setBsrZoneLabel(e.target.value)}
+                    list="bsr-existing-zone-labels"
+                    title="Where this batch is physically shelved — shown on the Warehouse Map."
+                  />
+                  <datalist id="bsr-existing-zone-labels">
+                    {bsrExistingZoneLabels.map((label) => <option key={label} value={label} />)}
+                  </datalist>
+                  <p className="bsr-zone-history">
+                    {bsrExistingZoneLabels.length > 0
+                      ? <>Previously added zones: <strong>{bsrExistingZoneLabels.join(', ')}</strong></>
+                      : 'No zone names have been added at this location yet.'}
+                  </p>
+                </div>
 
+                {cameraActive && (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="bs-cam-hint"
+                    style={{ margin: '0 0 8px', color: bsrCaptureArmed ? 'var(--ink-green)' : 'var(--text-body)' }}
+                  >
+                    <strong>Status: {bsrCaptureArmed ? 'Scanning...' : 'Ready to scan'}</strong>
+                  </p>
+                )}
                 <div className="bs-camera-box" style={{ marginBottom: 12 }}>
                   <div
                     id={HTML5_QR_MOUNT_ID}
@@ -3121,12 +3920,18 @@ const BarcodeScan = () => {
                   <div className="bs-bracket bs-bl"/><div className="bs-bracket bs-br"/>
                   {cameraActive && <div className="bs-scan-line"/>}
                   {cameraActive && (
-                    <p className="bs-cam-hint">Position the barcode in the frame and tap <strong>Scan</strong> — auto-capture is disabled; only the button triggers a scan.</p>
+                    <>
+                      <p className="bs-cam-hint">
+                        {bsrCaptureArmed
+                          ? <>Searching for a barcode. Tap <strong>Stop scanning</strong> to cancel.</>
+                          : <>Position the barcode in the frame, then tap <strong>Capture now</strong>. It keeps looking until one barcode is read, then stops.</>}
+                      </p>
+                    </>
                   )}
                   {cameraError && <p className="bs-cam-err">{cameraError}</p>}
                   {cameraActive && canScan && (
-                    <button type="button" className="bs-cam-shutter" onClick={manualFrameScan} aria-label="Scan barcode from current camera frame">
-                      <span className="bs-cam-shutter-inner"/><span className="bs-cam-shutter-label">Scan</span>
+                    <button type="button" className="bs-cam-shutter" onClick={manualFrameScan} aria-label="Capture barcode from current camera frame">
+                      <span className="bs-cam-shutter-inner"/><span className="bs-cam-shutter-label">{bsrCaptureArmed ? 'Stop scanning' : 'Capture now'}</span>
                     </button>
                   )}
                   {cameraActive
@@ -3162,18 +3967,294 @@ const BarcodeScan = () => {
                     onChange={handleBsrInputChange}
                     onKeyDown={handleBsrKeyDown}
                     autoComplete="off"
-                    disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading}
+                    disabled={bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || bsrVerifyMode || bsrTopUpMode || !!bsrPendingOverage}
                   />
                   <button
                     type="button"
                     className="bsr-capture-btn"
                     onClick={handleBsrCaptureClick}
-                    disabled={!canScan || bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrScanInput.trim().length < 4}
+                    disabled={!canScan || bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || bsrVerifyMode || bsrTopUpMode || !!bsrPendingOverage || bsrScanInput.trim().length < 4}
                     aria-label="Submit barcode"
                   >
                     {bsrScanning ? 'Scanning…' : 'Submit'}
                   </button>
                 </div>
+
+                {/* Escape hatch: material that arrived with no barcode to scan.
+                    Hidden for serialized products — appliances must keep their
+                    per-unit serial trail, which warranty lookup and incident
+                    reports depend on. The backend rejects it too. */}
+                {bsrActiveLine && !(bsrActiveLine.is_serialized ?? bsrIsSerialized(bsrActiveLine)) && !bsrCountMode && !bsrVerifyMode && !bsrTopUpMode && !bsrPendingOverage && (
+                  <button
+                    type="button"
+                    className="bsr-count-toggle"
+                    onClick={() => { setBsrTopUpMode(false); setBsrVerifyMode(false); setBsrCountMode(true); }}
+                    disabled={bsrScanning || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading}
+                  >
+                    Enter count instead
+                  </button>
+                )}
+
+                {/* Contents verification for a line that has ALREADY been
+                    scanned: the boxes went in at their printed contents, and
+                    this reconciles the line to what the clerk actually found.
+                    Hidden until something has been scanned (there is no delta
+                    to apply otherwise) and hidden for serialized products —
+                    an appliance is one unit with a serial and has no package
+                    contents to verify. The backend rejects it too, but an
+                    always-failing control teaches pickers to distrust the UI. */}
+                {bsrActiveLine
+                  && !(bsrActiveLine.is_serialized ?? bsrIsSerialized(bsrActiveLine))
+                  && (bsrProductProgress[bsrActiveLine.po_detail_id] || 0) > 0
+                  && !bsrCountMode && !bsrVerifyMode && !bsrTopUpMode && !bsrPendingOverage && (
+                  <button
+                    type="button"
+                    className="bsr-verify-toggle"
+                    onClick={() => { setBsrTopUpMode(false); setBsrVerifyPieces(null); setBsrVerifyMode(true); }}
+                    disabled={bsrScanning || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading}
+                  >
+                    Verify contents
+                  </button>
+                )}
+
+                {bsrVerifyMode && bsrActiveLine && !bsrPendingOverage && (() => {
+                  const pcs = Math.max(1, Number(
+                    bsrActiveLine.pieces_per_package ?? bsrActiveLine.product?.pieces_per_package,
+                  ) || 1);
+                  const received  = bsrProductProgress[bsrActiveLine.po_detail_id] || 0;
+                  // Packages the scans put in, as counted by the rows themselves.
+                  // Legacy lines received before packages_received existed report
+                  // 0, so those alone fall back to rounding the pieces posted —
+                  // rounded, not floored, so a line reconciled to 97 of 100 still
+                  // reads as the 2 packages that were scanned. This panel only
+                  // opens for non-serialized lines, so packages always apply.
+                  const packages  = bsrPackageProgress[bsrActiveLine.po_detail_id]
+                    || Math.max(1, Math.round(received / pcs) || 1);
+                  const expected  = packages * pcs;
+                  const display   = bsrVerifyPieces === null ? String(expected) : bsrVerifyPieces;
+                  const actual    = display !== '' && Number.isFinite(Number(display)) ? Number(display) : null;
+                  const diff      = actual === null ? 0 : actual - expected;
+                  const productName = bsrActiveLine.product?.product_name ?? bsrActiveLine.product?.name ?? 'Unknown Product';
+                  return (
+                    <form
+                      className="bsr-count-panel bsr-verify-panel"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (actual === null || bsrCountBusy) return;
+                        bsrPostVerify(packages, actual);
+                      }}
+                    >
+                      <div className="bsr-count-product">{productName}</div>
+                      <div className="bsr-count-remaining">
+                        {received} pcs posted from scanning — confirm what was really in the boxes
+                      </div>
+
+                      <label className="bsr-count-label" htmlFor="bsr-verify-packages">
+                        Packages scanned
+                      </label>
+                      <input
+                        id="bsr-verify-packages"
+                        type="number"
+                        className="bsr-count-input"
+                        value={packages}
+                        readOnly
+                        disabled
+                      />
+
+                      <label className="bsr-count-label" htmlFor="bsr-verify-pieces">
+                        Actual pieces received
+                      </label>
+                      <input
+                        id="bsr-verify-pieces"
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        className="bsr-count-input"
+                        value={display}
+                        disabled={bsrCountBusy}
+                        onChange={(e) => setBsrVerifyPieces(e.target.value)}
+                        autoFocus
+                      />
+
+                      {diff !== 0 && (
+                        <div className="bsr-count-pieces-diff" role="alert">
+                          {diff < 0
+                            ? `${Math.abs(diff)} pcs short of ${expected} expected`
+                            : `${diff} pcs more than expected`}
+                        </div>
+                      )}
+
+                      <div className="bsr-count-actions">
+                        <button
+                          type="button"
+                          className="bsr-btn-cancel"
+                          onClick={() => { setBsrVerifyMode(false); setBsrVerifyPieces(null); setBsrPendingOverage(null); }}
+                          disabled={bsrCountBusy}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="bsr-btn-complete"
+                          disabled={actual === null || bsrCountBusy}
+                        >
+                          {bsrCountBusy ? 'Verifying…' : 'Verify'}
+                        </button>
+                      </div>
+                    </form>
+                  );
+                })()}
+
+                {bsrCountMode && bsrActiveLine && !bsrPendingOverage && (
+                  <CountEntryPanel
+                    line={{
+                      po_detail_id:       bsrActiveLine.po_detail_id,
+                      product_name:       bsrActiveLine.product?.product_name ?? bsrActiveLine.product?.name ?? 'Unknown Product',
+                      // The API emits count_unit on the line (flat and nested) and
+                      // already defaults it to 'package'; the literal below is a
+                      // belt-and-braces fallback for legacy cached payloads only.
+                      count_unit:         bsrActiveLine.count_unit ?? bsrActiveLine.product?.count_unit ?? 'package',
+                      package_unit:       bsrActiveLine.package_unit ?? bsrActiveLine.product?.package_unit ?? 'Package',
+                      pieces_per_package: bsrActiveLine.pieces_per_package ?? bsrActiveLine.product?.pieces_per_package ?? 1,
+                      ordered_pieces:     Number(bsrActiveLine.quantity_ordered || 0)
+                                            * (Number(bsrActiveLine.product?.pieces_per_package) || 1),
+                      already_received:   bsrProductProgress[bsrActiveLine.po_detail_id] || 0,
+                    }}
+                    busy={bsrCountBusy}
+                    onSubmit={({ units, actualPieces }) => bsrPostCount({ units, actualPieces })}
+                    onCancel={() => { setBsrCountMode(false); setBsrPendingOverage(null); }}
+                  />
+                )}
+
+                {/* Top-up: loose pieces that complete a short package, entered
+                    directly from the shortfall line in the item list. Posts
+                    with packages_received = 0 so the package budget the clerk
+                    already reported is left untouched. */}
+                {bsrTopUpMode && bsrActiveLine && !bsrPendingOverage && (() => {
+                  const productName = bsrActiveLine.product?.product_name ?? bsrActiveLine.product?.name ?? 'Unknown Product';
+                  const pcs = Math.max(1, Number(
+                    bsrActiveLine.pieces_per_package ?? bsrActiveLine.product?.pieces_per_package,
+                  ) || 1);
+                  const received = bsrProductProgress[bsrActiveLine.po_detail_id] || 0;
+                  const packages = bsrPackageProgress[bsrActiveLine.po_detail_id] || 0;
+                  const shortfall = Math.max(0, (packages * pcs) - received);
+                  const display = bsrTopUpPieces === null ? String(shortfall || '') : bsrTopUpPieces;
+                  const pieces = display !== '' && Number.isFinite(Number(display)) ? Number(display) : null;
+                  return (
+                    <form
+                      className="bsr-count-panel bsr-topup-panel"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (pieces === null || pieces <= 0 || bsrCountBusy) return;
+                        bsrPostTopUp(pieces);
+                      }}
+                    >
+                      <div className="bsr-count-product">{productName}</div>
+                      <div className="bsr-count-remaining">
+                        {packages} package(s) received but only {received} pcs posted — add the pieces that were missing inside.
+                      </div>
+
+                      <label className="bsr-count-label" htmlFor="bsr-topup-pieces">
+                        Missing pieces to add
+                      </label>
+                      <input
+                        id="bsr-topup-pieces"
+                        type="number"
+                        min="1"
+                        step="1"
+                        inputMode="numeric"
+                        className="bsr-count-input"
+                        value={display}
+                        disabled={bsrCountBusy}
+                        onChange={(e) => setBsrTopUpPieces(e.target.value)}
+                        autoFocus
+                      />
+
+                      <div className="bsr-count-actions">
+                        <button
+                          type="button"
+                          className="bsr-btn-cancel"
+                          onClick={() => { setBsrTopUpMode(false); setBsrTopUpPieces(null); setBsrPendingOverage(null); }}
+                          disabled={bsrCountBusy}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="bsr-btn-complete"
+                          disabled={pieces === null || pieces <= 0 || bsrCountBusy}
+                        >
+                          {bsrCountBusy ? 'Adding…' : 'Add Pieces'}
+                        </button>
+                      </div>
+                    </form>
+                  );
+                })()}
+
+                {bsrPendingOverage && (
+                  <div className="bsr-overage-confirm" role="alertdialog" aria-label="Confirm over-receipt">
+                    <p className="bsr-overage-text">
+                      {bsrPendingOverage.limit === 'packages'
+                        // Package ceiling: no piece keys on this payload — reading
+                        // ordered_pieces/remaining here would render blanks.
+                        ? (() => {
+                            const ordered = Number(bsrPendingOverage.ordered_packages || 0);
+                            const nth = Number(bsrPendingOverage.received_packages ?? ordered) + 1;
+                            const suffix = nth % 10 === 1 && nth % 100 !== 11 ? 'st'
+                              : nth % 10 === 2 && nth % 100 !== 12 ? 'nd'
+                              : nth % 10 === 3 && nth % 100 !== 13 ? 'rd' : 'th';
+                            return `You have received all ${ordered} packages for this line. Confirm to receive a ${nth}${suffix}?`;
+                          })()
+                        : `You counted ${bsrPendingOverage.counted} pcs but only ${bsrPendingOverage.remaining} pcs
+                      remain on this line (${bsrPendingOverage.overage} pcs over).`}
+                    </p>
+                    <div className="bsr-overage-actions">
+                      <button
+                        type="button"
+                        className="bsr-overage-confirm-btn"
+                        disabled={bsrCountBusy || bsrScanning}
+                        onClick={() => {
+                          // A scan-originated overage must be re-posted through the
+                          // SCAN path — routing it through the count endpoint would
+                          // record a hand count instead of the barcode receipt.
+                          if (bsrPendingOverage.viaScan) {
+                            handleBsrScan(bsrPendingOverage.barcode, true);
+                          } else if (bsrPendingOverage.viaVerify) {
+                            // A verify-originated overage reconciles a line that
+                            // is already in stock. Posting it as a count would
+                            // receive the goods a second time.
+                            bsrPostVerify(bsrPendingOverage.packages, bsrPendingOverage.actualPieces, true);
+                          } else if (bsrPendingOverage.viaTopUp) {
+                            // A top-up overage must be re-posted through the TOP-UP
+                            // endpoint — routing it through receiveCount would claim
+                            // a whole package and reintroduce the "extra order"
+                            // over-count bug this feature exists to fix.
+                            bsrPostTopUp(bsrPendingOverage.pieces, true);
+                          } else {
+                            // Re-sends the COUNTED pieces alongside the units —
+                            // dropping actualPieces here would post the
+                            // per-package expectation instead.
+                            bsrPostCount(
+                              { units: bsrPendingOverage.units, actualPieces: bsrPendingOverage.actualPieces ?? null },
+                              true,
+                            );
+                          }
+                        }}
+                      >
+                        Confirm over-receipt
+                      </button>
+                      <button
+                        type="button"
+                        className="bsr-overage-cancel-btn"
+                        disabled={bsrCountBusy || bsrScanning}
+                        onClick={() => setBsrPendingOverage(null)}
+                      >
+                        {bsrPendingOverage.viaScan || bsrPendingOverage.viaVerify || bsrPendingOverage.viaTopUp ? 'Cancel' : 'Re-count'}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="bsr-examples-card">
                   {bsrActiveLine ? (() => {
                     const isSerialized = bsrIsSerialized(bsrActiveLine);
@@ -3208,59 +4289,172 @@ const BarcodeScan = () => {
               <div className="bsr-card">
                 <div className="bsr-card-head">
                   <div className="bsr-card-icon bsr-card-icon--cart"><BsrCartIcon size={18} /></div>
-                  <span className="bsr-card-title">SCANNED ITEMS</span>
-                  <span className="bsr-scanned-count">{totalScanned} {totalScanned === 1 ? 'item' : 'items'}</span>
+                  <span className="bsr-card-title">STAGED FOR THIS DELIVERY</span>
+                  <span className="bsr-scanned-count">{bsrDraft?.staged_count ?? 0} {(bsrDraft?.staged_count ?? 0) === 1 ? 'item' : 'items'}</span>
                 </div>
-                {bsrScannedItems.length === 0 ? (
+                {!bsrDraft || (bsrDraft.items || []).length === 0 ? (
                   <div className="bsr-scanned-empty">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5">
                       <rect x="2" y="5" width="3" height="14" rx="1"/><rect x="7" y="5" width="1.5" height="14" rx="0.5"/>
                       <rect x="10" y="5" width="3" height="14" rx="1"/><rect x="15" y="5" width="1.5" height="14" rx="0.5"/>
                       <rect x="18" y="5" width="3" height="14" rx="1"/>
                     </svg>
-                    <p>No items scanned yet</p>
+                    <p>Nothing staged yet</p>
+                    <p className="bsr-scanned-empty-hint">Pick an item on the left, then scan its barcode or enter a count.</p>
                   </div>
                 ) : (
-                  <div className="bsr-scanned-list">
-                    {bsrScannedItems.map((item) => (
-                      <div key={item.id} className="bsr-scanned-item">
-                        <div className="bsr-scanned-item-info">
-                          <span className="bsr-scanned-item-name">{item.productName}</span>
-                          <span className="bsr-scanned-item-serial">
-                            {item.serial
-                              ? item.serial
-                              : item.packages != null && item.qty != null
-                                ? `${item.packages} pkg${item.packages !== 1 ? 's' : ''} × ${item.qty / item.packages} pcs = ${item.qty} pcs`
-                                : item.qty != null ? `${item.qty} pcs` : ''}
-                          </span>
-                        </div>
-                        <span className="bsr-scanned-item-time">{item.at}</span>
-                      </div>
-                    ))}
+                  <div className="bsr-staged">
+                    <div className="bsr-staged-note">
+                      Nothing below is in inventory yet — check the list, then submit.
+                    </div>
+
+                    <div className="bsr-staged-list">
+                      {(bsrDraft.items || []).map((item) => {
+                        const failure = bsrSubmitFailures.find((f) => f.draft_item_id === item.draft_item_id);
+                        return (
+                          <div
+                            key={item.draft_item_id}
+                            className={`bsr-staged-row${failure ? ' bsr-staged-row-failed' : ''}`}
+                          >
+                            <div className="bsr-staged-main">
+                              <span className="bsr-staged-product">{item.product_name}</span>
+                              {item.scanned_barcode && (
+                                <span className="bsr-staged-code">{item.scanned_barcode}</span>
+                              )}
+                            </div>
+
+                            <span className="bsr-staged-qty">
+                              {item.packages_received != null ? (
+                                <>
+                                  <b>{item.packages_received}</b> pkg
+                                  <span className="bsr-staged-qty-sep">·</span>
+                                  <b>{item.quantity_amount}</b> pcs
+                                </>
+                              ) : (
+                                <><b>{item.quantity_amount}</b> pcs</>
+                              )}
+                            </span>
+
+                            {item.pieces_expected != null && item.quantity_amount !== item.pieces_expected && (
+                              <div className="bsr-staged-short">
+                                {item.pieces_expected - item.quantity_amount} pcs short of {item.pieces_expected} expected
+                              </div>
+                            )}
+
+                            {failure && (
+                              <div className="bsr-staged-failure" role="alert">{failure.reason}</div>
+                            )}
+
+                            <div className="bsr-staged-actions">
+                              {item.packages_received != null && (
+                                <label className="bsr-staged-field">
+                                  <span className="bsr-staged-field-label">Actual pcs</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    className="bsr-staged-pieces"
+                                    defaultValue={item.quantity_amount}
+                                    aria-label={`Actual pieces for ${item.product_name}`}
+                                    onBlur={(e) => {
+                                      const next = Number(e.target.value);
+                                      if (Number.isFinite(next) && next !== item.quantity_amount) {
+                                        handleBsrAdjustStaged(item.draft_item_id, next);
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                              <button
+                                type="button"
+                                className="bsr-btn-remove"
+                                onClick={() => handleBsrRemoveStaged(item.draft_item_id)}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="bsr-staged-foot">
+                      <span className="bsr-staged-total">
+                        <b>{bsrDraft.staged_count}</b> {bsrDraft.staged_count === 1 ? 'item' : 'items'}
+                        {bsrDraft.staged_pieces != null && (<> · <b>{bsrDraft.staged_pieces}</b> pcs</>)} waiting to be posted
+                      </span>
+                      <button
+                        type="button"
+                        className="bsr-btn-submit-draft"
+                        disabled={bsrSubmitting}
+                        onClick={() => handleBsrSubmitDraft(false)}
+                      >
+                        {bsrSubmitting ? 'Submitting…' : 'Submit to inventory'}
+                      </button>
+
+                      {bsrSubmitFailures.some((f) => f.detail?.action === 'over_receipt') && (
+                        <button
+                          type="button"
+                          className="bsr-btn-accept-overage"
+                          disabled={bsrSubmitting}
+                          onClick={() => handleBsrSubmitDraft(true)}
+                        >
+                          Accept the overage and submit anyway
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
               <div className="bsr-action-btns">
-                <button type="button" className="bsr-btn-cancel"
-                  onClick={handleBsrSaveExit}
-                >Save &amp; Exit</button>
                 <button type="button"
-                  className={`bsr-btn-complete${(!isFullyReceived && totalScanned === 0) ? ' bsr-btn-complete--disabled' : ''}`}
-                  onClick={() => {
-                    if (totalScanned === 0 && !isFullyReceived) {
-                      setBsrAlertModal({ type: 'error', title: 'Nothing Scanned', message: 'No items have been scanned yet.' });
+                  className={`bsr-btn-complete${!canPrintGrn ? ' bsr-btn-complete--disabled' : ''}`}
+                  onClick={async () => {
+                    if (!canPrintGrn) {
+                      // Distinguish "you have not received anything" from "you
+                      // have staged things but not submitted them" — the second
+                      // is a clerk one button away from success, and telling
+                      // them "nothing received" while they can see their rows
+                      // on screen would read as the system losing their work.
+                      setBsrAlertModal(totalScanned > 0
+                        ? {
+                          type: 'error',
+                          title: 'Not Submitted Yet',
+                          message: `You have ${totalScanned} item(s) staged but not yet in inventory. Press Submit first — the receipt can only report what has been posted.`,
+                        }
+                        : {
+                          type: 'error',
+                          title: 'Nothing Received',
+                          message: 'Nothing has been received against this purchase order yet.',
+                        });
                       return;
                     }
                     const poNum = bsrSelectedPo?.po_number;
                     const count = totalScanned;
+                    const poId = bsrSelectedPo?.po_id ?? bsrSelectedPo?.id;
+                    bsrProcessingRef.current = true;
+                    let receiptDownloaded = false;
+                    try {
+                      await openApiFile(
+                        `/purchase-orders/${poId}/receiving-receipt/pdf`,
+                        {
+                          download: true,
+                          preview: true,
+                          filename: `GRN-${poNum || poId}${isFullyReceived ? '' : '-PARTIAL'}.pdf`,
+                        },
+                      );
+                      receiptDownloaded = true;
+                    } catch (e) {
+                      toast.error(e?.message || 'The receipt could not be downloaded.');
+                    }
                     if (isFullyReceived) {
                       bsrProcessingRef.current = true;
                       setBsrAlertModal({
                         type: 'success',
                         title: 'Receiving Complete',
-                        message: `All ordered items for ${poNum} have been received. The PO has been marked as Completed.`,
+                        message: `All ordered items for ${poNum} have been received.${receiptDownloaded ? ' The receipt was opened and downloaded as a PDF.' : ''}`,
                         onDismiss: () => {
-                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
+                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({}); setBsrContentsVerified({}); setBsrScanInput('');
                         },
                       });
                     } else {
@@ -3268,15 +4462,15 @@ const BarcodeScan = () => {
                       setBsrAlertModal({
                         type: 'warning',
                         title: 'Partial Receiving Saved',
-                        message: `${count} item(s) recorded for ${poNum}. Not all quantities have been received — this PO remains as "Partially Received". You can resume scanning at any time.`,
+                        message: `${count} item(s) recorded for ${poNum}. This PO remains "Partially Received".${receiptDownloaded ? ' A partial receipt was opened and downloaded as a PDF.' : ''} You can resume scanning at any time.`,
                         onDismiss: () => {
-                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrScanInput('');
+                          setBsrSelectedPo(null); setBsrScannedItems([]); setBsrProductProgress({}); setBsrPackageProgress({}); setBsrContentsVerified({}); setBsrScanInput('');
                         },
                       });
                     }
                   }}
-                  disabled={!canScan || (totalScanned === 0 && !isFullyReceived)}
-                ><BsrCheckIcon /> {isFullyReceived ? 'Complete Receiving' : 'Save & Exit'}</button>
+                  disabled={!canScan || !canPrintGrn}
+                ><BsrCheckIcon /> Done</button>
               </div>
             </div>
           </div>
@@ -3291,16 +4485,32 @@ const BarcodeScan = () => {
   return (
     <AdminLayout>
       <div className="ak-page bs-page">
-        <div className="bs-page-header" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <button className="bs-topback-btn" onClick={exitScanMode} type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
-            Back
-          </button>
-          <div>
-            <h1>Inventory Operation</h1>
-            <p>Scan barcode or QR code to view item details and perform inventory lookups</p>
+        {operationHeader ? (
+          <header className="ak-header">
+            <div className="ak-header-row">
+              <div>
+                <p className="ak-eyebrow">{operationHeader.eyebrow}</p>
+                <h1 className="ak-title">{operationHeader.title}</h1>
+                <p className="ak-sub">{operationHeader.subtitle}</p>
+              </div>
+              <button className="bs-topback-btn" onClick={exitScanMode} type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+                Back
+              </button>
+            </div>
+          </header>
+        ) : (
+          <div className="bs-page-header" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <button className="bs-topback-btn" onClick={exitScanMode} type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+              Back
+            </button>
+            <div>
+              <h1>Inventory Operation</h1>
+              <p>Scan barcode or QR code to view item details and perform inventory lookups</p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ── camera box ── */}
         <div className="bs-camera-box">
@@ -3418,7 +4628,7 @@ const BarcodeScan = () => {
               <span className="bs-action-sub">
                 Select a storage location first, then scan. Purchase order is optional — leave it empty to receive without a PO.
                 {' '}When a PO is selected, only products on that PO are accepted. Each valid scan updates inventory on the server.
-                {' '}Quantity applies to <strong>consumables</strong> (bulk items); <strong>appliances</strong> are received one unit per scan (serialized).
+                {' '}Quantity applies to <strong>installation materials</strong> (bulk items); <strong>appliances</strong> are received one unit per scan (serialized).
                 {receivePoLinesLoading && ' (Loading PO line items…)'}
                 {!receivePoLinesLoading && txForm.pc_id && receivePoProductIds.length > 0
                   && ` Only ${receivePoProductIds.length} product(s) on this PO can be accepted by scan.`}
@@ -3429,16 +4639,18 @@ const BarcodeScan = () => {
         )}
 
         {currentModeKey === 'audit' && (
-          <div className="bs-action-card" style={{ marginTop: 0, marginBottom: 20, borderColor: '#c7d2fe', background: '#f5f7ff' }}>
+          <div className="bs-action-card bs-issue-out-setup" style={{ marginTop: 0, marginBottom: 20 }}>
             <div className="bs-action-head">
               <span className="bs-action-title">Audit — setup</span>
               <span className="bs-action-sub">
-                Select the location to verify, then scan barcodes. Stock is not changed; each scan is logged for traceability.
+                Select the physical location being audited, then scan a product barcode or appliance serial number.
+                The system will display the item's status, information, stock by location, and movement history.
+                Audit is read-only and will not change inventory.
               </span>
             </div>
             <div className="bs-action-grid">
               <div className="bs-filter-col">
-                <label>LOCATION</label>
+                <label>LOCATION <span className="bs-required-mark">*</span></label>
                 {isStrictLocation ? (
                   <LocationBadge locationName={enforcedLocationName} locationType={enforcedLocationType} />
                 ) : (
@@ -3446,6 +4658,7 @@ const BarcodeScan = () => {
                     value={txForm.location_id ? Number(txForm.location_id) : null}
                     onChange={(val) => setTxForm((p) => ({ ...p, location_id: val != null ? String(val) : '' }))}
                     allowedLocations={allowedLocations.length ? allowedLocations : locations.map(l => ({ location_id: l.id ?? l.location_id, location_name: l.location_name || l.name, location_type: l.location_type ?? '', location_code: l.location_code ?? '' }))}
+                    error={!txForm.location_id ? 'Select the location before scanning an item.' : ''}
                   />
                 )}
               </div>
@@ -3455,16 +4668,18 @@ const BarcodeScan = () => {
 
         {/* ── barcode input: camera for everyone; manual typing / wedge typing only for System Administrator ── */}
         <div className="bs-input-section">
-          <p className="bs-input-title">Barcode / QR Scanner</p>
+          <p className="bs-input-title">
+            {currentModeKey === 'audit' ? 'Scan barcode or serial number for audit' : 'Barcode / QR Scanner'}
+          </p>
           {cameraBlockedPlainHttp && (
             <p
               className="bs-input-sub"
               style={{
-                background: '#fff7ed',
-                border: '1px solid #fdba74',
+                background: 'var(--tint-amber-soft)',
+                border: '1px solid var(--line-orange-300-2)',
                 borderRadius: 8,
                 padding: '10px 12px',
-                color: '#9a3412',
+                color: 'var(--ink-orange-700-5)',
                 marginBottom: 10,
               }}
             >
@@ -3478,12 +4693,19 @@ const BarcodeScan = () => {
             </p>
           )}
           <p className="bs-input-sub">
-            {isAdminRole
+            {currentModeKey === 'audit'
+              ? 'Point the camera at the item. The system will identify it and open its full read-only audit record automatically.'
+              : isAdminRole
               ? 'Camera decodes automatically when the code is in view. Admins may also type or use a USB barcode wedge in the field — short pause or Enter / Tab submits.'
               : 'Camera decodes automatically when the code is in view. Manual typing and USB wedge entry are disabled; use the camera only.'}
           </p>
-          <p className="bs-input-sub" style={{ marginTop: -6, fontSize: 12, color: '#64748b' }}>
-            {currentModeKey === 'issue-out' ? (
+          <p className="bs-input-sub" style={{ marginTop: -6, fontSize: 12, color: 'var(--ink-blue-500)' }}>
+            {currentModeKey === 'audit' ? (
+              <>
+                Scan a <strong>product barcode</strong> to inspect all inventory for that product, or an
+                individual <strong>serial number</strong> to inspect that exact appliance and its history.
+              </>
+            ) : currentModeKey === 'issue-out' ? (
               <>
                 In <strong>Issue Out</strong>, use the <strong>setup</strong> above (quantity, condition, location), then scan. After the product appears, tap <strong>Issue stock out</strong> to deduct the quantity you entered. Unit <strong>serials</strong> may post immediately when the code is not a catalog barcode.
               </>
@@ -3506,7 +4728,11 @@ const BarcodeScan = () => {
               ref={inputRef}
               type="text"
               className="bs-barcode-input"
-              placeholder={isAdminRole ? 'Scan with camera, type, or USB wedge scanner…' : 'Decoded value appears here (camera only)'}
+              placeholder={
+                currentModeKey === 'audit'
+                  ? (isAdminRole ? 'Scan a product barcode or unit serial number…' : 'Camera scan appears here…')
+                  : (isAdminRole ? 'Scan with camera, type, or USB wedge scanner…' : 'Decoded value appears here (camera only)')
+              }
               value={barcodeInput}
               readOnly={!isAdminRole}
               onPaste={!isAdminRole ? (e) => e.preventDefault() : undefined}
@@ -3561,7 +4787,7 @@ const BarcodeScan = () => {
         </div>
 
         {/* ── type tabs ── */}
-        <div className="bs-type-row">
+        {currentModeKey !== 'audit' && <div className="bs-type-row">
           <button className={`bs-type-btn${activeType === 'appliance' ? ' active' : ''}`} onClick={() => setActiveType('appliance')} type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
             UNIT / APPLIANCE
@@ -3570,10 +4796,10 @@ const BarcodeScan = () => {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
             PART / MATERIAL
           </button>
-        </div>
+        </div>}
 
         {currentModeKey === 'transfer' && (
-          <div style={{ margin: '12px 0', padding: '14px 16px', background: '#fff7ed', borderRadius: 10, border: '1px solid #fed7aa' }}>
+          <div style={{ margin: '12px 0', padding: '14px 16px', background: 'var(--tint-amber-soft)', borderRadius: 10, border: '1px solid var(--line-orange-200)' }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
               <button
                 type="button"
@@ -3590,7 +4816,7 @@ const BarcodeScan = () => {
                 TRANSFER IN (showroom)
               </button>
             </div>
-            <p style={{ margin: 0, fontSize: 13, color: '#9a3412', lineHeight: 1.45 }}>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-orange-700-5)', lineHeight: 1.45 }}>
               {transferSubmode === 'out'
                 ? 'Ship from warehouse. Use “Ship first” so stock only appears at the showroom after someone scans to receive here.'
                 : 'Truck arrived? Pick your showroom and the in-transit transfer, then scan each barcode to add stock at this location.'}
@@ -3602,7 +4828,7 @@ const BarcodeScan = () => {
         )}
 
         {/* ── filter dropdowns ── */}
-        <div className="bs-filters">
+        {currentModeKey !== 'audit' && <div className="bs-filters">
           <div className="bs-filter-col">
             <label>CATEGORY</label>
             <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
@@ -3626,7 +4852,7 @@ const BarcodeScan = () => {
               placeholder="Model code"
             />
           </div>
-        </div>
+        </div>}
 
         {/* ── scan result card ── */}
         {scanResult && (() => {
@@ -3679,7 +4905,7 @@ const BarcodeScan = () => {
                       </div>
                       <div className="bs-result-cell">
                         <span className="bs-rk">Audit</span>
-                        <span className="bs-rv" style={{ color: '#4338ca', fontWeight: 600 }}>Verified (no stock change)</span>
+                        <span className="bs-rv" style={{ color: 'var(--ink-indigo-500)', fontWeight: 600 }}>Verified (no stock change)</span>
                       </div>
                     </>
                   ) : scanResult.inventory ? (
@@ -3798,6 +5024,8 @@ const BarcodeScan = () => {
                 )}
               </p>
             </div>
+            {scanResult.auditSnapshot && <AuditInspectionDetails scanResult={scanResult} />}
+            {mode.key !== 'audit' && (
             <div className="bs-action-card">
               <div className="bs-action-head">
                 <span className="bs-action-title">Mode Action: {mode.label}</span>
@@ -3809,13 +5037,13 @@ const BarcodeScan = () => {
                       : scanResult.transactionEngineApplied
                         ? 'Stock for this scan was already updated on the server. You do not need to post again.'
                         : mode.key === 'receive-po'
-                          ? 'Each accepted scan posts receiving on the server. Execute is not required for normal receiving.'
+                          ? 'Scans and counts are staged for review. Nothing reaches inventory until you press Submit.'
                           : 'Post transaction using scanned barcode'}
                 </span>
               </div>
               {mode.key === 'receive-po' && (
-                <div className="bs-receive-po-context" style={{ borderTop: '1px solid #ecfdf5' }}>
-                  <p className="bs-action-sub" style={{ padding: '12px 16px 0', margin: 0, color: '#047857' }}>
+                <div className="bs-receive-po-context" style={{ borderTop: '1px solid var(--line-green-100-2)' }}>
+                  <p className="bs-action-sub" style={{ padding: '12px 16px 0', margin: 0, color: 'var(--ink-teal-800-2)' }}>
                     <strong>Location</strong> and <strong>Purchase order</strong> (optional) — same as setup above; keep them here after you scan so you can change them without scrolling up.
                   </p>
                   {receivePoSetupGrid}
@@ -3827,7 +5055,7 @@ const BarcodeScan = () => {
                   <label>
                     QUANTITY
                     {mode.key === 'issue-out' && scanResult?.inventory && !scanResult.transactionEngineApplied && (
-                      <span style={{ fontWeight: 500, color: '#64748b' }}>
+                      <span style={{ fontWeight: 500, color: 'var(--ink-blue-500)' }}>
                         {' '}(max {availableAtLocation(scanResult.inventory)})
                       </span>
                     )}
@@ -3911,9 +5139,9 @@ const BarcodeScan = () => {
                 )}
                 {(mode.key === 'issue-out' || (mode.key === 'transfer' && transferSubmode === 'out')) && (
                   <div className="bs-filter-col" style={{ gridColumn: '1 / -1' }}>
-                    <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-blue-700)' }}>
                       Available at selected location:{' '}
-                      <strong style={{ color: '#0f172a' }}>
+                      <strong style={{ color: 'var(--text-dark)' }}>
                         {scanResult.inventory ? availableAtLocation(scanResult.inventory) : '—'}
                       </strong>
                       {scanResult.inventory ? ' units (issue/transfer cannot exceed this)' : ' — select a location with stock'}
@@ -3922,7 +5150,7 @@ const BarcodeScan = () => {
                 )}
                 {mode.key === 'transfer' && transferSubmode === 'in' && (
                   <div className="bs-filter-col" style={{ gridColumn: '1 / -1' }}>
-                    <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-blue-700)' }}>
                       Receiving matches the scanned barcode to this transfer line. If qty at showroom is still 0, receipt will add stock.
                     </p>
                   </div>
@@ -3959,12 +5187,35 @@ const BarcodeScan = () => {
                       <div key={log.id} className="bs-tx-item">
                         <span className="bs-tx-main">{log.mode} · {log.ref}</span>
                         <span className="bs-tx-sub">{log.at} · Qty {log.qty} · {log.location}</span>
+                        {(log.receivingId || log.poId) && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                            {log.receivingId && (
+                              <button
+                                type="button"
+                                className="ak-btn ak-btn--ghost ak-btn--sm"
+                                onClick={() => openReceipt(log.receivingId)}
+                              >
+                                This scan
+                              </button>
+                            )}
+                            {log.poId && (
+                              <button
+                                type="button"
+                                className="ak-btn ak-btn--primary ak-btn--sm"
+                                onClick={() => openApiFile(`/purchase-orders/${log.poId}/receiving-receipt/pdf`).catch((e) => toast.error(e.message))}
+                              >
+                                PO receipt · print / PDF
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
             </div>
+            )}
             </div>
           );
         })()}
@@ -3990,7 +5241,7 @@ const BarcodeScan = () => {
                     <span className="bs-hi-time">{h.scannedAt}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <span style={{ fontSize: '0.6rem', fontWeight: 700, color: MODES.find(m => m.key === h.modeKey)?.color || '#6b7280', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: '0.6rem', fontWeight: 700, color: MODES.find(m => m.key === h.modeKey)?.color || 'var(--text-muted)', letterSpacing: '0.04em' }}>
                       {h.mode}
                     </span>
                     {h.inventory ? (() => {
@@ -4019,7 +5270,7 @@ const BarcodeScan = () => {
           }}
           title="Barcode not found"
         >
-          <p style={{ marginBottom: 16, color: '#374151', lineHeight: 1.45 }}>
+          <p style={{ marginBottom: 16, color: 'var(--text-body)', lineHeight: 1.45 }}>
             Barcode not found. Do you want to register this product?
           </p>
           <div className="im-modal-footer" style={{ justifyContent: 'flex-end', gap: 10 }}>
@@ -4066,6 +5317,12 @@ const BarcodeScan = () => {
           }}
         />
       </div>
+
+      <ReceivingReceipt
+        receiving={receiptReceiving}
+        isOpen={!!receiptReceiving}
+        onClose={() => setReceiptReceiving(null)}
+      />
     </AdminLayout>
   );
 };

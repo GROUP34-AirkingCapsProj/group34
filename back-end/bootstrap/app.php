@@ -4,6 +4,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -14,6 +15,20 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Apache reverse-proxies /api from the public vhost to Laravel on
+        // 127.0.0.1:8081 (apache/airking.conf). Untrusted, that hop makes every
+        // request look like it came from 127.0.0.1 over http — so audit_trail /
+        // login_activities record the proxy's address instead of the operator's,
+        // and rate limiting keys every client to the same bucket. Only loopback
+        // is trusted; a header from a real client is still ignored.
+        $middleware->trustProxies(
+            at: ['127.0.0.1', '::1'],
+            headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_HOST
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO,
+        );
+
         // API-only app: treat every /api/* request as expecting JSON so auth and
         // validation failures always return proper JSON (not a redirect to `login`).
         $middleware->api(prepend: [
@@ -30,6 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'extend.sanctum.session' => \App\Http\Middleware\ExtendSanctumTokenExpiration::class,
             'auth.query.token'       => \App\Http\Middleware\AuthenticateFromQueryToken::class,
             'permission'             => \App\Http\Middleware\CheckPermission::class,
+            'password.changed'       => \App\Http\Middleware\CheckPasswordChange::class,
         ]);
 
         // Run authorization (role/auditor) BEFORE route-model binding, so a
@@ -39,6 +55,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList($substitute, \App\Http\Middleware\AuditorReadOnly::class);
         $middleware->prependToPriorityList($substitute, \App\Http\Middleware\CheckRole::class);
         $middleware->prependToPriorityList($substitute, \App\Http\Middleware\CheckPermission::class);
+
+        // Browser-download routes authenticate from a ?token= query param (no
+        // Authorization header / cookie is possible on a top-level navigation).
+        // AuthenticateFromQueryToken must run BEFORE CheckPermission so the user
+        // is resolved before the permission gate reads it — otherwise the gate
+        // 401s and the download (PDF/CSV) never reaches the browser.
+        $middleware->prependToPriorityList(
+            \App\Http\Middleware\CheckPermission::class,
+            \App\Http\Middleware\AuthenticateFromQueryToken::class
+        );
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Always return JSON for API routes (fixes "Response was not JSON" on 404/500)
@@ -55,6 +81,20 @@ return Application::configure(basePath: dirname(__DIR__))
                     'success' => false,
                     'message' => 'Unauthenticated.',
                 ], 401);
+            }
+        });
+
+        // $request->validate() throws ValidationException directly (bypassing
+        // ApiResponse::validationError()), so without this its default render
+        // — {message, errors}, no 'success' key — is the only API shape that
+        // does not match every other error response in the app.
+        $exceptions->render(function (ValidationException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'errors' => $e->errors(),
+                ], $e->status);
             }
         });
     })->create();

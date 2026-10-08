@@ -1,10 +1,21 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
 import Barcode from 'react-barcode';
-import { productsAPI, categoriesAPI, brandsAPI, unitsAPI, batchAPI, statusAPI } from '../services/api';
+import {
+  productsAPI,
+  categoriesAPI,
+  brandsAPI,
+  unitsAPI,
+  batchAPI,
+  statusAPI,
+  capacitiesAPI,
+  variantsAPI,
+  acTypesAPI,
+  airconModelsAPI,
+} from '../services/api';
 import { toast } from '../utils/toast';
 import { useFocusTarget } from '../hooks/useFocusTarget';
 import { useFocusPulse } from '../hooks/useFocusPulse';
@@ -23,6 +34,11 @@ const ItemManagement = () => {
   const canManageItems = roleKey === ROLES.ADMIN
     || (typeof can === 'function' && (can('item_master_management', 'create') || can('item_master_management', 'update')));
   const isViewOnly = !canManageItems;
+  // Splitting a legacy aircon composes an aircon model, so it is gated on that
+  // permission rather than on item-master editing. A user may well be allowed
+  // to edit products without being allowed to build the model catalogue.
+  const canConvertAircon = roleKey === ROLES.ADMIN
+    || (typeof can === 'function' && can('aircon_model_management', 'create'));
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -37,7 +53,7 @@ const ItemManagement = () => {
   const [pagination, setPagination] = useState({ total: 0, last_page: 1 });
   const [productType, setProductType] = useState('appliance');
   const [activeTab, setActiveTab] = useState('all');
-  const [typeCounts, setTypeCounts] = useState({ all: 0, appliance: 0, consumable: 0 });
+  const [typeCounts, setTypeCounts] = useState({ all: 0, appliance: 0, installationMaterial: 0 });
   const [filterCategory, setFilterCategory] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const rowsPerPage = 10;
@@ -47,12 +63,23 @@ const ItemManagement = () => {
   const [brands, setBrands] = useState([]);
   const [units, setUnits] = useState([]);
   const [statuses, setStatuses] = useState([]);
-  const [issuableUnits, setIssuableUnits] = useState([]);
+  const [capacities, setCapacities] = useState([]);
+  const [variants, setVariants] = useState([]);
+  // AC types are fetched only to learn which ac_type_id values are two-piece:
+  // a window type has no second half, so it must not offer the split.
+  const [acTypes, setAcTypes] = useState([]);
+  const [convertingItem, setConvertingItem] = useState(null);
+  const [isConverting, setIsConverting] = useState(false);
+  const [convertForm, setConvertForm] = useState({
+    keep_as: 'indoor',
+    indoor_model_code: '',
+    indoor_unit_price: '',
+    outdoor_model_code: '',
+    outdoor_unit_price: '',
+  });
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isAddBrandOpen, setIsAddBrandOpen] = useState(false);
   const [isAddUnitOpen, setIsAddUnitOpen] = useState(false);
-  // null = consumable "Unit of Measure" field; number = issuable-unit row index
-  const [addUnitTargetIdx, setAddUnitTargetIdx] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newBrandName, setNewBrandName] = useState('');
   const [newUnitName, setNewUnitName] = useState('');
@@ -73,6 +100,8 @@ const ItemManagement = () => {
     variant: '',
     color: '',
     capacity_rating: '',
+    ac_type_id: '',
+    unit_role: '',
     description: '',
     pieces_per_package: '',
     package_unit: '',
@@ -83,25 +112,40 @@ const ItemManagement = () => {
 
   const fetchLookups = useCallback(async () => {
     try {
-      const batchRes = await batchAPI.get({ include: ['categories', 'brands', 'units'] });
+      const batchRes = await batchAPI.get({ include: ['categories', 'brands', 'units', 'capacities', 'variants'] });
       const batchData = batchRes?.data || {};
       setCategories(Array.isArray(batchData.categories?.data) ? batchData.categories.data : []);
       setBrands(Array.isArray(batchData.brands?.data) ? batchData.brands.data : []);
       setUnits(Array.isArray(batchData.units?.data) ? batchData.units.data : []);
+      setCapacities(Array.isArray(batchData.capacities?.data) ? batchData.capacities.data : []);
+      setVariants(Array.isArray(batchData.variants?.data) ? batchData.variants.data : []);
     } catch (err) {
       console.error('Failed to fetch lookups via batch:', err);
       try {
-        const [catRes, brandRes, unitsRes] = await Promise.all([
+        const [catRes, brandRes, unitsRes, capRes, varRes] = await Promise.all([
           categoriesAPI.getAll(),
           brandsAPI.getAll(),
           unitsAPI.getAll(),
+          capacitiesAPI.getAll(),
+          variantsAPI.getAll(),
         ]);
         setCategories(Array.isArray(catRes?.data) ? catRes.data : []);
         setBrands(Array.isArray(brandRes?.data) ? brandRes.data : []);
+        setCapacities(Array.isArray(capRes?.data) ? capRes.data : []);
+        setVariants(Array.isArray(varRes?.data) ? varRes.data : []);
         setUnits(Array.isArray(unitsRes?.data) ? unitsRes.data : []);
       } catch (fallbackErr) {
         console.error('Fallback fetch also failed:', fallbackErr);
       }
+    }
+    // AC types, in their own try: this list only gates one row action, so a
+    // failure here must not cost the page its categories and brands.
+    try {
+      const acTypeRes = await acTypesAPI.getAll();
+      setAcTypes(Array.isArray(acTypeRes?.data) ? acTypeRes.data : []);
+    } catch (acTypeErr) {
+      console.error('Failed to fetch AC types:', acTypeErr);
+      setAcTypes([]);
     }
     // Statuses — filter to product category only (3=Active, 4=Inactive)
     try {
@@ -117,17 +161,6 @@ const ItemManagement = () => {
   useEffect(() => {
     fetchLookups();
   }, [fetchLookups]);
-
-  // Load issuable units when opening the edit modal; clear when creating.
-  useEffect(() => {
-    if (editingItem?.product_id) {
-      productsAPI.getIssuableUnits(editingItem.product_id)
-        .then(res => setIssuableUnits(Array.isArray(res?.data) ? res.data : []))
-        .catch(() => setIssuableUnits([]));
-    } else {
-      setIssuableUnits([]);
-    }
-  }, [editingItem]);
 
   const fetchItems = useCallback(async (page = 1) => {
     try {
@@ -195,7 +228,7 @@ const ItemManagement = () => {
         setTypeCounts({
           all: getTotal(allRes),
           appliance: getTotal(appRes),
-          consumable: getTotal(conRes),
+          installationMaterial: getTotal(conRes),
         });
       } catch {}
     };
@@ -215,7 +248,8 @@ const ItemManagement = () => {
       name: '', code: '', barcode: '', category_id: '', brand_id: '', model_code: '', unit_id: '',
       unit_price: '', cost_price: '', warranty_value: 0, warranty_unit: 'month', status_id: '',
       variant: '', color: '',
-      capacity_rating: '', description: '', pieces_per_package: '', package_unit: '',
+      capacity_rating: '', ac_type_id: '', unit_role: '',
+      description: '', pieces_per_package: '', package_unit: '',
       recommended_stocks: '', safety_stock: '', max_stock_level: '',
     });
     setProductType('appliance');
@@ -246,13 +280,16 @@ const ItemManagement = () => {
     }
     setEditingItem(item);
     const storedType = item.product_type;
-    const legacyIsConsumable =
+    // Matches on category_name below: "Consumable" is a legitimate CATEGORY name and
+    // is deliberately not renamed here. Only the product *type* was renamed to
+    // installation_material.
+    const legacyIsInstallationMaterial =
       !storedType &&
       ((item.unit?.unit_name || '').toLowerCase() === 'roll' ||
         (item.category?.category_name || '').toLowerCase().includes('consumable') ||
         (item.category?.category_name || '').toLowerCase().includes('parts') ||
         (item.category?.category_name || '').toLowerCase().includes('installation'));
-    const resolvedType = storedType || (legacyIsConsumable ? 'installation_material' : 'appliance');
+    const resolvedType = storedType || (legacyIsInstallationMaterial ? 'installation_material' : 'appliance');
     setProductType(resolvedType);
     setFormData({
       name: item.product_name || item.name || '',
@@ -278,6 +315,8 @@ const ItemManagement = () => {
       variant: item.variant || '',
       color: item.color || '',
       capacity_rating: item.capacity_rating || '',
+      ac_type_id: item.ac_type_id ?? '',
+      unit_role: item.unit_role || '',
       description: item.description || '',
       pieces_per_package: item.pieces_per_package ?? '',
       package_unit: item.package_unit || '',
@@ -303,7 +342,7 @@ const ItemManagement = () => {
     try {
       // Tag the new category with the current form's product type so it appears
       // in the type-filtered category dropdown (appliance vs installation material).
-      const category_type = productType === 'installation_material' ? 'consumable' : 'appliance';
+      const category_type = productType === 'installation_material' ? 'installation_material' : 'appliance';
       const res = await categoriesAPI.create({ category_name: name, category_type });
       const created = res?.data || res;
       if (created) {
@@ -359,18 +398,12 @@ const ItemManagement = () => {
       const created = res?.data || res;
       if (created) {
         setUnits((prev) => [...prev, created]);
-        if (addUnitTargetIdx === null) {
-          setFormData((prev) => ({
-            ...prev,
-            unit_id: created.unit_id ?? prev.unit_id,
-          }));
-        } else if (created.unit_id != null) {
-          updateIssuableUnit(addUnitTargetIdx, 'unit_id', created.unit_id);
+        if (created.unit_id != null) {
+          setFormData((prev) => ({ ...prev, unit_id: created.unit_id }));
         }
       }
       setNewUnitName('');
       setNewUnitAbbrev('');
-      setAddUnitTargetIdx(null);
       setIsAddUnitOpen(false);
       toast.success('Unit added.');
     } catch (err) {
@@ -395,51 +428,6 @@ const ItemManagement = () => {
 
   const getBarcodeFormat = (value) =>
     /^\d{13}$/.test(String(value || '')) ? 'EAN13' : 'CODE128';
-
-
-
-  const handleAddIssuableUnit = () => {
-    setIssuableUnits(prev => [...prev, {
-      issuable_unit_id:    null,
-      unit_id:             '',
-      label:               '',
-      conversion_factor:   1,
-      is_whole_package:    false,
-      show_as_quick_action: true,
-      sort_order:          prev.length,
-    }]);
-  };
-
-  const updateIssuableUnit = (idx, field, value) => {
-    setIssuableUnits(prev => prev.map((iu, i) =>
-      i === idx ? { ...iu, [field]: value } : iu
-    ));
-  };
-
-  const removeIssuableUnit = (idx) => {
-    setIssuableUnits(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const saveIssuableUnits = async (productId) => {
-    if (editingItem?.product_id) {
-      const existing = await productsAPI.getIssuableUnits(productId);
-      const existingIds = (existing?.data ?? []).map(iu => iu.issuable_unit_id);
-      for (const iuId of existingIds) {
-        await productsAPI.destroyIssuableUnit(iuId);
-      }
-    }
-    for (const iu of issuableUnits) {
-      if (!iu.label || !iu.unit_id || !iu.conversion_factor) continue;
-      await productsAPI.storeIssuableUnit(productId, {
-        unit_id:              Number(iu.unit_id),
-        label:                iu.label,
-        conversion_factor:    Number(iu.conversion_factor),
-        is_whole_package:     Boolean(iu.is_whole_package),
-        sort_order:           Number(iu.sort_order) || 0,
-        show_as_quick_action: Boolean(iu.show_as_quick_action),
-      });
-    }
-  };
 
   const handleSubmit = async (e) => {
     if (isViewOnly) {
@@ -472,11 +460,17 @@ const ItemManagement = () => {
         model_code:      formData.model_code || null,
         capacity_rating: formData.capacity_rating || null,
         variant:         formData.variant || null,
+        // Both AC fields go every time, even when empty. ProductController
+        // rewrites the whole appliance_details row via updateOrCreate, so a
+        // field left out of the payload is nulled rather than kept — sending
+        // one without the other would silently wipe it.
+        ac_type_id:      formData.ac_type_id ? Number(formData.ac_type_id) : null,
+        unit_role:       formData.unit_role || null,
         color:           formData.color || null,
         warranty_value:  Number(formData.warranty_value) || 0,
         warranty_unit:   formData.warranty_unit || 'month',
       } : {}),
-      // Consumable-specific
+      // Installation Material-specific
       ...(!isAppliance ? {
         unit_id:            formData.unit_id || null,
         pieces_per_package: formData.pieces_per_package ? Number(formData.pieces_per_package) : null,
@@ -486,18 +480,12 @@ const ItemManagement = () => {
       } : {}),
     };
     try {
-      let savedProductId;
       if (editingItem) {
         await productsAPI.update(editingItem.product_id ?? editingItem.id, payload);
-        savedProductId = editingItem.product_id ?? editingItem.id;
         toast.success('Product updated successfully!');
       } else {
-        const res = await productsAPI.create(payload);
-        savedProductId = res?.data?.product_id ?? res?.product_id;
+        await productsAPI.create(payload);
         toast.success('Product registered successfully!');
-      }
-      if (productType === 'installation_material' && savedProductId) {
-        await saveIssuableUnits(savedProductId);
       }
       setIsModalOpen(false);
       fetchItems(currentPage);
@@ -521,10 +509,126 @@ const ItemManagement = () => {
     if (i.product_type) return i.product_type;
     const u = (i.unit?.unit_name || '').toLowerCase();
     const c = (i.category?.category_name || '').toLowerCase();
+    // 'consumable' here is a CATEGORY name, not the old product type — leave it.
     return (u === 'roll' || u === 'box' || c.includes('consumable') || c.includes('parts') || c.includes('installation'))
       ? 'installation_material' : 'appliance';
   };
   const categoryCount = [...new Set(items.map(i => i.category_id || i.category?.category_id).filter(Boolean))].length;
+
+  // ---------------------------------------------------------------------
+  // Legacy aircon conversion (one 'complete' row -> an indoor/outdoor pair)
+  // ---------------------------------------------------------------------
+
+  /**
+   * Changing the AC type re-applies that type's default unit role and
+   * DISCARDS any manual choice made before the change. Preserving it would
+   * silently leave a product marked 'complete' under a type that means
+   * two-piece — the exact wrong state. The user can re-pick the side
+   * immediately; the field stays editable.
+   *
+   * Same rule as ProductRegisterModal's handleAcTypeChange. The two forms
+   * write the same column and must not disagree about the default.
+   */
+  const handleAcTypeChange = (nextId) => {
+    const chosen = acTypes.find((t) => String(t.ac_type_id) === String(nextId));
+
+    setFormData((f) => ({
+      ...f,
+      ac_type_id: nextId,
+      unit_role: chosen && !chosen.is_two_piece ? 'complete' : '',
+    }));
+  };
+
+  /** ac_type_ids that describe a machine with two halves. */
+  const twoPieceTypeIds = useMemo(
+    () => new Set(acTypes.filter((t) => t.is_two_piece).map((t) => String(t.ac_type_id))),
+    [acTypes]
+  );
+
+  /**
+   * Only a complete unit of a two-piece type can be split.
+   *
+   * A row already carrying 'indoor' or 'outdoor' is half of a pair already,
+   * and a window type has no second half — offering the action on either
+   * would only produce a 422. A row with no ac_type_id at all is left out
+   * here even though the backend would accept it: without a type there is
+   * nothing to say the machine has two halves, and guessing is how a window
+   * unit ends up split.
+   */
+  const canConvertItem = (item) =>
+    canConvertAircon
+    && resolveType(item) === 'appliance'
+    && item.unit_role === 'complete'
+    && item.ac_type_id != null
+    && twoPieceTypeIds.has(String(item.ac_type_id));
+
+  /** Money compared in centavos — 0.1 + 0.2 is not 0.3 in a float. */
+  const toCentavos = (value) => Math.round(Number(value || 0) * 100);
+
+  const convertOriginalCentavos = toCentavos(convertingItem?.unit_price ?? convertingItem?.price ?? 0);
+  const convertSumCentavos =
+    toCentavos(convertForm.indoor_unit_price) + toCentavos(convertForm.outdoor_unit_price);
+  const convertPriceMatches = convertSumCentavos === convertOriginalCentavos;
+
+  const handleOpenConvert = (item) => {
+    const cents = toCentavos(item.unit_price ?? item.price ?? 0);
+    // Seed with an even split that already sums correctly, the odd centavo
+    // going to the outdoor side. The user is expected to change these; the
+    // point is that the form does not open already in the error state.
+    const indoorCents = Math.floor(cents / 2);
+    const code = item.model_code || item.model_name || '';
+
+    setConvertForm({
+      keep_as: 'indoor',
+      indoor_model_code: code,
+      indoor_unit_price: (indoorCents / 100).toFixed(2),
+      outdoor_model_code: code ? `${code}-ODU` : '',
+      outdoor_unit_price: ((cents - indoorCents) / 100).toFixed(2),
+    });
+    setConvertingItem(item);
+  };
+
+  const handleConvertSubmit = async (e) => {
+    e.preventDefault();
+    if (!convertingItem || isConverting) return;
+
+    // The backend rejects this too, and must — this check is only here so the
+    // user is not made to submit to find out.
+    if (!convertPriceMatches) {
+      toast.error('The two prices must add up to the current unit price.');
+      return;
+    }
+
+    setIsConverting(true);
+    try {
+      await airconModelsAPI.convert(convertingItem.product_id ?? convertingItem.id, {
+        keep_as: convertForm.keep_as,
+        indoor: {
+          model_code: convertForm.indoor_model_code,
+          unit_price: Number(convertForm.indoor_unit_price || 0),
+        },
+        outdoor: {
+          model_code: convertForm.outdoor_model_code,
+          unit_price: Number(convertForm.outdoor_unit_price || 0),
+        },
+      });
+      toast.success('Converted to a two-piece pair.');
+      setConvertingItem(null);
+      fetchItems(currentPage);
+    } catch (err) {
+      if (err.errors && typeof err.errors === 'object') {
+        toast.error(
+          Object.values(err.errors)
+            .map((msgs) => (Array.isArray(msgs) ? msgs.join(', ') : msgs))
+            .join('; ') || err.message || 'Failed to convert.'
+        );
+      } else {
+        toast.error(err.message || 'Failed to convert.');
+      }
+    } finally {
+      setIsConverting(false);
+    }
+  };
 
   const normalizeFilterValue = (value) => (value == null ? '' : String(value));
 
@@ -547,6 +651,30 @@ const ItemManagement = () => {
     return name.includes('refrigerator') || name.includes('aircon') || name.includes('air conditioning');
   };
 
+  /** Capacity options, plus the item's current value if it would otherwise be dropped. */
+  const filteredCapacities = useMemo(() => {
+    const base = capacities;
+    const current = formData.capacity_rating;
+    if (current && !base.some((c) => c.capacity_value === current)) {
+      return [...base, { capacity_id: `__current-${current}`, capacity_value: current, __archived: true }];
+    }
+    return base;
+  }, [capacities, formData.capacity_rating]);
+
+  /** Variant options, plus the item's current value if it would otherwise be dropped. */
+  const filteredVariants = useMemo(() => {
+    const base = variants;
+    const current = formData.variant;
+    if (current && !base.some((v) => v.variant_name === current)) {
+      return [...base, { variant_id: `__current-${current}`, variant_name: current, __archived: true }];
+    }
+    return base;
+  }, [variants, formData.variant]);
+
+  /** True once at least one real (non-archived) capacity/variant option exists. */
+  const hasFilteredCapacities = filteredCapacities.some((c) => !c.__archived);
+  const hasFilteredVariants = filteredVariants.some((v) => !v.__archived);
+
   // Filtered items (client-side safeguard; backend params are also applied)
   const filteredItems = items.filter(item => {
     if (
@@ -564,10 +692,18 @@ const ItemManagement = () => {
   const getTypeBadge = (item) => {
     const type = resolveType(item);
     if (type === 'installation_material') {
-      return { label: 'INSTALLATION MATERIAL', className: 'im-type-consumable' };
+      return { label: 'INSTALLATION MATERIAL', className: 'im-type-installation-material' };
     }
     return { label: 'APPLIANCE', className: 'im-type-unit' };
   };
+
+  // Stock parameters for installation materials are entered in PIECES
+  // (convention: docs/superpowers/specs/2026-07-20-restock-package-units-design.md).
+  const stockParamUnitHint = (() => {
+    if (productType !== 'installation_material') return null;
+    const u = units.find(un => String(un.unit_id) === String(formData.unit_id));
+    return `in pieces${u?.unit_abbreviation ? ` (${u.unit_abbreviation})` : ''}`;
+  })();
 
   return (
     <AdminLayout>
@@ -656,7 +792,7 @@ const ItemManagement = () => {
             </div>
             <div className="im-stat-info">
               <span className="im-stat-label">Installation Materials</span>
-              <span className="im-stat-number">{typeCounts.consumable}</span>
+              <span className="im-stat-number">{typeCounts.installationMaterial}</span>
             </div>
           </div>
           <div className="im-stat-card">
@@ -704,7 +840,7 @@ const ItemManagement = () => {
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33" />
             </svg>
             Installation Materials
-            <span className="im-tab-count">{typeCounts.consumable}</span>
+            <span className="im-tab-count">{typeCounts.installationMaterial}</span>
           </button>
         </div>
 
@@ -746,7 +882,7 @@ const ItemManagement = () => {
                   <th>WARRANTY</th>
                   <th>COST PRICE</th>
                   <th>UNIT PRICE</th>
-                  <th title="Total on-hand quantity across all locations">STOCK</th>
+                  <th title="Total on-hand quantity across the locations you can see">STOCK</th>
                   <th>STATUS</th>
                   <th>ACTIONS</th>
                 </tr>
@@ -754,7 +890,7 @@ const ItemManagement = () => {
               <tbody>
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                    <td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-label)', padding: '40px' }}>
                       {loading ? <Loader /> : 'No products found'}
                     </td>
                   </tr>
@@ -764,9 +900,22 @@ const ItemManagement = () => {
                     const qty       = Number(item.quantity ?? 0);
                     const itemType  = resolveType(item);
 
+                    // Indoor and outdoor units are halves of one machine, and
+                    // the two look nearly identical in a list — same brand,
+                    // same capacity, often near-identical names. The role is
+                    // what tells them apart, so it gets a badge of its own
+                    // rather than being buried in the details text.
+                    // 'complete' is the unremarkable default every appliance
+                    // carries, so it is left unbadged; only a half is marked.
+                    const unitRole = itemType === 'appliance'
+                      && (item.unit_role === 'indoor' || item.unit_role === 'outdoor')
+                      ? item.unit_role
+                      : null;
+
                     // V5-aware Details cell
                     const detailsText = itemType === 'appliance'
-                      ? [item.brand_name, item.capacity_rating, item.variant].filter(Boolean).join(' ') || '—'
+                      ? [item.brand_name, item.capacity_rating, item.variant, item.ac_type_name]
+                          .filter(Boolean).join(' · ') || '—'
                       : (() => {
                           const unit = item.unit_name;
                           const ppp  = item.pieces_per_package;
@@ -792,7 +941,14 @@ const ItemManagement = () => {
                           </span>
                         </td>
                         <td className="im-cell-category">{item.category?.category_name || '—'}</td>
-                        <td className="im-cell-details">{detailsText}</td>
+                        <td className="im-cell-details">
+                          {unitRole && (
+                            <span className={`im-role-badge im-role-${unitRole}`}>
+                              {unitRole === 'indoor' ? 'Indoor' : 'Outdoor'}
+                            </span>
+                          )}
+                          {detailsText}
+                        </td>
                         <td className="im-cell-warranty">
                           {item.warranty_display && item.warranty_display !== 'No Warranty'
                             ? item.warranty_display
@@ -820,6 +976,22 @@ const ItemManagement = () => {
                                 </button>
                                 <ArchiveButton onArchive={() => handleArchive(item)} />
                               </>
+                            )}
+                            {/* Own gate: this composes an aircon model, which
+                                is a different permission from editing items. */}
+                            {canConvertItem(item) && (
+                              <button
+                                className="im-action-btn im-action-convert"
+                                onClick={() => handleOpenConvert(item)}
+                                title="Convert to two-piece"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                                  <path d="M16 3h5v5"></path>
+                                  <path d="M8 21H3v-5"></path>
+                                  <path d="M21 3l-7.5 7.5"></path>
+                                  <path d="M3 21l7.5-7.5"></path>
+                                </svg>
+                              </button>
                             )}
                           </div>
                         </td>
@@ -889,8 +1061,8 @@ const ItemManagement = () => {
           <div className={`im-view-details${itemPulse ? ' ak-focus-pulse' : ''}`}>
             {/* Type badge */}
             <div style={{ marginBottom: '12px' }}>
-              <span className={`im-type-badge ${resolveType(viewingItem) === 'appliance' ? 'im-type-unit' : 'im-type-consumable'}`}>
-                {resolveType(viewingItem) === 'appliance' ? 'APPLIANCE' : 'CONSUMABLE SUPPLY'}
+              <span className={`im-type-badge ${resolveType(viewingItem) === 'appliance' ? 'im-type-unit' : 'im-type-installation-material'}`}>
+                {resolveType(viewingItem) === 'appliance' ? 'APPLIANCE' : 'INSTALLATION MATERIAL SUPPLY'}
               </span>
             </div>
 
@@ -924,6 +1096,22 @@ const ItemManagement = () => {
                 </div>
                 <div className="im-view-row">
                   <div className="im-view-field">
+                    <label>AC Type</label>
+                    <p>{viewingItem.ac_type_name || '—'}</p>
+                  </div>
+                  <div className="im-view-field">
+                    <label>Unit Role</label>
+                    <p>{viewingItem.unit_role
+                        ? (viewingItem.unit_role === 'complete'
+                            ? 'Complete unit'
+                            : <span className={`im-role-badge im-role-${viewingItem.unit_role}`}>
+                                {viewingItem.unit_role === 'indoor' ? 'Indoor' : 'Outdoor'}
+                              </span>)
+                        : '—'}</p>
+                  </div>
+                </div>
+                <div className="im-view-row">
+                  <div className="im-view-field">
                     <label>Warranty</label>
                     <p>{viewingItem.warranty_display && viewingItem.warranty_display !== 'No Warranty'
                         ? viewingItem.warranty_display
@@ -933,7 +1121,7 @@ const ItemManagement = () => {
               </>
             )}
 
-            {/* Consumable-specific fields */}
+            {/* Installation Material-specific fields */}
             {resolveType(viewingItem) === 'installation_material' && (
               <>
                 <div className="im-view-row">
@@ -1103,13 +1291,15 @@ const ItemManagement = () => {
                       onChange={(e) => setFormData({ ...formData, capacity_rating: e.target.value })}
                     >
                       <option value="">Select Capacity (optional)</option>
-                      <option value="1HP">1HP</option>
-                      <option value="1.5HP">1.5HP</option>
-                      <option value="2HP">2HP</option>
-                      <option value="2.5HP">2.5HP</option>
-                      <option value="3HP">3HP</option>
-                      <option value="5HP">5HP</option>
+                      {filteredCapacities.map((c) => (
+                        <option key={c.capacity_id} value={c.capacity_value}>
+                          {c.__archived ? `${c.capacity_value} (archived)` : c.capacity_value}
+                        </option>
+                      ))}
                     </select>
+                    {!hasFilteredCapacities && (
+                      <p className="im-barcode-hint">No capacities defined yet. Add them on the Item Lookups page.</p>
+                    )}
                   </div>
                 </div>
                 <div className="im-form-row">
@@ -1121,6 +1311,11 @@ const ItemManagement = () => {
                         onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                       >
                         <option value="">Select Category</option>
+                        {/* category_type is NOT NULL at the schema level and the API rule now
+                            rejects anything but 'appliance'/'installation_material', so
+                            !c.category_type can't fire in practice. Left in as belt-and-braces:
+                            a hypothetical null still surfaces under Appliances instead of
+                            vanishing from both dropdowns. */}
                         {categories.filter(c => !c.category_type || c.category_type === 'appliance').map((c) => (
                           <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
                         ))}
@@ -1175,12 +1370,20 @@ const ItemManagement = () => {
                 <div className="im-form-row">
                   <div className="im-form-field">
                     <label>VARIANT</label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.variant}
                       onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
-                      placeholder="e.g. Non-Inverter"
-                    />
+                    >
+                      <option value="">Select variant (optional)</option>
+                      {filteredVariants.map((v) => (
+                        <option key={v.variant_id} value={v.variant_name}>
+                          {v.__archived ? `${v.variant_name} (archived)` : v.variant_name}
+                        </option>
+                      ))}
+                    </select>
+                    {!hasFilteredVariants && (
+                      <p className="im-barcode-hint">No variants defined yet. Add them on the Item Lookups page.</p>
+                    )}
                   </div>
                   <div className="im-form-field">
                     <label>COLOR</label>
@@ -1190,6 +1393,37 @@ const ItemManagement = () => {
                       onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                       placeholder="e.g. White"
                     />
+                  </div>
+                </div>
+                <div className="im-form-row">
+                  <div className="im-form-field">
+                    <label htmlFor="im-ac-type">AC TYPE</label>
+                    <select
+                      id="im-ac-type"
+                      value={formData.ac_type_id}
+                      onChange={(e) => handleAcTypeChange(e.target.value)}
+                    >
+                      <option value="">Select AC type (optional)</option>
+                      {acTypes.map((t) => (
+                        <option key={t.ac_type_id} value={t.ac_type_id}>{t.ac_type_name}</option>
+                      ))}
+                    </select>
+                    {acTypes.length === 0 && (
+                      <p className="im-barcode-hint">No AC types defined yet. Add them on the Item Lookups page.</p>
+                    )}
+                  </div>
+                  <div className="im-form-field">
+                    <label htmlFor="im-unit-role">UNIT ROLE</label>
+                    <select
+                      id="im-unit-role"
+                      value={formData.unit_role}
+                      onChange={(e) => setFormData({ ...formData, unit_role: e.target.value })}
+                    >
+                      <option value="">Select unit role</option>
+                      <option value="indoor">Indoor unit</option>
+                      <option value="outdoor">Outdoor unit</option>
+                      <option value="complete">Complete unit</option>
+                    </select>
                   </div>
                 </div>
                 <div className="im-form-row">
@@ -1243,7 +1477,7 @@ const ItemManagement = () => {
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       placeholder="Optional product notes"
                       rows={2}
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #e5e7eb', resize: 'vertical' }}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-color)', resize: 'vertical' }}
                     />
                   </div>
                   <div className="im-form-field">
@@ -1305,7 +1539,7 @@ const ItemManagement = () => {
                 </div>
               </>
             ) : (
-              /* ── CONSUMABLE SUPPLY FORM ──────────────────────────────── */
+              /* ── INSTALLATION MATERIAL SUPPLY FORM ──────────────────────────────── */
               <>
                 <div className="im-form-row">
                   <div className="im-form-field">
@@ -1316,7 +1550,7 @@ const ItemManagement = () => {
                         onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                       >
                         <option value="">Select Category</option>
-                        {categories.filter(c => c.category_type === 'consumable').map((c) => (
+                        {categories.filter(c => c.category_type === 'installation_material').map((c) => (
                           <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
                         ))}
                       </select>
@@ -1345,7 +1579,7 @@ const ItemManagement = () => {
                       <button
                         type="button"
                         className="im-inline-add-btn"
-                        onClick={() => { setAddUnitTargetIdx(null); setIsAddUnitOpen(true); }}
+                        onClick={() => setIsAddUnitOpen(true)}
                         title="Add new unit of measure"
                       >
                         +
@@ -1368,7 +1602,7 @@ const ItemManagement = () => {
                   </div>
                 </div>
                 <div className="im-form-field">
-                  <label>SUPPLY NAME *</label>
+                  <label>PRODUCT NAME *</label>
                   <input
                     type="text"
                     value={formData.name}
@@ -1384,7 +1618,7 @@ const ItemManagement = () => {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="e.g. 1/4 inch copper tubing for AC installations"
                     rows={3}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #e5e7eb', resize: 'vertical' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-color)', resize: 'vertical' }}
                   />
                 </div>
                 <div className="im-form-row">
@@ -1441,138 +1675,6 @@ const ItemManagement = () => {
                     </small>
                   </div>
                 </div>
-                {/* ── ISSUABLE UNITS SECTION ── */}
-                <div className="issuable-units-section">
-                  <div className="issuable-units-header">
-                    <div>
-                      <h4 className="issuable-units-title">Issuable Units</h4>
-                      <p className="issuable-units-subtitle">
-                        Define how this product can be issued. These appear as quick-action buttons during issuance.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="issuable-add-btn"
-                      onClick={handleAddIssuableUnit}
-                    >
-                      Add Unit
-                    </button>
-                  </div>
-
-                  {issuableUnits.length === 0 ? (
-                    <div className="issuable-units-empty">
-                      No issuable units defined. The system will use default whole-package options.
-                    </div>
-                  ) : (
-                    <table className="issuable-units-table">
-                      <thead>
-                        <tr>
-                          <th>Label</th>
-                          <th>Unit Type</th>
-                          <th>Pieces Deducted</th>
-                          <th>Quick Button</th>
-                          <th>Whole Pkg</th>
-                          <th>Order</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {issuableUnits.map((iu, idx) => (
-                          <tr key={iu.issuable_unit_id ?? `new-${idx}`}>
-                            <td>
-                              <input
-                                type="text"
-                                value={iu.label}
-                                onChange={e => updateIssuableUnit(idx, 'label', e.target.value)}
-                                className="issuable-label-input"
-                                placeholder="e.g. 1 Roll, 1 Box (25 rolls)"
-                              />
-                            </td>
-                            <td>
-                              <div className="im-inline-field">
-                                <select
-                                  value={iu.unit_id}
-                                  onChange={e => updateIssuableUnit(idx, 'unit_id', parseInt(e.target.value))}
-                                  className="issuable-unit-select"
-                                >
-                                  <option value="">Select unit</option>
-                                  {units.map(u => (
-                                    <option key={u.unit_id} value={u.unit_id}>
-                                      {u.unit_name} ({u.unit_abbreviation})
-                                    </option>
-                                  ))}
-                                </select>
-                                <button
-                                  type="button"
-                                  className="im-inline-add-btn"
-                                  onClick={() => { setAddUnitTargetIdx(idx); setIsAddUnitOpen(true); }}
-                                  title="Add new unit of measure"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </td>
-                            <td>
-                              <div className="issuable-conversion-row">
-                                <input
-                                  type="number"
-                                  min="0.001"
-                                  step="any"
-                                  value={iu.conversion_factor}
-                                  onChange={e => updateIssuableUnit(idx, 'conversion_factor', parseFloat(e.target.value))}
-                                  className="issuable-conversion-input"
-                                />
-                                <span className="issuable-conversion-hint">pieces</span>
-                              </div>
-                              {formData.unit_price && formData.pieces_per_package && (
-                                <span className="issuable-price-preview">
-                                  &#8369;{(
-                                    (parseFloat(formData.unit_price) /
-                                      parseFloat(formData.pieces_per_package)) *
-                                    iu.conversion_factor
-                                  ).toFixed(2)}
-                                </span>
-                              )}
-                            </td>
-                            <td className="issuable-checkbox-cell">
-                              <input
-                                type="checkbox"
-                                checked={iu.show_as_quick_action}
-                                onChange={e => updateIssuableUnit(idx, 'show_as_quick_action', e.target.checked)}
-                              />
-                            </td>
-                            <td className="issuable-checkbox-cell">
-                              <input
-                                type="checkbox"
-                                checked={iu.is_whole_package}
-                                onChange={e => updateIssuableUnit(idx, 'is_whole_package', e.target.checked)}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                min="0"
-                                value={iu.sort_order}
-                                onChange={e => updateIssuableUnit(idx, 'sort_order', parseInt(e.target.value))}
-                                className="issuable-order-input"
-                              />
-                            </td>
-                            <td>
-                              <button
-                                type="button"
-                                className="issuable-remove-btn"
-                                onClick={() => removeIssuableUnit(idx)}
-                              >
-                                Remove
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-
                 <div className="im-form-row">
                   <div className="im-form-field">
                     <label>BARCODE</label>
@@ -1635,9 +1737,14 @@ const ItemManagement = () => {
             )}
 
             {/* Stock Levels (both types) */}
-            <div className="im-form-row" style={{ marginTop: 8, paddingTop: 12, borderTop: '1px dashed #e5e7eb' }}>
+            <div className="im-form-row" style={{ marginTop: 8, paddingTop: 12, borderTop: '1px dashed var(--border-color)' }}>
               <div className="im-form-field">
-                <label>RECOMMENDED STOCKS</label>
+                <label>
+                  RECOMMENDED STOCKS
+                  {stockParamUnitHint && (
+                    <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--ink-blue-300)' }}> — {stockParamUnitHint}</span>
+                  )}
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -1647,7 +1754,12 @@ const ItemManagement = () => {
                 />
               </div>
               <div className="im-form-field">
-                <label>SAFETY STOCK</label>
+                <label>
+                  SAFETY STOCK
+                  {stockParamUnitHint && (
+                    <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--ink-blue-300)' }}> — {stockParamUnitHint}</span>
+                  )}
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -1657,7 +1769,12 @@ const ItemManagement = () => {
                 />
               </div>
               <div className="im-form-field">
-                <label>MAX STOCK LEVEL</label>
+                <label>
+                  MAX STOCK LEVEL
+                  {stockParamUnitHint && (
+                    <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--ink-blue-300)' }}> — {stockParamUnitHint}</span>
+                  )}
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -1683,6 +1800,128 @@ const ItemManagement = () => {
           </form>
         </div>
       </Modal>
+
+      {/* Convert a legacy aircon into an indoor/outdoor pair */}
+      {convertingItem && (
+        <Modal
+          isOpen={!!convertingItem}
+          onClose={() => setConvertingItem(null)}
+          title="Convert to Two-Piece"
+        >
+          <form onSubmit={handleConvertSubmit} className="im-add-simple-form">
+            <p className="im-convert-lead">
+              <strong>{convertingItem.product_name || convertingItem.name}</strong> is
+              recorded as one complete unit. Splitting it creates a partner product and
+              pairs the two into an aircon model.
+            </p>
+            <p className="im-convert-note">
+              This product keeps its own record, its stock and its serials — it becomes
+              the side you choose below. Only the other side is newly created.
+            </p>
+            <p className="im-convert-note">
+              Stock already on hand stays on this product and still counts whole
+              machines, but its recorded value follows the cost split below — so
+              reports will show that stock worth less straight after this runs. Count
+              the partner's units and adjust its stock separately.
+            </p>
+            <p className="im-convert-warning-note" role="note">
+              <strong>This cannot be undone.</strong> There is no way to merge the pair
+              back into one product; reversing it means editing both records by hand.
+              The new partner product also starts without a barcode, so it cannot be
+              scanned until you assign one.
+            </p>
+
+            <div className="im-form-field">
+              <label>This product becomes the</label>
+              <select
+                value={convertForm.keep_as}
+                onChange={(e) => setConvertForm((prev) => ({ ...prev, keep_as: e.target.value }))}
+              >
+                <option value="indoor">Indoor unit</option>
+                <option value="outdoor">Outdoor unit</option>
+              </select>
+            </div>
+
+            <div className="im-form-field">
+              <label>Indoor model code</label>
+              <input
+                type="text"
+                value={convertForm.indoor_model_code}
+                onChange={(e) => setConvertForm((prev) => ({ ...prev, indoor_model_code: e.target.value }))}
+                maxLength={100}
+                required
+              />
+            </div>
+            <div className="im-form-field">
+              <label>Indoor price</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={convertForm.indoor_unit_price}
+                onChange={(e) => setConvertForm((prev) => ({ ...prev, indoor_unit_price: e.target.value }))}
+                required
+              />
+            </div>
+
+            <div className="im-form-field">
+              <label>Outdoor model code</label>
+              <input
+                type="text"
+                value={convertForm.outdoor_model_code}
+                onChange={(e) => setConvertForm((prev) => ({ ...prev, outdoor_model_code: e.target.value }))}
+                maxLength={100}
+                required
+              />
+            </div>
+            <div className="im-form-field">
+              <label>Outdoor price</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={convertForm.outdoor_unit_price}
+                onChange={(e) => setConvertForm((prev) => ({ ...prev, outdoor_unit_price: e.target.value }))}
+                required
+              />
+            </div>
+
+            {/* The running total, always visible. A mismatch is refused on
+                submit, so the user must be able to see it before then. */}
+            <div className={`im-convert-total${convertPriceMatches ? '' : ' im-convert-total--mismatch'}`}>
+              <div>
+                <span>Current unit price</span>
+                <strong>₱{(convertOriginalCentavos / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+              </div>
+              <div>
+                <span>Indoor + outdoor</span>
+                <strong>₱{(convertSumCentavos / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+              </div>
+              {!convertPriceMatches && (
+                <p role="alert" className="im-convert-warning">
+                  These do not match — off by ₱
+                  {(Math.abs(convertSumCentavos - convertOriginalCentavos) / 100)
+                    .toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  . The split must preserve the price, so this cannot be saved yet.
+                </p>
+              )}
+            </div>
+
+            <div className="im-modal-footer">
+              <button type="button" className="im-modal-btn-cancel" onClick={() => setConvertingItem(null)}>
+                CANCEL
+              </button>
+              <button
+                type="submit"
+                className="im-modal-btn-confirm"
+                disabled={!convertPriceMatches || isConverting}
+              >
+                {isConverting ? 'CONVERTING…' : 'CONVERT'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Quick Add Category */}
       {isAddCategoryOpen && (
@@ -1756,7 +1995,7 @@ const ItemManagement = () => {
       {isAddUnitOpen && (
         <Modal
           isOpen={isAddUnitOpen}
-          onClose={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); setAddUnitTargetIdx(null); }}
+          onClose={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); }}
           title="Add Unit of Measure"
         >
           <form onSubmit={handleCreateUnit} className="im-add-simple-form">
@@ -1783,7 +2022,7 @@ const ItemManagement = () => {
               <button
                 type="button"
                 className="im-modal-btn-cancel"
-                onClick={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); setAddUnitTargetIdx(null); }}
+                onClick={() => { setIsAddUnitOpen(false); setNewUnitName(''); setNewUnitAbbrev(''); }}
               >
                 CANCEL
               </button>

@@ -8,6 +8,36 @@ use Illuminate\Support\Facades\DB;
 
 class BudgetEndpointsTest extends BudgetTestCase
 {
+    private function anyProductId(): int
+    {
+        return (int) (DB::table('products')->value('product_id')
+            ?? DB::table('products')->insertGetId([
+                'product_name' => 'Budget Test Product ' . uniqid(),
+                'product_code' => 'BTP-' . strtoupper(substr(uniqid(), -6)),
+                'product_type' => 'installation_material',
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ], 'product_id'));
+    }
+
+    private function committedPo(\App\Models\BudgetAllocation $budget, float $amount): \App\Models\PurchaseOrder
+    {
+        $pr = $this->makePr($budget, 0, 14);
+        $po = $this->makePo($pr, $amount, 7);
+        DB::table('purchase_order_details')->insert([
+            'po_id'            => $po->po_id,
+            'product_id'       => $this->anyProductId(),
+            'quantity_ordered' => 1,
+            'unit_price'       => $amount,
+            'subtotal'         => $amount,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+        app(BudgetService::class)->commitPo($po->fresh()->load('details'));
+
+        return $po->fresh();
+    }
+
     public function test_store_rejects_non_warehouse_location(): void
     {
         $admin = $this->makeUser('admin');
@@ -78,8 +108,7 @@ class BudgetEndpointsTest extends BudgetTestCase
     {
         $admin = $this->makeUser('admin');
         $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        app(BudgetService::class)->commit($pr);
+        $this->committedPo($budget, 4000); // PO approval reserves against this budget
 
         $this->actingAs($admin, 'sanctum')
             ->deleteJson("/api/budget-allocations/{$budget->budget_id}")
@@ -102,9 +131,8 @@ class BudgetEndpointsTest extends BudgetTestCase
     {
         $admin = $this->makeUser('admin');
         $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        app(BudgetService::class)->commit($pr);
-        app(BudgetService::class)->releaseOutstanding($pr, 'PR archived'); // committed back to 0, but ledger has history
+        $po = $this->committedPo($budget, 4000);
+        app(BudgetService::class)->releaseCommitment($po, 'PO rejected'); // committed back to 0, but ledger has history
         $budget->refresh();
         $budget->delete(); // archive it first so forceDestroy can find it
 
@@ -119,8 +147,18 @@ class BudgetEndpointsTest extends BudgetTestCase
     {
         $admin = $this->makeUser('admin');
         $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        app(BudgetService::class)->commit($pr, $admin->user_id);
+        $pr = $this->makePr($budget, 0, 14);
+        $po = $this->makePo($pr, 4000, 7);
+        DB::table('purchase_order_details')->insert([
+            'po_id'            => $po->po_id,
+            'product_id'       => $this->anyProductId(),
+            'quantity_ordered' => 1,
+            'unit_price'       => 4000,
+            'subtotal'         => 4000,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+        app(BudgetService::class)->commitPo($po->fresh()->load('details'), $admin->user_id);
 
         $response = $this->actingAs($admin, 'sanctum')
             ->getJson("/api/budget-allocations/{$budget->budget_id}/transactions");
@@ -129,6 +167,7 @@ class BudgetEndpointsTest extends BudgetTestCase
         $row = $response->json('data.0');
         $this->assertSame('commit', $row['txn_type']);
         $this->assertSame($pr->pr_number, $row['purchase_request']['pr_number']);
+        $this->assertSame($po->po_number, $row['purchase_order']['po_number']);
         $this->assertSame('Test', $row['performer']['first_name']);
     }
 
@@ -142,22 +181,10 @@ class BudgetEndpointsTest extends BudgetTestCase
             ->assertSuccessful();
     }
 
-    public function test_available_endpoint_exposes_verification_status(): void
-    {
-        $ia = $this->makeUser('inventory_analyst');
-        $budget = $this->makeBudget(10000, ['verification_status' => 'verified']);
-
-        $response = $this->actingAs($ia, 'sanctum')
-            ->getJson("/api/budget-allocations/{$budget->budget_id}/available");
-
-        $response->assertSuccessful();
-        $this->assertSame('verified', $response->json('data.verification_status'));
-    }
-
     public function test_store_tops_up_existing_budget_for_same_period(): void
     {
         $admin = $this->makeUser('admin');
-        // An existing VERIFIED budget for July at this location.
+        // An existing budget for July at this location.
         $existing = $this->makeBudget(1000, [
             'period_start' => '2026-07-01',
             'period_end'   => '2026-07-31',
@@ -178,8 +205,6 @@ class BudgetEndpointsTest extends BudgetTestCase
             ->whereDate('period_start', '2026-07-01')->count());
         $existing->refresh();
         $this->assertSame('1500.00', (string) $existing->total_budget);
-        // Top-up voids the prior verification (increased amount needs re-verification).
-        $this->assertSame('pending', $existing->verification_status);
         // Journaled as an adjustment.
         $this->assertSame(1, BudgetTransaction::where('budget_id', $existing->budget_id)
             ->where('txn_type', 'adjustment')->count());

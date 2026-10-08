@@ -11,6 +11,7 @@ const CompanySettingsPage = () => {
     company_address: '',
     company_email:   '',
     company_phone:   '',
+    pdf_paper_size:  'a4',
   });
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
@@ -23,6 +24,7 @@ const CompanySettingsPage = () => {
           company_address: data.company_address || '',
           company_email:   data.company_email   || '',
           company_phone:   data.company_phone   || '',
+          pdf_paper_size:  data.pdf_paper_size  || 'a4',
         });
       })
       .catch(() => toast.error('Failed to load company settings.'))
@@ -64,7 +66,7 @@ const CompanySettingsPage = () => {
           <Loader />
         ) : (
           <form onSubmit={handleSubmit}>
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '24px' }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, padding: '24px' }}>
 
               <Field label="Company Name" hint="Shown bold and large at the top of the PO document.">
                 <input
@@ -97,7 +99,7 @@ const CompanySettingsPage = () => {
                 />
               </Field>
 
-              <Field label="Company Phone" last>
+              <Field label="Company Phone">
                 <input
                   type="text"
                   className="po-input"
@@ -106,15 +108,28 @@ const CompanySettingsPage = () => {
                   placeholder="e.g. 0934324564"
                 />
               </Field>
+
+              <Field label="Default PDF Paper Size" hint="Used for automatic PO and GRN PDF downloads." last>
+                <select
+                  className="po-input"
+                  value={form.pdf_paper_size}
+                  onChange={e => handleChange('pdf_paper_size', e.target.value)}
+                >
+                  <option value="a4">A4</option>
+                  <option value="letter">Letter</option>
+                  <option value="legal">Legal</option>
+                  <option value="a5">A5</option>
+                </select>
+              </Field>
             </div>
 
             {/* Preview */}
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '20px 24px', marginTop: 16, fontFamily: "'Times New Roman', serif" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Preview — PO Document Header</div>
+            <div style={{ background: 'var(--bg-muted)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '20px 24px', marginTop: 16, fontFamily: "'Times New Roman', serif" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink-blue-300)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Preview — PO Document Header</div>
               <div style={{ textAlign: 'center', borderBottom: '2px solid #1e293b', paddingBottom: 10 }}>
                 <div style={{ fontSize: 20, fontWeight: 900, textTransform: 'uppercase', marginBottom: 4 }}>{form.company_name || 'Company Name'}</div>
-                {form.company_address && <div style={{ fontSize: 12, color: '#475569' }}>{form.company_address}</div>}
-                {form.company_email   && <div style={{ fontSize: 12, color: '#475569' }}>{form.company_email}</div>}
+                {form.company_address && <div style={{ fontSize: 12, color: 'var(--ink-blue-700)' }}>{form.company_address}</div>}
+                {form.company_email   && <div style={{ fontSize: 12, color: 'var(--ink-blue-700)' }}>{form.company_email}</div>}
               </div>
             </div>
 
@@ -146,11 +161,11 @@ const CompanySettingsPage = () => {
 
 const Field = ({ label, hint, last, children }) => (
   <div style={{ marginBottom: last ? 0 : 18 }}>
-    <label style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>
+    <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink-blue-500)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 5 }}>
       {label}
     </label>
     {children}
-    {hint && <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 3, display: 'block' }}>{hint}</span>}
+    {hint && <span style={{ fontSize: 11, color: 'var(--ink-blue-300)', marginTop: 3, display: 'block' }}>{hint}</span>}
   </div>
 );
 

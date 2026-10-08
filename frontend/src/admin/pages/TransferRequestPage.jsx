@@ -279,7 +279,7 @@ const TransferRequestPage = () => {
               ))}
             </select>
             {!isAdmin && userLocId && (
-              <p style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Auto-filled from your assigned location.</p>
+              <p style={{ fontSize: 11, color: 'var(--ink-blue-500)', marginTop: 4 }}>Auto-filled from your assigned location.</p>
             )}
           </div>
 
@@ -322,7 +322,7 @@ const TransferRequestPage = () => {
             <tbody>
               {lines.map((l, idx) => (
                 <tr key={l.id}>
-                  <td style={{ color: '#94a3b8', fontSize: 12 }}>{idx + 1}</td>
+                  <td style={{ color: 'var(--ink-blue-300)', fontSize: 12 }}>{idx + 1}</td>
                   <td style={{ minWidth: 240 }}>
                     <select className="po-select" style={{ fontSize: 12 }} value={l.product_id} onChange={e => updateLine(l.id, 'product_id', e.target.value)} disabled={loadingProd}>
                       <option value="">{loadingProd ? 'Loading…' : 'Select product…'}</option>
@@ -469,7 +469,7 @@ const TransferRequestPage = () => {
                     <div className="po-status-meta-item"><span className="po-status-meta-label">PRODUCTS</span><span className="po-status-meta-value">{itemCount}</span></div>
                   </div>
                   {r.notes && (
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 8, fontStyle: 'italic' }}>Notes: {r.notes}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-blue-500)', marginTop: 8, fontStyle: 'italic' }}>Notes: {r.notes}</div>
                   )}
                   <div className="pr-action-btns" style={{ marginTop: 12 }}>
                     <button type="button" className="po-status-view-btn" onClick={() => openDetail(r)}>
@@ -568,7 +568,7 @@ const TransferRequestPage = () => {
               </div>
 
               {isPending && isAdmin && (
-                <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                <p style={{ fontSize: 12, color: 'var(--ink-blue-500)', marginBottom: 8 }}>
                   Review quantities below. Adjust the <strong>Approved Qty</strong> column if needed before approving.
                 </p>
               )}
@@ -592,20 +592,20 @@ const TransferRequestPage = () => {
                       const insufficient = stockOk && d.stock_at_source < d.quantity_requested;
                       const approvedVal = approvedQtys[d.transfer_detail_id] ?? d.quantity_requested;
                       return (
-                        <tr key={d.transfer_detail_id ?? di} style={insufficient ? { background: '#fff7ed' } : {}}>
+                        <tr key={d.transfer_detail_id ?? di} style={insufficient ? { background: 'var(--tint-amber-soft)' } : {}}>
                           <td className="po-detail-table-idx">{di + 1}</td>
                           <td>
                             <div>{d.product?.product_name || '—'}</div>
-                            {d.product?.applianceDetail?.model_code && <small style={{ color: '#94a3b8' }}>{d.product.applianceDetail.model_code}</small>}
+                            {d.product?.applianceDetail?.model_code && <small style={{ color: 'var(--ink-blue-300)' }}>{d.product.applianceDetail.model_code}</small>}
                           </td>
                           <td>
                             {d.quantity_requested}
                             {!loadingDetail && (
-                              <span className="line-stock" style={{ display: 'block', fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                              <span className="line-stock" style={{ display: 'block', fontSize: 11, color: 'var(--ink-blue-500)', marginTop: 2 }}>
                                 {'avail: '}
                                 <span style={{ fontWeight: 600 }}>{d.available_at_source ?? d.stock_at_source ?? 0}</span>
                                 {Number(d.shortfall) > 0 && (
-                                  <span className="line-shortfall" style={{ color: '#b45309', fontWeight: 600, marginLeft: 4 }}>
+                                  <span className="line-shortfall" style={{ color: 'var(--ink-amber)', fontWeight: 600, marginLeft: 4 }}>
                                     ⚠ short {d.shortfall}
                                   </span>
                                 )}
@@ -614,9 +614,9 @@ const TransferRequestPage = () => {
                           </td>
                           <td>
                             {loadingDetail ? (
-                              <span style={{ color: '#94a3b8' }}>—</span>
+                              <span style={{ color: 'var(--ink-blue-300)' }}>—</span>
                             ) : stockOk ? (
-                              <span style={{ color: insufficient ? '#dc2626' : '#16a34a', fontWeight: 600 }}>
+                              <span style={{ color: insufficient ? 'var(--text-danger)' : 'var(--text-success)', fontWeight: 600 }}>
                                 {d.stock_at_source}
                                 {insufficient && (
                                   <span title="Insufficient stock at source" style={{ marginLeft: 4 }}>⚠</span>
@@ -638,7 +638,7 @@ const TransferRequestPage = () => {
                                 style={{ width: 80 }}
                               />
                             ) : (
-                              <span style={{ color: d.quantity_transferred > 0 ? '#16a34a' : '#94a3b8' }}>
+                              <span style={{ color: d.quantity_transferred > 0 ? 'var(--text-success)' : 'var(--ink-blue-300)' }}>
                                 {d.quantity_transferred ?? 0}
                               </span>
                             )}
@@ -665,8 +665,8 @@ const TransferRequestPage = () => {
                         flexShrink: 0, marginTop: 5,
                       }} />
                       <div>
-                        <div style={{ color: '#1e293b', fontWeight: 500 }}>{t.status_note}</div>
-                        <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>
+                        <div style={{ color: 'var(--ink-blue-800-3)', fontWeight: 500 }}>{t.status_note}</div>
+                        <div style={{ color: 'var(--ink-blue-300)', fontSize: 11, marginTop: 2 }}>
                           {fmtDT(t.recorded_at)}
                           {t.recordedBy && ` · ${userName(t.recordedBy)}`}
                         </div>

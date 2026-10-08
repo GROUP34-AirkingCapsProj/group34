@@ -26,10 +26,10 @@ export function pendingRegistrationTarget(/* _item */) {
 }
 
 export function lowStockTarget(item) {
-  const invId = item?.inventory_id;
-  if (invId != null) return { path: '/admin/inventory', focusKey: `inv:${invId}` };
-  const pid = item?.product_id;
-  return pid != null ? { path: '/admin/items', focusKey: `product:${pid}` } : null;
+  const id = item?.product_id ?? item?.inventory_id;
+  return id != null
+    ? { path: '/admin/purchase-requests', query: 'tab=create' }
+    : null;
 }
 
 export function auditTarget(entry) {
@@ -40,5 +40,9 @@ export function auditTarget(entry) {
 }
 
 export function targetHref(target) {
-  return target ? `${target.path}?focus=${encodeURIComponent(target.focusKey)}` : null;
+  if (!target) return null;
+  const params = new URLSearchParams(target.query || '');
+  if (target.focusKey) params.set('focus', target.focusKey);
+  const query = params.toString();
+  return query ? `${target.path}?${query}` : target.path;
 }

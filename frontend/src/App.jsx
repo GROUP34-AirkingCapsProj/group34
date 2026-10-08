@@ -12,19 +12,27 @@ import './App.css';
 // Core
 const Login = lazy(() => import('./admin/pages/Login'));
 const ForgotPassword = lazy(() => import('./admin/pages/ForgotPassword'));
+const ChangePassword = lazy(() => import('./admin/pages/ChangePassword'));
 const Dashboard = lazy(() => import('./admin/pages/Dashboard'));
 
 // System Setup
 const LocationManagement = lazy(() => import('./admin/pages/LocationManagement'));
-const CategoryBrandManagement = lazy(() => import('./admin/pages/CategoryBrandManagement'));
+const LookupManagement = lazy(() => import('./admin/pages/LookupManagement'));
 
 // Procurement
 const ItemManagement = lazy(() => import('./admin/pages/ItemManagement'));
 const SupplierNetwork = lazy(() => import('./admin/pages/SupplierNetwork'));
+const SetManagementPage = lazy(() => import('./admin/pages/SetManagementPage'));
+const AirconModelsPage = lazy(() => import('./admin/pages/AirconModelsPage'));
+const IncidentReportsPage = lazy(() => import('./admin/pages/IncidentReportsPage'));
+const IncidentItemsRegisterPage = lazy(() => import('./admin/pages/IncidentItemsRegisterPage'));
+const IncidentInspectionPage = lazy(() => import('./admin/pages/IncidentInspectionPage'));
 
 // Inventory
 const InventoryManagement = lazy(() => import('./admin/pages/InventoryManagement'));
+const BarcodePrintingPage = lazy(() => import('./admin/pages/BarcodePrintingPage'));
 const StockTransferManagement = lazy(() => import('./admin/pages/StockTransferManagement'));
+const TransfersPage = lazy(() => import('./admin/pages/TransfersPage'));
 const TransferRequestPage = lazy(() => import('./admin/pages/TransferRequestPage'));
 const ISTCreatePage = lazy(() => import('./admin/pages/ISTCreatePage'));
 const ISTManagementPage = lazy(() => import('./admin/pages/ISTManagementPage'));
@@ -47,13 +55,14 @@ const PurchaseReturnManagement = lazy(() => import('./admin/pages/PurchaseReturn
 const AnalyticsDashboard = lazy(() => import('./admin/pages/AnalyticsDashboard'));
 const SystemReports = lazy(() => import('./admin/pages/SystemReports'));
 const AuditTrail = lazy(() => import('./admin/pages/AuditTrail'));
+const AuditEvidenceExplorer = lazy(() => import('./admin/pages/AuditEvidenceExplorer'));
 const ProfitLossManagement = lazy(() => import('./admin/pages/ProfitLossManagement'));
 
 // Legacy / other pages
 const SystemConfiguration = lazy(() => import('./admin/pages/SystemConfiguration'));
 const ArchiveManagement = lazy(() => import('./admin/pages/ArchiveManagement'));
 const ArchiveSettingsPage = lazy(() => import('./admin/pages/ArchiveSettingsPage'));
-const PORecommendation = lazy(() => import('./admin/pages/PORecommendation'));
+const BackupPage = lazy(() => import('./admin/pages/BackupPage'));
 const BudgetManagementPage = lazy(() => import('./admin/pages/BudgetManagementPage'));
 const PurchaseRequestPage = lazy(() => import('./admin/pages/PurchaseRequestPage'));
 const PurchaseOrderPage = lazy(() => import('./admin/pages/PurchaseOrderPage'));
@@ -96,6 +105,9 @@ function App() {
           <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin/login" element={<Login />} />
           <Route path="/admin/forgot-password" element={<ForgotPassword />} />
+          {/* Outside RoleRoute: the guard inside RoleRoute redirects here, so
+              wrapping this route in it would loop. */}
+          <Route path="/admin/change-password" element={<ChangePassword />} />
 
           {/* Supabase PWA inventory (Vercel + Supabase; optional env) */}
           <Route path="/pwa/login" element={<PwaLogin />} />
@@ -121,12 +133,21 @@ function App() {
           <Route path="/admin/locations" element={<RoleRoute><LocationManagement /></RoleRoute>} />
           <Route path="/admin/branches" element={<RoleRoute><LocationManagement /></RoleRoute>} />
           <Route path="/admin/warehouses" element={<RoleRoute><LocationManagement /></RoleRoute>} />
-          <Route path="/admin/categories" element={<RoleRoute><CategoryBrandManagement /></RoleRoute>} />
-          <Route path="/admin/brands" element={<RoleRoute><CategoryBrandManagement /></RoleRoute>} />
+          <Route path="/admin/categories" element={<RoleRoute><LookupManagement /></RoleRoute>} />
+          <Route path="/admin/brands" element={<RoleRoute><LookupManagement /></RoleRoute>} />
 
           {/* Procurement */}
           <Route path="/admin/items" element={<RoleRoute><ItemManagement /></RoleRoute>} />
           <Route path="/admin/suppliers" element={<RoleRoute><SupplierNetwork /></RoleRoute>} />
+          <Route path="/admin/sets" element={<RoleRoute><SetManagementPage /></RoleRoute>} />
+          <Route path="/admin/aircon-models" element={<RoleRoute><AirconModelsPage /></RoleRoute>} />
+          <Route path="/admin/incidents" element={<RoleRoute><IncidentReportsPage /></RoleRoute>} />
+          <Route path="/admin/incident-items" element={<RoleRoute><IncidentItemsRegisterPage /></RoleRoute>} />
+          {/* Held Stock became a read-only register when the inspection took
+              over its Dispose action. Bookmarks and any link still pointing at
+              the old path land on the register rather than a blank page. */}
+          <Route path="/admin/held-stock" element={<Navigate to="/admin/incident-items" replace />} />
+          <Route path="/admin/inspections" element={<RoleRoute><IncidentInspectionPage /></RoleRoute>} />
           <Route path="/admin/purchase-orders" element={<Navigate to="/admin/draft-po-creator" replace />} />
           <Route path="/admin/budget-management" element={<RoleRoute><BudgetManagementPage /></RoleRoute>} />
           <Route path="/admin/purchase-requests" element={<RoleRoute><PurchaseRequestPage /></RoleRoute>} />
@@ -134,7 +155,8 @@ function App() {
 
           {/* Inventory */}
           <Route path="/admin/inventory" element={<RoleRoute><InventoryManagement /></RoleRoute>} />
-          <Route path="/admin/transfers" element={<RoleRoute><StockTransferManagement /></RoleRoute>} />
+          <Route path="/admin/barcode-printing" element={<RoleRoute><BarcodePrintingPage /></RoleRoute>} />
+          <Route path="/admin/transfers" element={<RoleRoute><TransfersPage /></RoleRoute>} />
           {/* /admin/transfer-scan retired — receiving is now handled via IST flow (/admin/ist/:id/receive) */}
           <Route path="/admin/transfer-scan" element={<Navigate to="/admin/ist" replace />} />
           <Route path="/admin/transfer-requests" element={<RoleRoute><TransferRequestPage /></RoleRoute>} />
@@ -160,6 +182,7 @@ function App() {
           <Route path="/admin/analytics" element={<RoleRoute><AnalyticsDashboard /></RoleRoute>} />
           <Route path="/admin/reports" element={<RoleRoute><SystemReports /></RoleRoute>} />
           <Route path="/admin/audit" element={<RoleRoute><AuditTrail /></RoleRoute>} />
+          <Route path="/admin/audit-evidence" element={<RoleRoute><AuditEvidenceExplorer /></RoleRoute>} />
           <Route path="/admin/profit-loss" element={<RoleRoute><ProfitLossManagement /></RoleRoute>} />
 
           {/* Legacy routes */}
@@ -167,7 +190,7 @@ function App() {
           <Route path="/admin/config" element={<RoleRoute><SystemConfiguration /></RoleRoute>} />
           <Route path="/admin/archive" element={<RoleRoute><ArchiveManagement /></RoleRoute>} />
           <Route path="/admin/archive-settings" element={<RoleRoute><ArchiveSettingsPage /></RoleRoute>} />
-          <Route path="/admin/po-recommendations" element={<RoleRoute><PORecommendation /></RoleRoute>} />
+          <Route path="/admin/backup" element={<RoleRoute><BackupPage /></RoleRoute>} />
           <Route path="/admin/compliance" element={<RoleRoute><ComplianceReview /></RoleRoute>} />
           <Route path="/admin/alerts" element={<RoleRoute><AlertsNotices /></RoleRoute>} />
           <Route path="/admin/notifications" element={<RoleRoute><Navigate to="/admin/alerts" replace /></RoleRoute>} />

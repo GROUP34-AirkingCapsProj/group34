@@ -75,7 +75,6 @@ abstract class BudgetTestCase extends TestCase
             'total_budget' => $total,
             'committed'    => 0,
             'spent'        => 0,
-            'verification_status' => 'verified',
         ], $overrides));
     }
 

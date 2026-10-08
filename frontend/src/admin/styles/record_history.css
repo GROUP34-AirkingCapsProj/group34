@@ -1,0 +1,180 @@
+/* ============================================================================
+   Record history — "document trail" modal + History-tab record list
+   ========================================================================== */
+
+/* ---- Event accent colors (shared by nodes + status pills) ---------------- */
+:root {
+  --rh-created:   #2563eb;
+  --rh-verified:  #7c3aed;
+  --rh-approved:  #16a34a;
+  --rh-received:  #0d9488;
+  --rh-rejected:  #dc2626;
+  --rh-converted: #0891b2;
+  --rh-edited:    #64748b;
+  --rh-archived:  #b91c1c;
+}
+
+/* Dark: these status hues are read as small dots and pills, so each keeps its
+   own hue and is lifted to a common lightness — the timeline stays colour-coded
+   without any one state shouting on a navy card. */
+html[data-theme='dark'] {
+  --rh-created:    #8ba9e9;
+  --rh-verified:   #ae8be9;
+  --rh-approved:   #8be9ae;
+  --rh-received:   #8be9e1;
+  --rh-rejected:   #e98b8b;
+  --rh-converted:  #8bd7e9;
+  --rh-edited:     #9db5d7;
+  /* Archived and rejected are both reds and derived to the same value, which
+     would collapse two different outcomes into one dot. Archived is pulled down
+     in chroma so it reads as retired rather than refused. */
+  --rh-archived:   #c08d93;
+}
+
+/* ============================ MODAL ======================================== */
+.rhx { margin: -4px -2px; }
+
+/* Header band — the document identity */
+.rhx-head {
+  position: relative;
+  background: linear-gradient(135deg, var(--bg-contrast) 0%, #0f172a 100%);
+  color: #f8fafc;
+  padding: 18px 20px 16px;
+  border-radius: 12px 12px 0 0;
+}
+.rhx-head-eyebrow {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-blue-300);
+}
+.rhx-head-main { display: flex; align-items: center; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
+.rhx-number { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin: 0; color: #fff; }
+.rhx-status {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid transparent;
+}
+.rhx-status--created   { background: rgba(37,99,235,.18);  color: #93c5fd; border-color: rgba(147,197,253,.35); }
+.rhx-status--pending   { background: rgba(217,119,6,.18);  color: #fcd34d; border-color: rgba(252,211,77,.35); }
+.rhx-status--approved,
+.rhx-status--completed { background: rgba(22,163,74,.18);  color: #86efac; border-color: rgba(134,239,172,.35); }
+.rhx-status--rejected,
+.rhx-status--cancelled { background: rgba(220,38,38,.18);  color: #fca5a5; border-color: rgba(252,165,165,.35); }
+.rhx-status--partial   { background: rgba(13,148,136,.18); color: #5eead4; border-color: rgba(94,234,212,.35); }
+.rhx-status--draft     { background: rgba(148,163,184,.18);color: #cbd5e1; border-color: rgba(203,213,225,.35); }
+
+.rhx-head-meta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 10px; font-size: 12.5px; color: #cbd5e1;
+}
+.rhx-head-meta .rhx-dot-sep { color: var(--ink-blue-500); }
+.rhx-head-total { margin-left: auto; font-size: 16px; font-weight: 800; color: #fff; }
+
+.rhx-head-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 28px; height: 28px; border-radius: 8px;
+  background: rgba(255,255,255,.08); border: none; color: #cbd5e1;
+  font-size: 18px; line-height: 1; cursor: pointer; transition: background .15s;
+}
+.rhx-head-close:hover { background: rgba(255,255,255,.18); color: #fff; }
+
+/* Body */
+.rhx-body { padding: 16px 18px 4px; max-height: 64vh; overflow-y: auto; }
+.rhx-section + .rhx-section { margin-top: 20px; }
+.rhx-eyebrow {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-blue-500); margin-bottom: 10px;
+}
+.rhx-eyebrow::after { content: ''; flex: 1; height: 1px; background: var(--bg-sunken); }
+.rhx-count {
+  font-size: 10.5px; font-weight: 700; color: var(--ink-blue-700);
+  background: var(--bg-hover); border-radius: 999px; padding: 1px 8px;
+}
+
+/* Warehouse group */
+.rhx-wh { border: 1px solid var(--line-blue-100-5); border-radius: 10px; overflow: hidden; }
+.rhx-wh + .rhx-wh { margin-top: 10px; }
+.rhx-wh-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; background: var(--bg-hover); border-bottom: 1px solid var(--border-color);
+  color: var(--text-body);
+}
+.rhx-wh-head svg { color: var(--ink-blue-500); flex: none; }
+.rhx-wh-name { font-size: 12.5px; font-weight: 700; color: var(--ink-blue-800-3); }
+.rhx-wh-meta { font-size: 11px; color: var(--ink-blue-500); }
+.rhx-wh-total { margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--text-danger); }
+
+/* Items (inside a warehouse group) */
+.rhx-wh .rhx-items { border: none; border-radius: 0; }
+.rhx-items { display: flex; flex-direction: column; border: 1px solid var(--line-blue-100-5); border-radius: 10px; overflow: hidden; }
+.rhx-item { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px 14px; padding: 10px 12px; }
+.rhx-item + .rhx-item { border-top: 1px solid var(--border-soft); }
+.rhx-item:nth-child(even) { background: var(--bg-muted); }
+.rhx-item-title { font-size: 13.5px; font-weight: 650; color: var(--ink-blue-800-3); }
+.rhx-item-desc { font-size: 11px; color: var(--ink-blue-300); margin-top: 1px; text-transform: uppercase; letter-spacing: 0.03em; }
+.rhx-item-qty {
+  font-size: 12.5px; font-weight: 700; color: var(--text-body);
+  background: var(--bg-hover); border-radius: 6px; padding: 2px 9px; white-space: nowrap;
+}
+.rhx-item-price { font-size: 12.5px; font-weight: 700; color: var(--text-danger); min-width: 84px; text-align: right; }
+
+/* ============================ TIMELINE ==================================== */
+.rh-timeline { list-style: none; margin: 0; padding: 2px 0 4px; }
+.rh-item { position: relative; padding: 0 0 16px 34px; }
+.rh-item::before {
+  content: ''; position: absolute; left: 10px; top: 6px; bottom: -6px; width: 2px;
+  background: var(--bg-sunken);
+}
+.rh-item:last-child::before { display: none; }
+.rh-dot {
+  position: absolute; left: 0; top: 1px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; background: var(--rh-edited);
+  box-shadow: 0 0 0 3px var(--bg-card), 0 1px 2px rgba(15,23,42,.18);
+}
+.rh-dot svg { width: 12px; height: 12px; }
+.rh-dot--created   { background: var(--rh-created); }
+.rh-dot--verified  { background: var(--rh-verified); }
+.rh-dot--approved,
+.rh-dot--status    { background: var(--rh-approved); }
+.rh-dot--received  { background: var(--rh-received); }
+.rh-dot--rejected  { background: var(--rh-rejected); }
+.rh-dot--converted { background: var(--rh-converted); }
+.rh-dot--archived  { background: var(--rh-archived); }
+
+.rh-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.rh-label { font-weight: 700; font-size: 13.5px; color: var(--ink-blue-800-3); }
+.rh-meta { font-size: 12px; color: var(--ink-blue-300); }
+
+.rh-changes {
+  margin: 8px 0 0; padding: 8px 11px;
+  background: var(--bg-muted); border: 1px solid var(--border-soft); border-left: 3px solid var(--rh-edited);
+  border-radius: 6px; font-size: 12px;
+}
+.rh-item.rh-item--created   .rh-changes { border-left-color: var(--rh-created); }
+.rh-item.rh-item--verified  .rh-changes { border-left-color: var(--rh-verified); }
+.rh-item.rh-item--approved  .rh-changes,
+.rh-item.rh-item--status    .rh-changes { border-left-color: var(--rh-approved); }
+.rh-item.rh-item--received  .rh-changes { border-left-color: var(--rh-received); }
+.rh-item.rh-item--rejected  .rh-changes { border-left-color: var(--rh-rejected); }
+.rh-item.rh-item--converted .rh-changes { border-left-color: var(--rh-converted); }
+.rh-change { color: var(--text-body); line-height: 1.7; }
+.rh-change strong { color: var(--ink-blue-700); text-transform: capitalize; }
+.rh-change .rh-from { color: var(--ink-blue-300); }
+.rh-change .rh-to { color: var(--text-dark); font-weight: 600; }
+
+.rh-empty { color: var(--ink-blue-500); font-size: 13px; padding: 22px 16px; text-align: center; }
+
+/* ============================ HISTORY-TAB RECORD LIST ===================== */
+.rh-record-list { display: flex; flex-direction: column; }
+.rh-record-row {
+  display: grid; grid-template-columns: 1fr auto;
+  grid-template-areas: "main btn" "sub btn";
+  align-items: center; gap: 2px 12px; padding: 13px 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.rh-record-row:last-child { border-bottom: none; }
+.rh-record-row:hover { background: var(--bg-muted); }
+.rh-record-main { grid-area: main; display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.rh-record-sub { grid-area: sub; font-size: 12px; color: var(--ink-blue-500); }
+.rh-record-row .po-status-view-btn { grid-area: btn; }

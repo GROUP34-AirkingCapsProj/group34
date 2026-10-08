@@ -74,9 +74,21 @@ class LocationController extends Controller
         }
     }
 
-    public function show(Location $location)
+    public function show(Request $request, Location $location)
     {
-        $location->load(['status', 'parent', 'children', 'users', 'sales', 'purchaseOrders', 'adjustments']);
+        // The location's identity stays readable to everyone — the list is
+        // deliberately unscoped so scoped users can pick transfer destinations
+        // (see Tests\Feature\Scoping\ReferenceUnscopedTest). The operational
+        // relations below are a different matter: they are the same
+        // location-scoped records every list endpoint filters, so they are only
+        // attached when the caller may actually see that location's data.
+        $location->load(['status', 'parent', 'children']);
+
+        $user = $request->user();
+        if ($user && ($user->isCentralized() || $user->scopedLocationId() === (int) $location->location_id)) {
+            $location->load(['users', 'sales', 'purchaseOrders', 'adjustments']);
+        }
+
         return $this->success($location, 'Location retrieved successfully');
     }
 

@@ -21,16 +21,29 @@ class ReceivingDetail extends Model
         'receiving_id',
         'po_detail_id',
         'product_id',
+        'aircon_model_id',
         'prod_price',
         'quantity_amount',
         'condition',
         'scanned_barcode',
+        'entry_mode',
+        'packages_received',
+        'pieces_expected',
+        'contents_verified_at',
     ];
 
     protected $casts = [
-        'prod_price'      => 'decimal:2',
-        'quantity_amount' => 'integer',
+        'prod_price'           => 'decimal:2',
+        'quantity_amount'      => 'integer',
+        'contents_verified_at' => 'datetime',
     ];
+
+    /**
+     * `contents_verified_at` has exactly one meaning: NULL is a package whose
+     * contents nobody has checked yet. Rows predating the column were
+     * backfilled by its migration rather than left NULL, so no reader needs a
+     * cutoff date to tell legacy data from a genuine unverified receipt.
+     */
 
     public function receiving(): BelongsTo
     {
@@ -45,5 +58,15 @@ class ReceivingDetail extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    /**
+     * The aircon model this line belongs to, or null for a standalone line.
+     * Carried here rather than read through po_detail_id because a scan-driven
+     * receipt has no purchase-order line behind it and still needs to group.
+     */
+    public function airconModel(): BelongsTo
+    {
+        return $this->belongsTo(AirconModel::class, 'aircon_model_id', 'aircon_model_id');
     }
 }

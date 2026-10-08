@@ -25,7 +25,10 @@ class SerialController extends Controller
                 'per_page' => 'nullable|integer|min:1|max:200',
             ]);
 
-            $query = ItemSerial::with(['product', 'status']);
+            // Serial rows carry a location_id, and this read route is not
+            // role-gated — scope it the way every other location-bearing list is.
+            $query = ItemSerial::with(['product', 'status'])
+                ->forUser($request->user());
 
             if ($request->filled('product_id')) {
                 $query->where('product_id', (int) $request->product_id);
@@ -51,10 +54,12 @@ class SerialController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         try {
-            $serial = ItemSerial::with(['product', 'status'])->findOrFail($id);
+            $serial = ItemSerial::with(['product', 'status'])
+                ->forUser($request->user())
+                ->findOrFail($id);
             return $this->success($serial, 'Serial number retrieved successfully');
         } catch (\Exception $e) {
             return $this->error('Serial number not found', 404);

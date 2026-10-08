@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\WarrantyRecord;
+use App\Services\SerialLookupService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,17 +21,18 @@ class WarrantyController extends Controller
     // GET /api/warranties
     public function index(Request $request)
     {
-        // Batch-expire any warranties past their end date before listing
-        WarrantyRecord::where('status_id', self::STATUS_ACTIVE)
-            ->whereDate('warranty_end_date', '<', now()->toDateString())
-            ->update(['status_id' => self::STATUS_EXPIRED]);
-
+        // No batch UPDATE here any more. A GET that rewrites rows made expiry
+        // depend on somebody opening this page, so every other reader saw a
+        // stale "Active" until they did. The state is derived per record now
+        // (WarrantyRecord::effective_status_id) and `warranties:expire` tidies
+        // the stored column on its own schedule.
         $query = WarrantyRecord::with([
             'product.applianceDetail.brand',
             'customer',
             'status',
             'issuance.location',
-        ])->orderBy('created_at', 'desc');
+        ])->forUser($request->user())
+          ->orderBy('created_at', 'desc');
 
         if ($request->filled('customer_id')) {
             $query->where('customer_id', $request->integer('customer_id'));
@@ -39,7 +41,11 @@ class WarrantyController extends Controller
             $query->where('product_id', $request->integer('product_id'));
         }
         if ($request->filled('status_id')) {
-            $query->where('status_id', $request->integer('status_id'));
+            // Filtered on the DERIVED state, so the list agrees with the badges
+            // it renders. A plain status_id match listed warranties that lapsed
+            // last week under "Active" purely because nothing had rewritten the
+            // column yet.
+            $query->withEffectiveStatus($request->integer('status_id'));
         }
         if ($request->filled('serial_number')) {
             $query->whereRaw(
@@ -56,10 +62,57 @@ class WarrantyController extends Controller
                   ->whereDate('warranty_end_date', '<=', now()->addDays(30));
         }
 
-        return $this->paginated(
-            $query->paginate($request->integer('per_page', 15)),
-            'Warranty records retrieved'
+        $page = $query->paginate($request->integer('per_page', 15));
+
+        $response = $this->paginated($page, 'Warranty records retrieved');
+
+        // Counted in SQL over the whole scoped set, NOT over $page->items().
+        // The screen used to tally the rows it had been handed and label the
+        // result "Active (page)", so the headline figures changed as you paged
+        // and never described the business.
+        return $response->setData(
+            (object) ($response->getData(true) + ['summary' => $this->summaryFor($request)])
         );
+    }
+
+    /**
+     * Active / expired / claimed totals for the current filters.
+     *
+     * Deliberately ignores any status filter: these counts are what the status
+     * filter is chosen FROM, so narrowing to "Expired" must not reduce the other
+     * two to zero. Every other filter still applies, so the numbers describe the
+     * set the user is actually looking at.
+     *
+     * @return array<string,int>
+     */
+    private function summaryFor(Request $request): array
+    {
+        $base = fn () => WarrantyRecord::query()
+            ->forUser($request->user())
+            ->when($request->filled('customer_id'),
+                fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+            ->when($request->filled('product_id'),
+                fn ($q) => $q->where('product_id', $request->integer('product_id')))
+            ->when($request->filled('serial_number'), fn ($q) => $q->whereRaw(
+                'LOWER(TRIM(serial_number)) = ?',
+                [strtolower(trim($request->string('serial_number')))]
+            ))
+            ->when($request->filled('date_from'), fn ($q) => $q->whereDate(
+                'warranty_end_date', '>=', $request->string('date_from')
+            ));
+
+        $active  = (clone $base())->withEffectiveStatus(WarrantyRecord::STATUS_ACTIVE)->count();
+        $expired = (clone $base())->withEffectiveStatus(WarrantyRecord::STATUS_EXPIRED)->count();
+        $claimed = (clone $base())->withEffectiveStatus(WarrantyRecord::STATUS_CLAIMED)->count();
+
+        return [
+            'active'  => $active,
+            'expired' => $expired,
+            'claimed' => $claimed,
+            // Summed rather than counted separately so the three states and the
+            // total can never disagree on screen.
+            'total'   => $active + $expired + $claimed,
+        ];
     }
 
     // GET /api/warranties/{id}
@@ -88,40 +141,23 @@ class WarrantyController extends Controller
     // Used by the warranty lookup page and warranty-type issuance flow.
     public function lookupBySerial(string $serial)
     {
-        // Auto-expire stale active warranties before lookup
-        WarrantyRecord::where('status_id', self::STATUS_ACTIVE)
-            ->whereDate('warranty_end_date', '<', now()->toDateString())
-            ->update(['status_id' => self::STATUS_EXPIRED]);
+        // Answers about the UNIT, not only about a warranty record. Searching
+        // warranty_records alone meant every unit still in the warehouse came
+        // back 404 — true, and useless to someone holding the thing.
+        //
+        // 200 in every case, including an unknown serial: "we have never seen
+        // this number" is an answer the panel should render plainly, not an
+        // error box.
+        $lookup = app(SerialLookupService::class)->find($serial);
 
-        $warranty = WarrantyRecord::with([
-            'product.applianceDetail.brand',
-            'customer',
-            'status',
-            'issuance.location',
-        ])
-        ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($serial))])
-        ->latest()
-        ->first();
+        $payload = $lookup->toArray();
+        $customer = $payload['customer_warranty'];
 
-        if (! $warranty) {
-            return response()->json([
-                'success' => false,
-                'found'   => false,
-                'message' => 'No warranty record found for this serial number.',
-            ], 404);
-        }
-
-        $formatted = $this->formatWarranty($warranty);
-        $isExpired = $formatted['is_expired'];
-        $isClaimed = $warranty->status_id === self::STATUS_CLAIMED;
-
-        return response()->json([
-            'success'      => true,
-            'found'        => true,
-            'warranty'     => $formatted,
-            'is_expired'   => $isExpired,
-            'is_claimed'   => $isClaimed,
-            'is_claimable' => ! $isExpired && ! $isClaimed,
+        return response()->json($payload + [
+            'success' => true,
+            'found'   => $lookup->state !== \App\Support\SerialLookup::UNKNOWN,
+            // Kept for the claim button, which asks exactly one question.
+            'is_claimable' => (bool) ($customer['is_claimable'] ?? false),
         ]);
     }
 
@@ -234,6 +270,29 @@ class WarrantyController extends Controller
     }
 
     // PRIVATE HELPER
+    /**
+     * The name matching the DERIVED status.
+     *
+     * The `status` relation points at whatever the stored column says, so a
+     * lapsed record would have come back labelled "Active" beside an
+     * effective status of Expired — the payload contradicting itself.
+     */
+    private function statusName(WarrantyRecord $w): ?string
+    {
+        $effective = $w->effective_status_id;
+
+        if ($effective === (int) $w->status_id) {
+            return $w->status?->status_name;
+        }
+
+        return match ($effective) {
+            WarrantyRecord::STATUS_ACTIVE  => 'Active',
+            WarrantyRecord::STATUS_EXPIRED => 'Expired',
+            WarrantyRecord::STATUS_CLAIMED => 'Claimed',
+            default                        => $w->status?->status_name,
+        };
+    }
+
     private function formatWarranty(WarrantyRecord $w): array
     {
         $claimedByName = $w->claimedByUser
@@ -249,8 +308,13 @@ class WarrantyController extends Controller
             'warranty_end_date'       => $w->warranty_end_date?->format('Y-m-d'),
             'warranty_period_months'  => $w->warranty_period_months,
             'warranty_duration_label' => $w->warranty_duration_label,
-            'status_name'             => $w->status?->status_name,
-            'status_id'               => $w->status_id,
+            // The DERIVED state, not the stored column. A record whose cover
+            // ended last week is expired the moment it is read, whether or not
+            // `warranties:expire` has run since. stored_status_id is kept
+            // alongside so a reader can still see what the column says.
+            'status_name'             => $this->statusName($w),
+            'status_id'               => $w->effective_status_id,
+            'stored_status_id'        => $w->status_id,
             'is_expired'              => $w->is_expired,
             'days_remaining'          => $w->days_remaining,
             'claim_date'              => $w->claim_date?->format('Y-m-d'),

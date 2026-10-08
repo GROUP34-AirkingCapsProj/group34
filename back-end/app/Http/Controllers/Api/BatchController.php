@@ -12,16 +12,30 @@ use App\Models\Product;
 use App\Models\Inventory;
 use App\Models\Sale;
 use App\Models\SaleDetail;
+use App\Models\IssuanceDetail;
 use App\Models\CategoryLookup;
 use App\Models\BrandLookup;
-use App\Models\UnitLookup;
 use App\Http\Controllers\Api\CategoryLookupController;
 use App\Http\Controllers\Api\BrandLookupController;
+use App\Http\Controllers\Api\UnitLookupController;
+use App\Http\Controllers\Api\CapacityLookupController;
+use App\Http\Controllers\Api\VariantLookupController;
+use App\Http\Controllers\Api\AcTypeLookupController;
 use Illuminate\Http\Request;
 
 /**
  * Returns multiple resources in one request to reduce round-trips.
- * GET /api/batch?include=users,roles,branches,locations,items,inventory,transactions,sales,dashboard,categories,brands,units
+ * GET /api/batch?include=users,roles,branches,locations,items,inventory,transactions,sales,dashboard,categories,brands,units,capacities,variants,acTypes
+ *
+ * NOTE: this endpoint carries no permission: route middleware, and every
+ * include below calls its controller's index()/show() method directly in
+ * PHP rather than dispatching through the router — so route-level
+ * permission: middleware never runs for anything included here. That is
+ * safe today only because all six item-master lookups (units, categories,
+ * brands, capacities, variants, acTypes) have deliberately
+ * ungated GETs (see routes/api.php). Do NOT add an include for a resource
+ * whose GET route IS permission-gated without first adding an equivalent
+ * check inside this method — the route gate will not protect it here.
  */
 class BatchController extends Controller
 {
@@ -121,7 +135,11 @@ class BatchController extends Controller
                         $q->with(['location']);
                     },
                 ])
-                ->whereHas('sale')
+                ->whereHas('sale', function ($q) use ($user) {
+                    if ($user && ! $user->isCentralized()) {
+                        $q->where('location_id', $user->scopedLocationId());
+                    }
+                })
                 ->join('sales', 'sales_details.sales_id', '=', 'sales.sales_id')
                 ->orderByDesc('sales.created_at')
                 ->select('sales_details.*')
@@ -150,6 +168,44 @@ class BatchController extends Controller
                 ];
             })->filter(static fn ($row) => $row['product'] !== null)->values()->all();
 
+            $issued = IssuanceDetail::query()
+                ->with(['product.category', 'issuance.location'])
+                ->where('quantity_issued', '>', 0)
+                ->whereHas('issuance', function ($q) use ($user) {
+                    if ($user && ! $user->isCentralized()) {
+                        $q->where('location_id', $user->scopedLocationId());
+                    }
+                })
+                ->orderByDesc('created_at')
+                ->limit(4000)
+                ->get()
+                ->map(static function (IssuanceDetail $d) {
+                    $issuance = $d->issuance;
+                    return [
+                        'product_id'  => $d->product_id,
+                        'item_id'     => $d->product_id,
+                        'location_id' => $issuance?->location_id,
+                        'quantity'    => (int) ($d->quantity_in_pieces ?: $d->quantity_issued),
+                        'amount'      => (float) ($d->unit_price_per_piece ?: $d->unit_price),
+                        'created_at'  => $d->created_at?->toIso8601String(),
+                        'date'        => $issuance?->issuance_date?->format('Y-m-d'),
+                        'type'        => 'issuance',
+                        'notes'       => $issuance?->dr_number
+                            ? ('Issue Out ' . $issuance->dr_number)
+                            : 'Issue Out',
+                        'product'     => $d->product,
+                        'location'    => $issuance?->location,
+                    ];
+                })
+                ->filter(static fn ($row) => $row['product'] !== null)
+                ->values()
+                ->all();
+
+            $mapped = collect(array_merge($mapped, $issued))
+                ->sortByDesc('created_at')
+                ->values()
+                ->all();
+
             $data['transactions'] = [
                 'success' => true,
                 'data'    => $mapped,
@@ -157,7 +213,9 @@ class BatchController extends Controller
         }
 
         if (in_array('inventory', $parts)) {
-            $inventory = Inventory::with(['product.category', 'product.unit', 'location'])->paginate(500);
+            $inventory = Inventory::forUser($user)
+                ->with(['product.category', 'product.unit', 'location'])
+                ->paginate(500);
             $data['inventory'] = [
                 'success'    => true,
                 'data'       => $inventory->items(),
@@ -171,7 +229,13 @@ class BatchController extends Controller
         }
 
         if (in_array('sales', $parts)) {
-            $sales = Sale::with(['customer', 'createdBy', 'status'])->paginate(200);
+            // forUser() matches the `inventory` and `transactions` parts above —
+            // sales carry a location_id and this route has no permission gate.
+            // Relations are soldBy/paymentStatus; the previous createdBy/status
+            // pair does not exist on Sale and made this part throw a 500.
+            $sales = Sale::with(['customer', 'soldBy', 'paymentStatus'])
+                ->forUser($user)
+                ->paginate(200);
             $data['sales'] = [
                 'success'    => true,
                 'data'       => $sales->items(),
@@ -214,10 +278,49 @@ class BatchController extends Controller
         }
 
         if (in_array('units', $parts)) {
-            $data['units'] = [
-                'success' => true,
-                'data'    => UnitLookup::orderBy('unit_name')->get(),
-            ];
+            try {
+                $data['units'] = json_decode(
+                    app(UnitLookupController::class)->index(new Request())->getContent(), true
+                );
+            } catch (\Throwable $e) {
+                $data['units'] = ['success' => false, 'message' => $e->getMessage()];
+            }
+        }
+
+        // capacities/variants/acTypes deliberately get a fresh, empty Request
+        // rather than the live $request: a batch include always means
+        // "everything", so these includes take no query params at all. Passing
+        // $request through would couple them to whatever unrelated params happen
+        // to be on the /api/batch URL; any narrowing belongs on the dedicated
+        // /api/capacities, /api/variants and /api/ac-types endpoints, not here.
+        if (in_array('capacities', $parts)) {
+            try {
+                $data['capacities'] = json_decode(
+                    app(CapacityLookupController::class)->index(new Request())->getContent(), true
+                );
+            } catch (\Throwable $e) {
+                $data['capacities'] = ['success' => false, 'message' => $e->getMessage()];
+            }
+        }
+
+        if (in_array('variants', $parts)) {
+            try {
+                $data['variants'] = json_decode(
+                    app(VariantLookupController::class)->index(new Request())->getContent(), true
+                );
+            } catch (\Throwable $e) {
+                $data['variants'] = ['success' => false, 'message' => $e->getMessage()];
+            }
+        }
+
+        if (in_array('acTypes', $parts)) {
+            try {
+                $data['acTypes'] = json_decode(
+                    app(AcTypeLookupController::class)->index(new Request())->getContent(), true
+                );
+            } catch (\Throwable $e) {
+                $data['acTypes'] = ['success' => false, 'message' => $e->getMessage()];
+            }
         }
 
         return response()->json(['success' => true, 'message' => 'Batch retrieved', 'data' => $data]);

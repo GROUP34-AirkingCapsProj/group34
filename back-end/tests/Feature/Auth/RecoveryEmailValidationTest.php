@@ -1,0 +1,117 @@
+<?php
+
+namespace Tests\Feature\Auth;
+
+use App\Models\User;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Mail;
+use Tests\TestCase;
+
+class RecoveryEmailValidationTest extends TestCase
+{
+    use DatabaseTransactions;
+
+    private function makeAdmin(): User
+    {
+        $uid = uniqid();
+
+        return User::create([
+            'first_name'    => 'Ad',
+            'last_name'     => 'Min',
+            'username'      => 'admin_' . $uid,
+            'email'         => 'admin_' . $uid . '@airking.com',
+            'password_hash' => bcrypt('Secret123!'),
+            'role_id'       => 1,
+            'status_id'     => 1,
+        ]);
+    }
+
+    private function payload(array $overrides = []): array
+    {
+        $uid = uniqid();
+
+        return array_merge([
+            'first_name'            => 'New',
+            'last_name'             => 'Hire',
+            'username'              => 'hire_' . $uid,
+            'email'                 => 'hire_' . $uid . '@airking.com',
+            'recovery_email'        => 'hire_' . $uid . '@gmail.com',
+            'role_id'               => 1,
+            'status_id'             => 1,
+        ], $overrides);
+    }
+
+    public function test_store_requires_recovery_email(): void
+    {
+        Mail::fake();
+        $payload = $this->payload();
+        unset($payload['recovery_email']);
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.recovery_email.0', fn ($m) => is_string($m));
+    }
+
+    public function test_store_rejects_recovery_email_equal_to_login_email(): void
+    {
+        Mail::fake();
+        $payload = $this->payload();
+        $payload['recovery_email'] = $payload['email'];
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.recovery_email.0', fn ($m) => is_string($m));
+    }
+
+    public function test_store_rejects_a_recovery_email_already_used_by_another_account(): void
+    {
+        Mail::fake();
+        $admin = $this->makeAdmin();
+        $taken = 'shared_' . uniqid() . '@gmail.com';
+
+        $first = $this->payload(['recovery_email' => $taken]);
+        $this->actingAs($admin, 'sanctum')->postJson('/api/users', $first)->assertStatus(201);
+
+        // A second account cannot claim the same recovery address: forgot-password
+        // resolves an account BY that address, so sharing it would be ambiguous.
+        $second = $this->payload(['recovery_email' => $taken]);
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/users', $second)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.recovery_email.0', fn ($m) => is_string($m));
+    }
+
+    public function test_store_rejects_a_recovery_email_that_is_another_accounts_login_email(): void
+    {
+        Mail::fake();
+        $admin = $this->makeAdmin();
+        $existing = $this->makeAdmin();
+
+        // Otherwise a reset started from that address would resolve to the wrong
+        // account: the owner of the login email would reset somebody else.
+        $payload = $this->payload(['recovery_email' => $existing->email]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/users', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.recovery_email.0', fn ($m) => is_string($m));
+    }
+
+    public function test_store_persists_recovery_email_and_forces_password_change(): void
+    {
+        Mail::fake();
+        $payload = $this->payload();
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/users', $payload)
+            ->assertStatus(201);
+
+        $created = User::where('email', $payload['email'])->first();
+
+        $this->assertNotNull($created);
+        $this->assertSame($payload['recovery_email'], $created->recovery_email);
+        $this->assertTrue($created->must_change_password);
+    }
+}

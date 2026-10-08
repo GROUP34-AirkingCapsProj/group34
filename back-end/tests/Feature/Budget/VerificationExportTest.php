@@ -21,18 +21,4 @@ class VerificationExportTest extends BudgetTestCase
         $this->assertStringContainsString('Verification Status', $csv);
         $this->assertStringContainsString('verified', $csv);
     }
-
-    public function test_budget_index_filters_by_verification_status(): void
-    {
-        $admin = $this->makeUser('admin');
-        $this->makeBudget(10000, ['verification_status' => 'pending']);
-        $this->makeBudget(20000); // verified
-
-        $res = $this->actingAs($admin, 'sanctum')
-            ->getJson('/api/budget-allocations?verification_status=pending&paginate=false');
-        $res->assertSuccessful();
-
-        $statuses = collect($res->json('data'))->pluck('verification_status')->unique()->values()->all();
-        $this->assertSame(['pending'], $statuses);
-    }
 }

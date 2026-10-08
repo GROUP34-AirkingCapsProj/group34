@@ -8,24 +8,30 @@ import {
   suppliersAPI,
   purchaseOrdersAPI,
   purchaseRequestsAPI,
+  receivingsAPI,
   locationsAPI,
   usersAPI,
   companySettingsAPI,
   statusAPI,
+  openApiFile,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/dashboard_air.css';
 import '../styles/po_recommendation.css';
 import '../styles/archive_management.css';
-import { exportPOToExcel, exportPOToDocument } from '../utils/poExport';
+import { exportPOToExcel, distinctDeliverLocations } from '../utils/poExport';
 import PRProgressBar from '../components/PRProgressBar';
+import RecordHistoryModal from '../components/RecordHistoryModal';
+import ReceivingReceipt from '../components/ReceivingReceipt';
 import DateInput from '../components/DateInput';
 import { confirmAction, confirmWithReason } from '../utils/confirm';
 import { toast } from '../utils/toast';
 import { useFocusTarget } from '../hooks/useFocusTarget';
 import { useFocusPulse } from '../hooks/useFocusPulse';
 import { findById } from '../utils/findById';
+import { getStatusConfig } from '../utils/poStatus';
+import { layoutAirconGroups, airconGroupLabel, airconUnpairedLabel } from '../utils/airconGroups';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -36,17 +42,6 @@ const isoToMDY = (s) => {
   if (!s) return '—';
   const [y, m, d] = String(s).slice(0, 10).split('-');
   return `${m}/${d}/${y}`;
-};
-
-const getStatusConfig = (statusName) => {
-  const s = String(statusName || '').toLowerCase();
-  if (s.includes('complet'))                            return { label: 'COMPLETED',          color: 'completed' };
-  if (s.includes('partial'))                            return { label: 'PARTIALLY RECEIVED', color: 'partial'   };
-  if (s.includes('approv') || s.includes('authoriz'))   return { label: 'APPROVED',           color: 'approved'  };
-  if (s.includes('reject'))                             return { label: 'REJECTED',            color: 'rejected'  };
-  if (s.includes('cancel'))                             return { label: 'CANCELLED',           color: 'cancelled' };
-  if (s.includes('pending'))                            return { label: 'PENDING APPROVAL',    color: 'pending'   };
-  return { label: String(statusName || 'DRAFT').toUpperCase(), color: 'draft' };
 };
 
 const getPriorityFromAmount = (total, itemCount) => {
@@ -124,9 +119,20 @@ const PurchaseOrderPage = () => {
   const canApprovePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'update'));
   // Purchase order verification (auditor maker-checker gate).
   const canVerifyPO = typeof can === 'function' && can('purchase_order_verification', 'verify');
+  // Purchase order archiving: admin + anyone granted the archive action.
+  const canArchivePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'archive'));
 
   // Tabs
   const [activeTab, setActiveTab] = useState('create');
+
+  // Users who can't create/convert POs (e.g. auditor) shouldn't sit on the
+  // creation tab — send them to the read-only Status view instead. Runs again
+  // once async permissions resolve so we don't strand them on a hidden tab.
+  useEffect(() => {
+    if (!canCreatePO && activeTab === 'create') {
+      setActiveTab('status');
+    }
+  }, [canCreatePO, activeTab]);
 
   // Suppliers
   const [suppliers,          setSuppliers]          = useState([]);
@@ -145,6 +151,7 @@ const PurchaseOrderPage = () => {
   const [allUsers,         setAllUsers]         = useState([]);
   const [locations,        setLocations]        = useState([]);
   const [companySettings,  setCompanySettings]  = useState({});
+  const [pdfPaperSize,     setPdfPaperSize]     = useState('a4');
 
   // Expected delivery
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(() => {
@@ -180,6 +187,54 @@ const PurchaseOrderPage = () => {
   // Per-PO approve/reject in-flight flag (holds the po_id being acted on)
   const [poActionLoading, setPoActionLoading] = useState(null);
 
+  // Receiving sessions for the open PO detail modal + the receipt being shown
+  const [poReceivings,     setPoReceivings]     = useState([]);
+  const [receiptReceiving, setReceiptReceiving] = useState(null);
+  // Split-aircon grouping for the open PO detail modal: the list rows carry no
+  // aircon_groups, only the detail endpoint does.
+  const [poAirconGroups, setPoAirconGroups] = useState([]);
+
+  useEffect(() => {
+    const poId = selectedPO?.po_id;
+    if (!poId) { setPoReceivings([]); setPoAirconGroups([]); return; }
+    let mounted = true;
+    // getById eager-loads the PO's `receivings` sessions and its aircon groups.
+    purchaseOrdersAPI.getById(poId)
+      .then((res) => {
+        if (!mounted) return;
+        setPoReceivings(Array.isArray(res?.data?.receivings) ? res.data.receivings : []);
+        setPoAirconGroups(Array.isArray(res?.data?.aircon_groups) ? res.data.aircon_groups : []);
+      })
+      .catch(() => { if (mounted) { setPoReceivings([]); setPoAirconGroups([]); } });
+    return () => { mounted = false; };
+  }, [selectedPO?.po_id]);
+
+  // ── History tab + details modal ─────────────────────────────────────────────
+  const [historyRecord,     setHistoryRecord]     = useState(null); // the PO whose timeline the modal shows
+  const [historyMilestones, setHistoryMilestones] = useState([]);
+  const [historyLoading,    setHistoryLoading]    = useState(false);
+
+  // Open the details modal for one PO and fetch its full timeline.
+  const openPoHistory = (po) => {
+    setHistoryRecord(po);
+    setHistoryMilestones([]);
+    setHistoryLoading(true);
+    purchaseOrdersAPI.history(po.po_id)
+      .then((res) => setHistoryMilestones(Array.isArray(res?.data) ? res.data : []))
+      .catch(() => setHistoryMilestones([]))
+      .finally(() => setHistoryLoading(false));
+  };
+
+  // Open the receipt for one receiving session — fetch its full line detail first.
+  const openReceipt = async (receivingId) => {
+    try {
+      const res = await receivingsAPI.getById(receivingId);
+      setReceiptReceiving(res?.data || null);
+    } catch {
+      toast.error('Failed to load the receiving receipt');
+    }
+  };
+
   // Deep-link focus state
   const focusPoId = useFocusTarget('po');
   const focusHandledRef = useRef(false);
@@ -211,7 +266,10 @@ const PurchaseOrderPage = () => {
       .catch(() => {});
 
     companySettingsAPI.get()
-      .then(res => setCompanySettings(res || {}))
+      .then(res => {
+        setCompanySettings(res || {});
+        setPdfPaperSize(res?.pdf_paper_size || 'a4');
+      })
       .catch(() => {});
   }, []);
 
@@ -237,7 +295,7 @@ const PurchaseOrderPage = () => {
 
   // ── Load PO status list ────────────────────────────────────────────────────
   useEffect(() => {
-    if (activeTab !== 'status') return;
+    if (activeTab !== 'status' && activeTab !== 'history') return;
     let mounted = true;
     setLoadingPOStatus(true);
     setPoStatusError('');
@@ -480,7 +538,7 @@ const PurchaseOrderPage = () => {
   // Shared approve/reject flow: resolve the target status_id from the lookup,
   // update the PO, refresh the list, and surface the right toasts. Both the
   // approve and reject handlers delegate here with their own copy.
-  const applyPOStatus = useCallback(async (po, { match, missingLabel, successTitle, successText, errorTitle, genericError }) => {
+  const applyPOStatus = useCallback(async (po, { match, missingLabel, successTitle, successText, errorTitle, genericError, onSuccess }) => {
     setPoActionLoading(po.po_id);
     try {
       const stRes = await statusAPI.getAll({ category: 'purchase_order' });
@@ -488,35 +546,58 @@ const PurchaseOrderPage = () => {
       const statusId = stRows.find((s) => match(String(s.status_name || '').toLowerCase()))?.status_id;
       if (!statusId) {
         toast.error(errorTitle, `No "${missingLabel}" status for purchase orders. Run backend migrations, then try again.`);
-        return;
+        return false;
       }
-      await purchaseOrdersAPI.update(String(po.po_id), {
+      const updateRes = await purchaseOrdersAPI.update(String(po.po_id), {
         status_id: statusId,
         ...(authUser?.user_id ? { approved_by: authUser.user_id } : {}),
       });
+      if (onSuccess) {
+        try {
+          await onSuccess({ ...po, ...(updateRes?.data || {}) });
+        } catch (exportError) {
+          toast.error('PO approved, but PDF download failed', exportError?.message || 'You can still export the PDF from the PO details.');
+        }
+      }
       await refreshPOStatusList();
       setSelectedPO(null);
       toast.success(successTitle, successText(po));
+      return true;
     } catch (err) {
       if (err?.status === 403) {
         toast.error(errorTitle, 'This account cannot update purchase orders.');
-        return;
+        return false;
       }
       const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : err?.message || genericError;
       toast.error(errorTitle, msg);
+      return false;
     } finally {
       setPoActionLoading(null);
     }
   }, [authUser, refreshPOStatusList]);
 
-  const handleApprovePO = useCallback((po) => applyPOStatus(po, {
+  const handleApprovePO = useCallback((po) => {
+    // Reserve the preview tab while this is still a direct user click. Waiting
+    // until the approval request completes would cause browsers to block it.
+    const previewWindow = window.open('', '_blank');
+    return applyPOStatus(po, {
     match: (n) => n.includes('authori'),
     missingLabel: 'Authorized',
     successTitle: 'PO authorized',
-    successText: (p) => `${p.po_number} is now Approved.`,
+    successText: (p) => `${p.po_number} is now Approved. Its PDF download has started.`,
     errorTitle: "Couldn't authorize PO",
     genericError: 'Could not authorize this PO.',
-  }), [applyPOStatus]);
+    onSuccess: (approvedPO) => openApiFile(`/purchase-orders/${approvedPO.po_id}/pdf`, {
+      preview: true,
+      download: true,
+      previewWindow,
+      filename: `${approvedPO.po_number}.pdf`,
+    }),
+    }).then((approved) => {
+      if (!approved && previewWindow && !previewWindow.closed) previewWindow.close();
+      return approved;
+    });
+  }, [applyPOStatus]);
 
   const handleRejectPO = useCallback(async (po) => {
     if (!(await confirmAction({
@@ -576,7 +657,7 @@ const PurchaseOrderPage = () => {
     return (
       <div className="po-status-list">
         {poStatusList.map((po) => {
-          const statusCfg = getStatusConfig(po.status?.status_name);
+          const statusCfg = getStatusConfig(po.status?.status_name, po.verification_status);
           const amount    = Number(po.grand_total || po.total_amount || 0);
           const itemCount = po.details?.length ?? 0;
           const priCfg    = getPriorityFromAmount(amount, itemCount);
@@ -592,14 +673,29 @@ const PurchaseOrderPage = () => {
             : '—';
 
           return (
-            <div key={po.po_id} className="po-status-card">
+            <div
+              key={po.po_id}
+              className="po-status-card po-status-card--clickable"
+              role="button"
+              tabIndex={0}
+              aria-label={`View details for ${po.po_number}`}
+              onClick={(event) => {
+                if (!event.target.closest('button, a, input, select, textarea')) setSelectedPO(po);
+              }}
+              onKeyDown={(event) => {
+                if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
+                  event.preventDefault();
+                  setSelectedPO(po);
+                }
+              }}
+            >
               {po.purchase_request && (
-                <div style={{ background: '#eff6ff', borderBottom: '1px solid #bfdbfe', padding: '6px 16px', fontSize: 12, color: '#1d4ed8', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ background: 'var(--tint-blue-soft)', borderBottom: '1px solid var(--line-blue)', padding: '6px 16px', fontSize: 12, color: 'var(--ink-blue)', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ flexShrink: 0 }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                   From PR:{' '}
                   <button
                     type="button"
-                    style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', fontSize: 12, padding: 0 }}
+                    style={{ background: 'none', border: 'none', color: 'var(--ink-blue)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', fontSize: 12, padding: 0 }}
                     onClick={() => navigate('/admin/purchase-requests')}
                   >
                     {po.purchase_request.pr_number}
@@ -643,58 +739,16 @@ const PurchaseOrderPage = () => {
                 <div className="po-status-card-right">
                   <span className="po-status-total-label">TOTAL AMOUNT</span>
                   <span className="po-status-total-amount">₱{amount.toLocaleString('en-PH')}</span>
-                  <button type="button" className="po-status-view-btn" onClick={() => setSelectedPO(po)}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                    VIEW DETAILS
-                  </button>
-                  {statusCfg.color === 'pending' && canApprovePO && (
-                    <div className="po-status-approve-actions">
-                      <button
-                        type="button"
-                        className="aq-btn-reject"
-                        disabled={poActionLoading === po.po_id}
-                        onClick={() => handleRejectPO(po)}
-                      >
-                        REJECT
-                      </button>
-                      <button
-                        type="button"
-                        className="aq-btn-approve"
-                        disabled={poActionLoading === po.po_id}
-                        onClick={() => handleApprovePO(po)}
-                      >
-                        {poActionLoading === po.po_id ? 'SAVING…' : 'APPROVE'}
-                      </button>
-                    </div>
+                  {canArchivePO && (
+                    <ArchiveButton
+                      onArchive={() => handleArchivePO(po.po_id)}
+                      disabled={!['completed', 'rejected', 'cancelled'].includes(statusCfg.color)}
+                    />
                   )}
-                  {canVerifyPO && statusCfg.color === 'pending' && po.verification_status !== 'verified' && (
-                    <div className="po-status-approve-actions">
-                      <button
-                        type="button"
-                        className="aq-btn-reject"
-                        disabled={poActionLoading === po.po_id}
-                        onClick={() => handleRejectPOVerification(po)}
-                      >
-                        REJECT
-                      </button>
-                      <button
-                        type="button"
-                        className="aq-btn-approve"
-                        disabled={poActionLoading === po.po_id}
-                        onClick={() => handleVerifyPO(po)}
-                      >
-                        {poActionLoading === po.po_id ? 'SAVING…' : 'VERIFY'}
-                      </button>
-                    </div>
-                  )}
-                  <ArchiveButton
-                    onArchive={() => handleArchivePO(po.po_id)}
-                    disabled={!['completed', 'rejected', 'cancelled'].includes(statusCfg.color)}
-                  />
                 </div>
               </div>
               {po.verification_status === 'pending' && (
-                <div className="po-status-note" style={{ background: '#fffbeb', color: '#92400e' }}>
+                <div className="po-status-note" style={{ background: 'var(--warning-bg)', color: 'var(--warning-text)' }}>
                   <span>Awaiting auditor verification</span>
                 </div>
               )}
@@ -727,10 +781,10 @@ const PurchaseOrderPage = () => {
       return (
         <div className="po-details-card">
           <div style={{ marginBottom: 16 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-blue-800-3)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>
               Step 1: Select an Approved Purchase Request
             </h3>
-            <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
+            <p style={{ fontSize: 13, color: 'var(--ink-blue-500)', margin: 0 }}>
               Choose an approved PR to convert into a Purchase Order.
             </p>
           </div>
@@ -744,8 +798,8 @@ const PurchaseOrderPage = () => {
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                 <polyline points="14 2 14 8 20 8"></polyline>
               </svg>
-              <p style={{ fontWeight: 600, color: '#475569', marginBottom: 4 }}>No approved Purchase Requests available.</p>
-              <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
+              <p style={{ fontWeight: 600, color: 'var(--ink-blue-700)', marginBottom: 4 }}>No approved Purchase Requests available.</p>
+              <p style={{ fontSize: 13, color: 'var(--ink-blue-300)', marginBottom: 16 }}>
                 Create a Purchase Request first and get it approved by Admin.
               </p>
               <button type="button" className="po-btn po-btn-add-product" onClick={() => navigate('/admin/purchase-requests')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -771,10 +825,10 @@ const PurchaseOrderPage = () => {
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <span style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>{pr.pr_number}</span>
+                          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink-blue-800-3)' }}>{pr.pr_number}</span>
                           <span className="pr-badge pr-badge--approved">APPROVED</span>
                         </div>
-                        <div style={{ fontSize: 13, color: '#475569', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+                        <div style={{ fontSize: 13, color: 'var(--ink-blue-700)', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
                           {pr.supplier?.supplier_name && (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><path d="M3 3h18v4H3z"/><path d="M5 7v13h14V7"/><path d="M9 21V11h6v10"/></svg>
@@ -840,23 +894,23 @@ const PurchaseOrderPage = () => {
     return (
       <div>
         {/* PR info banner */}
-        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ background: 'var(--tint-blue-soft)', border: '1px solid var(--line-blue)', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: 'var(--ink-blue-600)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             Creating PO from Purchase Request: <strong style={{ marginLeft: 3 }}>{selectedPR.pr_number}</strong>
           </span>
-          <button type="button" style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', fontSize: 13, textDecoration: 'underline', padding: 0 }} onClick={handleDeselectPR}>
+          <button type="button" style={{ background: 'none', border: 'none', color: 'var(--ink-blue)', cursor: 'pointer', fontSize: 13, textDecoration: 'underline', padding: 0 }} onClick={handleDeselectPR}>
             ← Change PR
           </button>
         </div>
 
         {/* Progress bar */}
         <div className="po-details-card" style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-blue-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
             PR → PO Progress
           </div>
           <PRProgressBar pr={selectedPR} converting={true} />
-          <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
+          <p style={{ fontSize: 11, color: 'var(--ink-blue-300)', margin: '4px 0 0' }}>
             PO will be submitted for Admin approval after creation.
           </p>
         </div>
@@ -907,7 +961,7 @@ const PurchaseOrderPage = () => {
 
               {/* Ship To overrides */}
               <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-blue-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
                   SHIP TO / DELIVERY ADDRESS
                   <span style={{ fontWeight: 400, marginLeft: 6 }}>(shown on printed PO — leave blank to use location defaults)</span>
                 </div>
@@ -935,7 +989,7 @@ const PurchaseOrderPage = () => {
                 </div>
                 {locations.length > 0 && (
                   <div className="budget-quick-period-btns" style={{ marginTop: 6 }}>
-                    <span style={{ fontSize: 12, color: '#64748b', marginRight: 6 }}>Quick fill:</span>
+                    <span style={{ fontSize: 12, color: 'var(--ink-blue-500)', marginRight: 6 }}>Quick fill:</span>
                     {locations.map(loc => (
                       <button
                         key={loc.location_id ?? loc.id}
@@ -1012,7 +1066,7 @@ const PurchaseOrderPage = () => {
                           if (isNewShapePR) {
                             rows.push(
                               <tr key={`wh-${gi}`}>
-                                <td colSpan={8} style={{ background: '#f1f5f9', fontWeight: 700, fontSize: 12, color: '#334155', padding: '6px 10px' }}>
+                                <td colSpan={8} style={{ background: 'var(--bg-hover)', fontWeight: 700, fontSize: 12, color: 'var(--text-body)', padding: '6px 10px' }}>
                                   Requested for: {group.warehouse_name}
                                 </td>
                               </tr>
@@ -1027,15 +1081,15 @@ const PurchaseOrderPage = () => {
                                 <tr className={isPartial ? 'pr-item-remaining' : ''}>
                                   <td>
                                     <strong>{li.product}</strong>
-                                    {li.model_code && <div style={{ fontSize: 11, color: '#94a3b8' }}>{li.model_code}</div>}
+                                    {li.model_code && <div style={{ fontSize: 11, color: 'var(--ink-blue-300)' }}>{li.model_code}</div>}
                                   </td>
                                   <td>
                                     <span className={`po-type-badge ${li.product_type === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`}>
                                       {li.product_type === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
                                     </span>
                                   </td>
-                                  <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(li)}</td>
-                                  <td style={{ color: '#64748b', fontWeight: 500 }}>{li.pr_qty}</td>
+                                  <td style={{ fontSize: 12, color: 'var(--ink-blue-500)' }}>{poLineLabel(li)}</td>
+                                  <td style={{ color: 'var(--ink-blue-500)', fontWeight: 500 }}>{li.pr_qty}</td>
                                   <td>
                                     <input
                                       className="po-qty-input"
@@ -1060,15 +1114,15 @@ const PurchaseOrderPage = () => {
                                   <td><strong>{fmtPeso(li.subtotal)}</strong></td>
                                   <td style={{ fontSize: 12 }}>
                                     {isPartial
-                                      ? <span style={{ color: '#d97706', display: 'inline-flex', alignItems: 'center', gap: 3 }}><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Partial — {remaining} remaining</span>
-                                      : <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: 3 }}><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>Full</span>
+                                      ? <span style={{ color: 'var(--ink-orange-600)', display: 'inline-flex', alignItems: 'center', gap: 3 }}><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Partial — {remaining} remaining</span>
+                                      : <span style={{ color: 'var(--text-success)', display: 'inline-flex', alignItems: 'center', gap: 3 }}><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>Full</span>
                                     }
                                   </td>
                                 </tr>
                                 {openDemand > 0 && (
                                   <tr>
-                                    <td colSpan={8} style={{ padding: '0 8px 8px', background: '#fefce8' }}>
-                                      <div style={{ fontSize: 11, color: '#713f12', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                    <td colSpan={8} style={{ padding: '0 8px 8px', background: 'var(--warning-bg)' }}>
+                                      <div style={{ fontSize: 11, color: 'var(--ink-orange-700-4)', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
                                         <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="12" height="12" style={{ flexShrink: 0 }}>
                                           <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
                                         </svg>
@@ -1145,53 +1199,83 @@ const PurchaseOrderPage = () => {
                       </div>
                     </div>
 
-                    {/* Deliver To (Warehouse) — where the supplier delivers each item */}
-                    <div className="po-doc-ship-to" style={{ marginBottom: 16, fontSize: 13, lineHeight: 1.6, border: '1.5px solid #000', padding: '8px 12px', background: '#f4f4f4' }}>
-                      <strong style={{ display: 'block', marginBottom: 2, textTransform: 'uppercase' }}>
-                        Deliver To (Warehouse): {deliverWarehouseNames.length ? deliverWarehouseNames.join(', ') : (shipToName || '—')}
-                      </strong>
-                      {shipToAddress && <div>{shipToAddress}</div>}
-                    </div>
+                    {/* Delivery pages — one self-contained page per destination warehouse */}
+                    {(() => {
+                      const locationsById = Object.fromEntries(
+                        (locations || []).map(l => [String(l.location_id ?? l.id), l])
+                      );
+                      const rows = isNewShapePR
+                        ? lineItems.map(li => ({ location_id: li.location_id, warehouse_name: li.warehouse_name }))
+                        : [{ location_id: selectedPR?.location?.location_id, warehouse_name: selectedPR?.location?.location_name }];
+                      let previewLocs = distinctDeliverLocations(rows, locationsById);
+                      if (!previewLocs.length) previewLocs = [{ location_id: '__none__', name: shipToName || '—', address: shipToAddress || null }];
+                      const itemsFor = (loc) => (
+                        isNewShapePR
+                          ? lineItems.filter(li => String(li.location_id ?? '__none__') === loc.location_id)
+                          : lineItems
+                      );
+                      return previewLocs.map((loc, pi) => {
+                        const pageItems = itemsFor(loc);
+                        const pageTotal = pageItems.reduce((s, li) => s + (Number(li.subtotal) || 0), 0);
+                        return (
+                          <div key={loc.location_id + '-' + pi} style={pi > 0 ? { marginTop: 24, paddingTop: 24, borderTop: '2px dashed var(--line-blue-300-2)' } : undefined}>
+                            {previewLocs.length > 1 && (
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-blue-500)', textTransform: 'uppercase', marginBottom: 6 }}>
+                                Page {pi + 1} of {previewLocs.length}
+                              </div>
+                            )}
 
-                    {/* Line Items — grouped by destination warehouse (mirrors the export) */}
-                    <div className="po-doc-details-label">Details</div>
-                    <table className="po-doc-table">
-                      <thead>
-                        <tr>
-                          <th>Quantity</th>
-                          <th>Unit</th>
-                          <th>Model Code</th>
-                          <th>Description</th>
-                          <th>Unit Price</th>
-                          <th>Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(isNewShapePR ? Object.values(groupedByWarehouse) : [{ warehouse_name: locationName, items: lineItems }]).map((grp, gi) => (
-                          <React.Fragment key={gi}>
-                            <tr>
-                              <td colSpan={6} style={{ background: '#f0f0f0', fontWeight: 700 }}>Deliver To: {grp.warehouse_name || '—'}</td>
-                            </tr>
-                            {grp.items.map((li, idx) => (
-                              <tr key={`${gi}-${idx}`}>
-                                <td>{li.quantity_ordered}</td>
-                                <td>{getUnitForExport(li)}</td>
-                                <td>{li.model_code || '—'}</td>
-                                <td>{getDescriptionForExport(li)}</td>
-                                <td>{Number(li.unit_price) === 0 ? 'Free' : `₱${Number(li.unit_price).toLocaleString('en-PH')}`}</td>
-                                <td>{Number(li.unit_price) === 0 ? '0.00' : `₱${Number(li.subtotal).toLocaleString('en-PH')}`}</td>
-                              </tr>
-                            ))}
-                          </React.Fragment>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <td colSpan={5} style={{ textAlign: 'right' }}>Total Amount {'→'}</td>
-                          <td><strong>₱{poTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                            {/* Manual Ship-To = header info (same on every page) */}
+                            {(shipToName || shipToAddress) && (
+                              <div style={{ marginBottom: 10, fontSize: 12, lineHeight: 1.5, border: '1px dashed var(--line-blue-300-2)', padding: '6px 10px' }}>
+                                <strong style={{ display: 'block', textTransform: 'uppercase' }}>Ship To: {shipToName || ''}</strong>
+                                {shipToAddress && <div>{shipToAddress}</div>}
+                              </div>
+                            )}
+
+                            {/* Deliver To = this warehouse's real address */}
+                            <div className="po-doc-ship-to" style={{ marginBottom: 16, fontSize: 13, lineHeight: 1.6, border: '1.5px solid var(--line-slate-900-2)', padding: '8px 12px', background: 'var(--bg-hover)' }}>
+                              <strong style={{ display: 'block', marginBottom: 2, textTransform: 'uppercase' }}>
+                                Deliver To (Warehouse): {loc.name || '—'}
+                              </strong>
+                              {loc.address && <div>{loc.address}</div>}
+                            </div>
+
+                            <div className="po-doc-details-label">Details</div>
+                            <table className="po-doc-table">
+                              <thead>
+                                <tr>
+                                  <th>Quantity</th>
+                                  <th>Unit</th>
+                                  <th>Model Code</th>
+                                  <th>Description</th>
+                                  <th>Unit Price</th>
+                                  <th>Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {pageItems.map((li, idx) => (
+                                  <tr key={`${pi}-${idx}`}>
+                                    <td>{li.quantity_ordered}</td>
+                                    <td>{getUnitForExport(li)}</td>
+                                    <td>{li.model_code || '—'}</td>
+                                    <td>{getDescriptionForExport(li)}</td>
+                                    <td>{Number(li.unit_price) === 0 ? 'Free' : `₱${Number(li.unit_price).toLocaleString('en-PH')}`}</td>
+                                    <td>{Number(li.unit_price) === 0 ? '0.00' : `₱${Number(li.subtotal).toLocaleString('en-PH')}`}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr>
+                                  <td colSpan={5} style={{ textAlign: 'right' }}>Total Amount {'→'}</td>
+                                  <td><strong>₱{pageTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        );
+                      });
+                    })()}
 
                     {/* Notes / References */}
                     <div className="po-doc-notes">
@@ -1233,7 +1317,7 @@ const PurchaseOrderPage = () => {
                 <span className={`po-summary-value${hasPartialLines ? ' po-summary-vat' : ''}`}>{fmtPeso(poTotal)}</span>
               </div>
               {hasPartialLines && (
-                <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: '#92400e', marginTop: 8, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <div style={{ background: 'var(--warning-bg)', border: '1px solid var(--line-amber-400-3)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: 'var(--warning-text)', marginTop: 8, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0, marginTop: 1 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                   <span>This PO is {fmtPeso(prEstimatedTotal - poTotal)} less than the PR. PR will be Partially Converted.</span>
                 </div>
@@ -1287,13 +1371,15 @@ const PurchaseOrderPage = () => {
         </div>
 
         <div className="po-tab-nav">
-          <button type="button" className={`po-tab-btn${activeTab === 'create' ? ' po-tab-btn--active' : ''}`} onClick={() => setActiveTab('create')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-              <path d="M8 13h8M8 17h5"/>
-            </svg>
-            Convert PR to PO
-          </button>
+          {canCreatePO && (
+            <button type="button" className={`po-tab-btn${activeTab === 'create' ? ' po-tab-btn--active' : ''}`} onClick={() => setActiveTab('create')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                <path d="M8 13h8M8 17h5"/>
+              </svg>
+              Convert PR to PO
+            </button>
+          )}
           <button type="button" className={`po-tab-btn${activeTab === 'status' ? ' po-tab-btn--active' : ''}`} onClick={() => setActiveTab('status')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
               <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
@@ -1301,17 +1387,56 @@ const PurchaseOrderPage = () => {
             </svg>
             PO Status
           </button>
+          <button type="button" className={`po-tab-btn${activeTab === 'history' ? ' po-tab-btn--active' : ''}`} onClick={() => setActiveTab('history')}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+              <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+            </svg>
+            History
+          </button>
         </div>
 
         {activeTab === 'status' && renderPoStatusView()}
         {activeTab === 'create' && renderConvertPRTab()}
+        {activeTab === 'history' && (
+          <div className="ak-card" style={{ padding: 16 }}>
+            {loadingPOStatus ? (
+              <div className="rh-empty">Loading purchase orders…</div>
+            ) : poStatusList.length === 0 ? (
+              <div className="rh-empty">No purchase orders found.</div>
+            ) : (
+              <div className="rh-record-list">
+                {poStatusList.map((po) => {
+                  const cfg = getStatusConfig(po.status?.status_name, po.verification_status);
+                  const amt = Number(po.grand_total || po.total_amount || 0);
+                  return (
+                    <div key={po.po_id} className="rh-record-row">
+                      <div className="rh-record-main">
+                        <strong>{po.po_number}</strong>
+                        <span className={`po-detail-status-pill po-detail-status-pill--${cfg.color}`}>{cfg.label}</span>
+                      </div>
+                      <div className="rh-record-sub">
+                        {po.order_date ? isoToMDY(po.order_date) : ''} · ₱{amt.toLocaleString('en-PH')}
+                      </div>
+                      <button type="button" className="po-status-view-btn" onClick={() => openPoHistory(po)}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                          <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+                        </svg>
+                        VIEW HISTORY
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* PO Detail Modal */}
       <Modal isOpen={!!selectedPO} onClose={() => setSelectedPO(null)} title="" hideHeader maxWidth={700}>
         {selectedPO && (() => {
           const d         = selectedPO;
-          const statusCfg = getStatusConfig(d.status?.status_name);
+          const statusCfg = getStatusConfig(d.status?.status_name, d.verification_status);
           const amount    = Number(d.grand_total || d.total_amount || 0);
           const priCfg    = getPriorityFromAmount(amount, d.details?.length ?? 0);
           const createdByName = d.created_by
@@ -1337,11 +1462,11 @@ const PurchaseOrderPage = () => {
                 <div className="po-detail-head-info">
                   <h2 className="po-detail-head-number">{d.po_number}</h2>
                   {d.purchase_request && (
-                    <p style={{ fontSize: 12, color: '#1d4ed8', margin: '2px 0 0' }}>
+                    <p style={{ fontSize: 12, color: 'var(--ink-blue)', margin: '2px 0 0' }}>
                       Source PR:{' '}
                       <button
                         type="button"
-                        style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, padding: 0 }}
+                        style={{ background: 'none', border: 'none', color: 'var(--ink-blue)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, padding: 0 }}
                         onClick={() => { setSelectedPO(null); navigate('/admin/purchase-requests'); }}
                       >
                         {d.purchase_request.pr_number}
@@ -1360,8 +1485,8 @@ const PurchaseOrderPage = () => {
               </div>
 
               {d.purchase_request && (
-                <div style={{ padding: '10px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>PR → PO Progress</div>
+                <div style={{ padding: '10px 20px', background: 'var(--bg-muted)', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--ink-blue-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>PR → PO Progress</div>
                   <PRProgressBar pr={{
                     status_id: 14,
                     converted_to_po_id: d.po_id,
@@ -1393,21 +1518,42 @@ const PurchaseOrderPage = () => {
                     {d.supplier?.email          && <div className="po-detail-address-row"><span className="po-detail-address-label">Email</span><span className="po-detail-address-value">{d.supplier.email}</span></div>}
                     {d.supplier?.tin            && <div className="po-detail-address-row"><span className="po-detail-address-label">TIN</span><span className="po-detail-address-value">{d.supplier.tin}</span></div>}
                   </div>
-                  <div className="po-detail-address-block">
-                    <div className="po-detail-address-block-title">Deliver To (Warehouse)</div>
-                    <div className="po-detail-address-row"><span className="po-detail-address-label">Warehouse</span><span className="po-detail-address-value po-detail-address-value--name">{[...new Set((details || []).map(x => x.location_name || x.location?.location_name).filter(Boolean))].join(', ') || d.location?.location_name || '—'}</span></div>
-                    {(d.location?.address || d.location?.city || d.location?.province || d.location?.region) && <div className="po-detail-address-row"><span className="po-detail-address-label">Address</span><span className="po-detail-address-value">{[d.location.address, d.location.city, d.location.province, d.location.region].filter(Boolean).join(', ')}</span></div>}
-                    {d.location?.contact_number && <div className="po-detail-address-row"><span className="po-detail-address-label">Phone</span><span className="po-detail-address-value">{d.location.contact_number}</span></div>}
-                    {d.location?.email          && <div className="po-detail-address-row"><span className="po-detail-address-label">Email</span><span className="po-detail-address-value">{d.location.email}</span></div>}
-                    {d.location?.manager_name   && <div className="po-detail-address-row"><span className="po-detail-address-label">Manager</span><span className="po-detail-address-value">{d.location.manager_name}</span></div>}
-                  </div>
+                  {(() => {
+                    const deliverLocs = distinctDeliverLocations(details);
+                    const blocks = (deliverLocs.length && !(deliverLocs.length === 1 && deliverLocs[0].location_id === '__none__'))
+                      ? deliverLocs
+                      : [{
+                          location_id:    String(d.location?.location_id ?? '__none__'),
+                          name:           d.location?.location_name || '—',
+                          address:        [d.location?.address, d.location?.city, d.location?.province, d.location?.region].filter(Boolean).join(', ') || null,
+                          contact_number: d.location?.contact_number || null,
+                          email:          d.location?.email || null,
+                          manager_name:   d.location?.manager_name || null,
+                        }];
+                    return (
+                      <div className="po-detail-address-block">
+                        <div className="po-detail-address-block-title">
+                          Deliver To (Warehouse){blocks.length > 1 ? ` — ${blocks.length} destinations` : ''}
+                        </div>
+                        {blocks.map((loc, i) => (
+                          <div key={loc.location_id + '-' + i} style={i > 0 ? { marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border-strong)' } : undefined}>
+                            <div className="po-detail-address-row"><span className="po-detail-address-label">Warehouse</span><span className="po-detail-address-value po-detail-address-value--name">{loc.name}</span></div>
+                            {loc.address        && <div className="po-detail-address-row"><span className="po-detail-address-label">Address</span><span className="po-detail-address-value">{loc.address}</span></div>}
+                            {loc.contact_number && <div className="po-detail-address-row"><span className="po-detail-address-label">Phone</span><span className="po-detail-address-value">{loc.contact_number}</span></div>}
+                            {loc.email          && <div className="po-detail-address-row"><span className="po-detail-address-label">Email</span><span className="po-detail-address-value">{loc.email}</span></div>}
+                            {loc.manager_name   && <div className="po-detail-address-row"><span className="po-detail-address-label">Manager</span><span className="po-detail-address-value">{loc.manager_name}</span></div>}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="po-detail-info-grid">
                   <div className="po-detail-info-item"><span className="po-detail-info-label">CREATED BY</span><span className="po-detail-info-value">{createdByName}</span></div>
                   <div className="po-detail-info-item"><span className="po-detail-info-label">ORDER DATE</span><span className="po-detail-info-value">{isoToMDY(d.order_date)}</span></div>
                   <div className="po-detail-info-item"><span className="po-detail-info-label">EXPECTED DELIVERY</span><span className="po-detail-info-value">{isoToMDY(d.expected_delivery_date)}</span></div>
-                  <div className="po-detail-info-item"><span className="po-detail-info-label">TOTAL AMOUNT</span><span className="po-detail-info-value" style={{ color: '#dc2626', fontWeight: 800 }}>₱{amount.toLocaleString('en-PH')}</span></div>
+                  <div className="po-detail-info-item"><span className="po-detail-info-label">TOTAL AMOUNT</span><span className="po-detail-info-value" style={{ color: 'var(--text-danger)', fontWeight: 800 }}>₱{amount.toLocaleString('en-PH')}</span></div>
                   {actorName !== '—' && (
                     <div className="po-detail-info-item">
                       <span className="po-detail-info-label">{statusCfg.color === 'rejected' ? 'REVIEWED BY' : 'APPROVED BY'}</span>
@@ -1444,38 +1590,52 @@ const PurchaseOrderPage = () => {
                           return groupPoDetailsByLocation(details).map((grp, gi) => (
                             <React.Fragment key={gi}>
                               <tr>
-                                <td colSpan={7} style={{ background: '#eef2f7', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: '#334155', textTransform: 'uppercase' }}>
+                                <td colSpan={7} style={{ background: 'var(--bg-hover)', fontWeight: 700, fontSize: 11, letterSpacing: '.4px', color: 'var(--text-body)', textTransform: 'uppercase' }}>
                                   {grp.locationName}
-                                  <span style={{ float: 'right', fontWeight: 600, color: '#64748b' }}>₱{Number(grp.subtotal).toLocaleString('en-PH')}</span>
+                                  <span style={{ float: 'right', fontWeight: 600, color: 'var(--ink-blue-500)' }}>₱{Number(grp.subtotal).toLocaleString('en-PH')}</span>
                                 </td>
                               </tr>
-                              {grp.rows.map((item) => {
-                                idx += 1;
-                                const ab = item.approvedBy || item.approved_by || null;
-                                const detailApprovedBy = ab ? `${ab.first_name || ''} ${ab.last_name || ''}`.trim() || ab.username || '—' : '—';
-                                const pType = item.product_type || item.product?.product_type || '';
-                                return (
-                                  <tr key={item.po_detail_id ?? idx}>
-                                    <td className="po-detail-table-idx">{idx}</td>
-                                    <td>
-                                      <div>{item.product_name || item.product?.product_name || `Item ${idx}`}</div>
-                                      {item.product?.applianceDetail?.model_code && (
-                                        <small style={{ color: '#94a3b8' }}>{item.product.applianceDetail.model_code}</small>
-                                      )}
-                                      {ab && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#15803d' }}><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>Approved by: {detailApprovedBy}</span>}
-                                    </td>
-                                    <td style={{ fontSize: 11 }}>
-                                      <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
-                                        {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
-                                      </span>
-                                    </td>
-                                    <td style={{ fontSize: 12, color: '#64748b' }}>{poLineLabel(item)}</td>
-                                    <td>{item.quantity_ordered}</td>
-                                    <td>₱{Number(item.unit_price || 0).toLocaleString('en-PH')}</td>
-                                    <td className="po-detail-table-sub">₱{Number(item.subtotal || 0).toLocaleString('en-PH')}</td>
-                                  </tr>
-                                );
-                              })}
+                              {layoutAirconGroups(grp.rows, poAirconGroups, 'po_detail_id').map((seg) => (
+                                <React.Fragment key={seg.key}>
+                                  {seg.group && (
+                                    <tr>
+                                      <td colSpan={7} style={{ background: 'var(--bg-muted)', fontWeight: 700, fontSize: 11, color: 'var(--text-body)', padding: '4px 10px' }}>
+                                        {airconGroupLabel(seg.group)}
+                                        {seg.group.is_unbalanced && airconUnpairedLabel(seg.group.unpaired) && (
+                                          <span style={{ marginLeft: 8, fontWeight: 600, color: 'var(--ink-amber)' }}>⚠ {airconUnpairedLabel(seg.group.unpaired)}</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )}
+                                  {seg.rows.map((item) => {
+                                  idx += 1;
+                                  const ab = item.approvedBy || item.approved_by || null;
+                                  const detailApprovedBy = ab ? `${ab.first_name || ''} ${ab.last_name || ''}`.trim() || ab.username || '—' : '—';
+                                  const pType = item.product_type || item.product?.product_type || '';
+                                  return (
+                                    <tr key={item.po_detail_id ?? idx}>
+                                      <td className="po-detail-table-idx">{idx}</td>
+                                      <td style={seg.group ? { paddingLeft: 18 } : undefined}>
+                                        <div>{item.product_name || item.product?.product_name || `Item ${idx}`}</div>
+                                        {item.product?.applianceDetail?.model_code && (
+                                          <small style={{ color: 'var(--ink-blue-300)' }}>{item.product.applianceDetail.model_code}</small>
+                                        )}
+                                        {ab && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--ink-green)' }}><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>Approved by: {detailApprovedBy}</span>}
+                                      </td>
+                                      <td style={{ fontSize: 11 }}>
+                                        <span className={`po-type-badge ${pType === 'installation_material' ? 'po-type-part' : 'po-type-appliance'}`} style={{ fontSize: 10 }}>
+                                          {pType === 'installation_material' ? 'MATERIAL' : 'APPLIANCE'}
+                                        </span>
+                                      </td>
+                                      <td style={{ fontSize: 12, color: 'var(--ink-blue-500)' }}>{poLineLabel(item)}</td>
+                                      <td>{item.quantity_ordered}</td>
+                                      <td>₱{Number(item.unit_price || 0).toLocaleString('en-PH')}</td>
+                                      <td className="po-detail-table-sub">₱{Number(item.subtotal || 0).toLocaleString('en-PH')}</td>
+                                    </tr>
+                                  );
+                                  })}
+                                </React.Fragment>
+                              ))}
                             </React.Fragment>
                           ));
                         })()}
@@ -1488,6 +1648,42 @@ const PurchaseOrderPage = () => {
                   <span className="po-detail-total-label">TOTAL ESTIMATED VALUE</span>
                   <span className="po-detail-total-value">₱{amount.toLocaleString('en-PH')}</span>
                 </div>
+
+                {poReceivings.length > 0 && (
+                  <div className="po-detail-items-wrap" style={{ marginTop: 16 }}>
+                    <div className="po-detail-items-title-row">
+                      <span className="po-detail-items-heading">RECEIVING RECEIPTS</span>
+                      <span className="po-detail-items-count">{poReceivings.length}</span>
+                    </div>
+
+                    {/* Consolidated Goods Received Note for the whole PO */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', background: 'var(--bg-muted)', border: '1px solid var(--border-color)', borderRadius: 8, marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-blue-800-3)', marginRight: 'auto' }}>
+                        Goods Received Note — all items received on this PO
+                      </span>
+                      <button type="button" className="po-detail-btn po-detail-btn--doc" onClick={() => openApiFile(`/purchase-orders/${d.po_id}/receiving-receipt/pdf?paper_size=${pdfPaperSize}`).catch((e) => toast.error(e.message))}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+                        PRINT / PDF
+                      </button>
+                    </div>
+
+                    {poReceivings.map((rcv) => (
+                      <div key={rcv.receiving_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-soft)' }}>
+                        <div style={{ fontSize: 13 }}>
+                          <strong>{rcv.receiving_number}</strong>
+                          <span style={{ color: 'var(--ink-blue-500)', marginLeft: 8 }}>
+                            {rcv.receiving_date ? isoToMDY(rcv.receiving_date) : ''} · {Number(rcv.total_quantity_received || 0)} pcs
+                          </span>
+                        </div>
+                        <button type="button" className="po-detail-btn po-detail-btn--doc" onClick={() => openReceipt(rcv.receiving_id)}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          RECEIPT
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
               </div>
 
               {(() => {
@@ -1514,66 +1710,122 @@ const PurchaseOrderPage = () => {
                     email:   companySettings.company_email   || '',
                   },
                   supplier: { name: d.supplier?.supplier_name, address: d.supplier?.address, origin: d.supplier?.origin, region: d.supplier?.region, contact_person: d.supplier?.contact_person, contact_number: d.supplier?.contact_number, email: d.supplier?.email, tin: d.supplier?.tin },
+                  // Manual Ship-To = header info only (never a delivery destination).
                   ship_to: {
-                    name:    d.ship_to_name    || d.location?.location_name,
-                    address: d.ship_to_address || [d.location?.address, d.location?.city, d.location?.province, d.location?.region].filter(Boolean).join(', ') || null,
-                    contact_number: d.location?.contact_number,
-                    email:          d.location?.email,
-                    manager_name:   d.location?.manager_name,
+                    name:    d.ship_to_name    || null,
+                    address: d.ship_to_address || null,
                   },
+                  // Real per-warehouse delivery destinations (one page/sheet each).
+                  ship_to_locations: (() => {
+                    const locs = distinctDeliverLocations(details);
+                    if (locs.length && !(locs.length === 1 && locs[0].location_id === '__none__')) return locs;
+                    // Legacy single-warehouse PO: fall back to the header location.
+                    return [{
+                      location_id:    String(d.location?.location_id ?? '__none__'),
+                      name:           d.location?.location_name || d.ship_to_name || '—',
+                      address:        [d.location?.address, d.location?.city, d.location?.province, d.location?.region].filter(Boolean).join(', ') || d.ship_to_address || null,
+                      contact_number: d.location?.contact_number || null,
+                      email:          d.location?.email || null,
+                      manager_name:   d.location?.manager_name || null,
+                    }];
+                  })(),
                   prepared_by: createdByName,
                   verified_by: resolveUserName(d.verified_by),
-                  // Approved By on the document = whoever approved the PR, not the PO approval-queue step
-                  approved_by: resolveUserName(d.purchase_request?.approved_by),
+                  approved_by: resolveUserName(d.approved_by),
                   order_date:             d.order_date ? String(d.order_date).slice(0, 10) : '—',
                   expected_delivery_date: d.expected_delivery_date ? String(d.expected_delivery_date).slice(0, 10) : '—',
                   items: details.map(item => ({
-                    product_code:      item.product?.applianceDetail?.model_code || item.model_code || '—',
-                    name:              item.product_name || '—',
+                    location_id:       String(item.location_id ?? item.location?.location_id ?? '__none__'),
+                    product_code:      item.model_code || item.product_code || item.product?.model_code || item.product?.product_code || '—',
+                    name:              item.product_name || item.product?.product_name || '—',
                     warehouse_name:    item.location_name || item.location?.location_name || null,
-                    unit:              item.unit_abbreviation || (item.product_type === 'appliance' ? 'unit' : item.unit_name || 'pc'),
+                    unit:              (item.product_type || item.product?.product_type) === 'appliance'
+                      ? 'unit'
+                      : item.package_unit || item.product?.package_unit || item.unit_abbreviation || item.product?.unit_abbreviation || item.unit_name || 'pkg',
                     qty:               item.quantity_ordered,
                     unit_price:        item.unit_price,
                     subtotal:          item.subtotal,
-                    product_type:      item.product_type,
-                    brand_name:        item.brand_name,
-                    capacity_rating:   item.capacity_rating,
-                    variant:           item.variant,
-                    pieces_per_package: item.pieces_per_package,
-                    package_unit:      item.package_unit,
+                    product_type:      item.product_type || item.product?.product_type,
+                    brand_name:        item.brand_name || item.product?.brand_name,
+                    capacity_rating:   item.capacity_rating || item.product?.capacity_rating,
+                    variant:           item.variant || item.product?.variant,
+                    pieces_per_package: item.pieces_per_package || item.product?.pieces_per_package,
+                    package_unit:      item.package_unit || item.product?.package_unit,
                   })),
                   total_amount: amount,
                 };
                 return (
                   <div className="po-detail-footer">
-                    {statusCfg.color === 'pending' && canApprovePO && (
-                      <>
-                        <button
-                          type="button"
-                          className="aq-btn-reject"
-                          disabled={poActionLoading === d.po_id}
-                          onClick={() => handleRejectPO(d)}
-                        >
-                          REJECT
-                        </button>
-                        <button
-                          type="button"
-                          className="aq-btn-approve"
-                          disabled={poActionLoading === d.po_id}
-                          onClick={() => handleApprovePO(d)}
-                        >
-                          {poActionLoading === d.po_id ? 'SAVING…' : 'APPROVE'}
-                        </button>
-                      </>
-                    )}
+                    <select
+                      className="po-input"
+                      aria-label="PDF paper size"
+                      value={pdfPaperSize}
+                      onChange={(event) => setPdfPaperSize(event.target.value)}
+                      style={{ width: 105, minHeight: 34, padding: '5px 8px' }}
+                    >
+                      <option value="a4">A4</option>
+                      <option value="letter">Letter</option>
+                      <option value="legal">Legal</option>
+                      <option value="a5">A5</option>
+                    </select>
                     <button type="button" className="po-detail-btn po-detail-btn--excel" onClick={() => exportPOToExcel(poPayload)}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                       EXPORT EXCEL
                     </button>
-                    <button type="button" className="po-detail-btn po-detail-btn--doc" onClick={() => exportPOToDocument(poPayload)}>
+                    <button
+                      type="button"
+                      className="po-detail-btn po-detail-btn--doc"
+                      onClick={() => openApiFile(`/purchase-orders/${d.po_id}/pdf?paper_size=${pdfPaperSize}`, {
+                        download: true,
+                        filename: `${d.po_number}.pdf`,
+                      }).catch((e) => toast.error(e.message))}
+                    >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      EXPORT DOCUMENT
+                      EXPORT PDF
                     </button>
+                    {/* Approve / reject live at the far right of the footer. */}
+                    <div className="po-detail-footer__actions">
+                      {statusCfg.color === 'pending' && canApprovePO && (
+                        <>
+                          <button
+                            type="button"
+                            className="aq-btn-reject"
+                            disabled={poActionLoading === d.po_id}
+                            onClick={() => handleRejectPO(d)}
+                          >
+                            REJECT
+                          </button>
+                          <button
+                            type="button"
+                            className="aq-btn-approve"
+                            disabled={poActionLoading === d.po_id}
+                            onClick={() => handleApprovePO(d)}
+                          >
+                            {poActionLoading === d.po_id ? 'SAVING…' : 'APPROVE'}
+                          </button>
+                        </>
+                      )}
+                      {canVerifyPO && statusCfg.color === 'pending' && d.verification_status !== 'verified' && (
+                        <>
+                          <button
+                            type="button"
+                            className="aq-btn-reject"
+                            disabled={poActionLoading === d.po_id}
+                            onClick={() => handleRejectPOVerification(d)}
+                          >
+                            REJECT
+                          </button>
+                          <button
+                            type="button"
+                            className="aq-btn-approve"
+                            disabled={poActionLoading === d.po_id}
+                            onClick={() => handleVerifyPO(d)}
+                          >
+                            {poActionLoading === d.po_id ? 'SAVING…' : 'VERIFY'}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
               })()}
@@ -1581,6 +1833,23 @@ const PurchaseOrderPage = () => {
           );
         })()}
       </Modal>
+
+      <ReceivingReceipt
+        receiving={receiptReceiving}
+        isOpen={!!receiptReceiving}
+        onClose={() => setReceiptReceiving(null)}
+      />
+
+      <RecordHistoryModal
+        isOpen={!!historyRecord}
+        onClose={() => setHistoryRecord(null)}
+        kind="Purchase Order"
+        record={historyRecord}
+        statusLabel={historyRecord ? getStatusConfig(historyRecord.status?.status_name, historyRecord.verification_status).label : ''}
+        statusColor={historyRecord ? getStatusConfig(historyRecord.status?.status_name, historyRecord.verification_status).color : 'draft'}
+        milestones={historyMilestones}
+        loading={historyLoading}
+      />
     </AdminLayout>
   );
 };

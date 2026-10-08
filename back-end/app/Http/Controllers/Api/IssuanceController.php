@@ -9,21 +9,30 @@ use App\Models\IssuanceDetail;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Support\RealtimeBroadcaster;
+use App\Support\IssuanceStatus;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Arr;
+use App\Services\AirconLineGrouper;
+use App\Services\InventoryBatchService;
+use App\Services\Ledger\LedgerPoster;
 
 class IssuanceController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(private readonly AirconLineGrouper $airconLineGrouper)
+    {
+    }
 
     public function index(Request $request)
     {
         try {
             $query = Issuance::query()
                 ->forUser($request->user())
-                ->with(['location', 'issuedToUser', 'issuedBy', 'approvedBy', 'status', 'details.product']);
+                ->with(['location', 'issuedToUser', 'issuedByUser', 'approvedBy', 'status', 'details.product']);
 
             if ($request->has('location_id')) {
                 $query->where('location_id', $request->location_id);
@@ -34,8 +43,15 @@ class IssuanceController extends Controller
             if ($request->has('status_id')) {
                 $query->where('status_id', $request->status_id);
             }
-            if ($request->has('search')) {
-                $query->where('issuance_number', 'like', '%' . $request->search . '%');
+            if ($request->filled('search')) {
+                // NB: there is no `issuance_number` column — dr_number is the
+                // document number. Grouped so the OR does not escape the other
+                // filters' AND semantics.
+                $term = '%' . $request->search . '%';
+                $query->where(function ($q) use ($term) {
+                    $q->where('dr_number', 'like', $term)
+                      ->orWhere('external_reference', 'like', $term);
+                });
             }
 
             $perPage = $request->get('per_page', 20);
@@ -52,6 +68,7 @@ class IssuanceController extends Controller
                 'location_id'          => 'required|exists:locations,location_id',
                 'issuance_date'        => 'required|date',
                 'issuance_type'        => 'required|string|max:50',
+                'external_reference'   => 'nullable|string|max:100',
                 'purpose'              => 'nullable|string',
                 'issued_to_user_id'    => 'nullable|exists:users,user_id',
                 'expected_return_date' => 'nullable|date',
@@ -67,17 +84,47 @@ class IssuanceController extends Controller
                 'details.*.condition_returned'=> 'nullable|string|max:50',
             ]);
 
+            // No location guard here on purpose: EnsureAssignedLocationAccess
+            // ('location.scope', applied to every non-GET route in this group)
+            // has already overwritten location_id with the user's own for any
+            // location-strict role, so by this point the value cannot name
+            // another branch. A check here would be unreachable.
             DB::beginTransaction();
 
             $issuance = Issuance::create(Arr::except($validated, ['details']));
 
-            foreach ($validated['details'] as $detail) {
-                $issuance->details()->create($detail);
+            // Preloaded outside the loop: packaging comes off the product and
+            // resolving it per iteration would be an N+1 across the detail lines.
+            $issuedProducts = Product::with(['installationMaterialDetail', 'applianceDetail'])
+                ->whereIn('product_id', collect($validated['details'])->pluck('product_id')->all())
+                ->get()
+                ->keyBy('product_id');
 
-                // Deduct inventory at issuance location
+            foreach ($validated['details'] as $detail) {
+                // Kept as a variable, not re-queried below: a request may list the
+                // same product on two lines, and looking the line up by product_id
+                // would return the same (newest) detail row for both. The ledger's
+                // posting_key carries that id, so the second line's rows would
+                // collide with the first's and be silently deduped away.
+                $detailRow = $issuance->details()->create($detail);
+
+                // Deduct inventory at issuance location.
+                //
+                // Locked before it is read, not just before it is written: the
+                // availability check below and the deduction that follows have
+                // to be one atomic step. Unlocked, two requests for the last 5
+                // pieces both read 5, both pass the check, and both deduct —
+                // ten issued against five, and because the write is
+                // max(0, ...) the row settles on 0 instead of going negative,
+                // so nothing surfaces it. The same lock is what
+                // InventoryBatchService's class contract requires of anyone
+                // calling deductFifo() below; its own lockForUpdate() calls
+                // rely on this outer lock to serialize. IssuanceScanController
+                // does this correctly and this path did not.
                 $qty = (int) ($detail['quantity_issued'] ?? 0);
                 $inventory = Inventory::where('location_id', $validated['location_id'])
                     ->where('product_id', $detail['product_id'])
+                    ->lockForUpdate()
                     ->first();
 
                 if (!$inventory) {
@@ -89,9 +136,64 @@ class IssuanceController extends Controller
                     throw new \RuntimeException("Insufficient stock for product_id {$detail['product_id']}.");
                 }
 
-                $inventory->quantity_on_hand = max(0, (int) $inventory->quantity_on_hand - $qty);
-                $inventory->available_quantity = max(0, (int) $inventory->available_quantity - $qty);
+                $issuedProduct = $issuedProducts->get($detail['product_id']);
+                $issuedPpp = ($issuedProduct && ! $issuedProduct->isSerialized())
+                    ? $issuedProduct->getPiecesPerPackage()
+                    : 0;
+                $inventory->setPieces((int) $inventory->quantity_on_hand - $qty, $issuedPpp);
                 $inventory->save();
+
+                $touched = app(InventoryBatchService::class)->deductFifo(
+                    (int) $detail['product_id'],
+                    (int) $validated['location_id'],
+                    $qty
+                );
+                foreach ($touched as $batchId => $deductedQuantity) {
+                    if ($deductedQuantity <= 0) continue;
+                    \App\Models\InventoryBatchMovement::create([
+                        'batch_id' => $batchId,
+                        'movement_type' => 'stock_out',
+                        'issuance_id' => $issuance->issuance_id,
+                        'product_id' => $detail['product_id'],
+                        'from_location_id' => $validated['location_id'],
+                        'quantity' => $deductedQuantity,
+                        'performed_by' => $issuance->issued_by,
+                        'moved_at' => now(),
+                    ]);
+
+                    // One ledger row per batch slice, each valued at the cost that
+                    // slice actually came in at. A 6-piece issue drawn from a
+                    // 4-piece batch at 100 and a 6-piece batch at 200 is 800 pesos
+                    // of stock out, not 6 x whatever the product list price says.
+                    //
+                    // A batch with no recorded cost (stock received before costs
+                    // were tracked) posts as 'unavailable' with a null value rather
+                    // than 0.00 — the quantity is still evidence, but asserting the
+                    // goods were free would be a lie, and blocking a warehouse
+                    // issuance over a historical data gap is the worse trade.
+                    $batch = \App\Models\InventoryBatch::find($batchId);
+                    $batchCost = $batch?->unit_cost;
+
+                    app(LedgerPoster::class)->post([
+                        'occurred_at'      => $issuance->issuance_date ?? now(),
+                        'direction'        => 'out',
+                        'movement_type'    => 'issuance',
+                        'product_id'       => (int) $detail['product_id'],
+                        'batch_id'         => (int) $batchId,
+                        'quantity'         => (int) $deductedQuantity,
+                        'unit_cost'        => $batchCost !== null ? (float) $batchCost : null,
+                        'cost_basis'       => $batchCost !== null ? ($batch->cost_basis ?? 'actual') : 'unavailable',
+                        'from_location_id' => (int) $validated['location_id'],
+                        'source_type'      => 'issuances',
+                        'source_id'        => $issuance->issuance_id,
+                        'source_line_id'   => $detailRow->issuance_detail_id,
+                        'correlation_id'   => 'issuances:' . $issuance->issuance_id,
+                        'actor_user_id'    => $issuance->issued_by,
+                        'posting_key'      => 'issuance:' . $issuance->issuance_id
+                                              . ':line:' . $detailRow->issuance_detail_id
+                                              . ':batch:' . $batchId . ':out',
+                    ]);
+                }
             }
 
             DB::commit();
@@ -110,10 +212,98 @@ class IssuanceController extends Controller
     public function show($id)
     {
         try {
-            $issuance = Issuance::with(['location', 'issuedToUser', 'issuedBy', 'approvedBy', 'status', 'details.product'])->findOrFail($id);
-            return $this->success($issuance, 'Issuance retrieved successfully');
+            $issuance = Issuance::with(['location', 'issuedToUser', 'issuedByUser', 'approvedBy', 'status', 'details.product'])->findOrFail($id);
+
+            // array_merge over toArray() rather than setting an attribute on
+            // the model: response()->json() on a model serialises through the
+            // same toArray(), so every key the frontend already reads comes out
+            // byte for byte, and aircon_groups is a pure sibling addition.
+            return $this->success(
+                array_merge($issuance->toArray(), [
+                    'aircon_groups' => $this->airconGroups($issuance->details),
+                ]),
+                'Issuance retrieved successfully'
+            );
         } catch (\Exception $e) {
             return $this->error('Issuance not found', 404);
+        }
+    }
+
+    /**
+     * Aircon groups for this issuance's lines, or [] when no line is tagged.
+     *
+     * The early return is the common path, not an optimisation for a rare one:
+     * every issuance written before aircon_model_id existed is untagged, and
+     * those must not start paying for the grouper's three queries. The grouper
+     * is called ONCE with every line — calling it per line would make a detail
+     * view N+1 in the document's line count.
+     *
+     * Extra keys in a line array pass through the grouper untouched into the
+     * group's `lines`, so issuance_detail_id rides along and the UI can match a
+     * group back to the rows it already rendered.
+     *
+     * @param  \Illuminate\Support\Collection<int,IssuanceDetail>  $details
+     * @return array<int,array<string,mixed>>
+     */
+    private function airconGroups($details): array
+    {
+        $lines  = [];
+        $tagged = false;
+
+        foreach ($details as $detail) {
+            $modelId = $detail->aircon_model_id === null ? null : (int) $detail->aircon_model_id;
+            $tagged  = $tagged || $modelId !== null;
+
+            $lines[] = [
+                'issuance_detail_id' => (int) $detail->issuance_detail_id,
+                'product_id'         => (int) $detail->product_id,
+                'quantity'           => (int) $detail->quantity_issued,
+                'aircon_model_id'    => $modelId,
+            ];
+        }
+
+        return $tagged ? $this->airconLineGrouper->group($lines) : [];
+    }
+
+    /**
+     * Whether this user may act on this particular issuance.
+     *
+     * EnsureAssignedLocationAccess pins a location-strict user's location_id on
+     * the way in, which is enough for create — the row is made at their own
+     * branch either way. It does nothing for an action addressed by id, where
+     * the record already exists and may belong to anyone, so the record's own
+     * location is what has to be checked.
+     */
+    private function mayActOn(Request $request, Issuance $issuance): bool
+    {
+        $user = $request->user();
+
+        return $user->isCentralized()
+            || (int) $user->scopedLocationId() === (int) $issuance->location_id;
+    }
+
+    public function cancel(Request $request, $id)
+    {
+        try {
+            return DB::transaction(function () use ($request, $id) {
+                $issuance = Issuance::lockForUpdate()->findOrFail($id);
+
+                if (! $this->mayActOn($request, $issuance)) {
+                    return $this->forbidden('You do not have access to this location.');
+                }
+
+                if ((int) $issuance->status_id !== IssuanceStatus::draft()) {
+                    return $this->error('Only a draft issue-out can be cancelled.', 422);
+                }
+
+                $issuance->update(['status_id' => IssuanceStatus::cancelled()]);
+
+                return $this->success($issuance->fresh(['status']), 'Issue-out cancelled.');
+            });
+        } catch (ModelNotFoundException $e) {
+            return $this->error('Issuance not found', 404);
+        } catch (\Exception $e) {
+            return $this->error('Failed to cancel issue-out: ' . $e->getMessage(), 500);
         }
     }
 
@@ -126,6 +316,7 @@ class IssuanceController extends Controller
                 'location_id'          => 'sometimes|exists:locations,location_id',
                 'issuance_date'        => 'sometimes|date',
                 'issuance_type'        => 'sometimes|string|max:50',
+                'external_reference'   => 'nullable|string|max:100',
                 'purpose'              => 'nullable|string',
                 'issued_to_user_id'    => 'nullable|exists:users,user_id',
                 'expected_return_date' => 'nullable|date',
@@ -134,6 +325,14 @@ class IssuanceController extends Controller
                 'approved_by'          => 'nullable|exists:users,user_id',
                 'status_id'            => 'nullable|exists:status_lookup,status_id',
             ]);
+
+            // The id comes from the URL, and location.scope only rewrites
+            // request INPUT — it never looks at the row being addressed. So
+            // nothing else stops a user at one branch editing another branch's
+            // issuance; that check has to happen here, against the record.
+            if (! $this->mayActOn($request, $issuance)) {
+                return $this->forbidden('You do not have access to this location.');
+            }
 
             $issuance->update($validated);
 

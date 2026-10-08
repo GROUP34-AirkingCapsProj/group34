@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../components/Modal';
 import { permissionsAPI, usersAPI, navBundlesAPI } from '../services/api';
 import { toast } from '../utils/toast';
-import { ACTIONS, ACTION_META, groupByFeatureGroup, actionsForFeature, pageAccessStatus } from '../utils/permissions';
+import { ACTION_META, actionsForFeature, pageAccessStatus, featureTitle } from '../utils/permissions';
+import { configureFeatures, requiredFeatureOf, ORPHAN_FEATURES, OTHER_HOME, SECTION_ORDER } from '../utils/navConfigureMap';
 import '../styles/rbac_console.css';
 
 const ADMIN_ROLE_ID = 1;
@@ -10,32 +11,12 @@ const ADMIN_ROLE_ID = 1;
 // Robustly read the is_granted flag from a role-default row (handles boolean, 1, '1').
 const r_is_granted = (row) => row.is_granted === true || row.is_granted === 1 || row.is_granted === '1';
 
-// Tri-state: 'grant' | 'deny' | 'inherit'
-const TriStateSelect = ({ value, onChange, baselineGranted, isPending }) => (
-  <select
-    className={`rcx-tri${isPending ? ' is-pending' : ''}`}
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-    style={{
-      color: value === 'grant' ? 'var(--rc-green)' : value === 'deny' ? 'var(--rc-crimson)' : 'var(--rc-ink-soft)',
-    }}
-    title={isPending
-      ? 'Unsaved change — save to apply'
-      : `Role default: ${baselineGranted ? 'Granted' : 'Denied'}`}
-  >
-    <option value="inherit">Inherit ({baselineGranted ? 'Granted' : 'Denied'})</option>
-    <option value="grant">Grant</option>
-    <option value="deny">Deny</option>
-  </select>
-);
-
 const UserPermissionOverrides = ({ tabSwitcher = null }) => {
   const [users, setUsers]           = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [userPerms, setUserPerms]   = useState(null); // {effective:{...}, overrides:[...]}
   const [catalog, setCatalog]       = useState([]);
   const [bundles, setBundles]       = useState([]);
-  const [tab, setTab]               = useState('simple'); // 'simple' | 'advanced'
   const [pending, setPending]       = useState({}); // {permission_id: 'grant'|'deny'|'inherit'}
   const [reason, setReason]         = useState('');
   const [loading, setLoading]       = useState(false);
@@ -43,7 +24,7 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
   const [usersLoading, setUsersLoading] = useState(true);
   const [error, setError]           = useState(null);
   const [allRoleDefaults, setAllRoleDefaults] = useState([]); // [{role_id, permission_id, is_granted}]
-  const [modalBundle, setModalBundle] = useState(null);       // { bundle, feature, actions } | null
+  const [modalBundle, setModalBundle] = useState(null);       // { title, blocks:[{feature,title,actions}] } | null
   const [modalDraft, setModalDraft]   = useState({});         // { permission_id: boolean desired }
   const [modalReason, setModalReason] = useState('');         // reason used when saving from the modal
 
@@ -109,25 +90,6 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
     if (id) loadUserPerms(id);
   };
 
-  // Current explicit override from API
-  const currentOverride = (permId) => {
-    if (!userPerms?.overrides) return null;
-    const ov = userPerms.overrides.find((o) => o.permission_id === Number(permId));
-    if (!ov) return null;
-    return ov.is_granted === true ? 'grant' : 'deny';
-  };
-
-  // Pending or API state for a permId
-  const stateFor = (permId) => {
-    if (permId in pending) return pending[permId];
-    return currentOverride(permId) || 'inherit';
-  };
-
-  const setPermState = (permId, value) => {
-    setPending((prev) => ({ ...prev, [permId]: value }));
-  };
-
-  // --- Simple tab: nav bundle helpers ---
   // Resolve a single permission's state with the pending overlay on top of the
   // saved effective state, so the UI reflects unsaved clicks immediately.
   const permGrantedNow = (p) => {
@@ -138,22 +100,6 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
       // 'inherit' falls through to the saved effective value
     }
     return !!userPerms?.effective?.[`${p.feature}.${p.action}`];
-  };
-
-  // Role default for a permId (what "Inherit" would resolve to)
-  // We derive this from effective when there's no override
-  const roleDefault = (permId) => {
-    if (!userPerms) return false;
-    const p = catalog.find((c) => c.permission_id === Number(permId));
-    if (!p) return false;
-    // If no override, effective IS the role default
-    const ovr = userPerms.overrides?.find((o) => o.permission_id === Number(permId));
-    if (ovr != null) {
-      // effective is the override result; role default = effective XOR override
-      // We don't have role default directly, so approximate from effective
-      return !!userPerms.effective[`${p.feature}.${p.action}`];
-    }
-    return !!userPerms.effective[`${p.feature}.${p.action}`];
   };
 
   // Determine if selected user is admin (block override attempt)
@@ -190,11 +136,17 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
     return pageAccessStatus(acts, eff);
   };
 
-  // Row has unsaved changes if any of its feature's permission ids are pending.
+  // Row has unsaved changes if any of its configurable features' permission ids are pending.
   const bundleHasPending = (bundle) => {
-    const feature = bundleFeature(bundle);
-    return (catalog || []).some((c) => c.feature === feature && c.permission_id in pending);
+    const feats = new Set(configureFeatures(bundle));
+    return (catalog || []).some((c) => feats.has(c.feature) && c.permission_id in pending);
   };
+
+  // Build the ordered feature sub-blocks (feature title + its actions) for a modal.
+  const featureBlocks = (features) =>
+    features
+      .map((f) => ({ feature: f, title: featureTitle(f), actions: actionsForFeature(catalog, f) }))
+      .filter((b) => b.actions.length > 0);
 
   // Modal open / toggle / apply / cancel handlers.
   // The draft stores the DESIRED effective access per action as a boolean
@@ -202,18 +154,33 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
   // default and derive the override: matches default -> inherit; differs ->
   // grant (true) or deny (false). This lets the admin BLOCK an action the
   // role would otherwise allow (e.g. deny view/read), not just add access.
-  const openBundleModal = (bundle) => {
-    const feature = bundleFeature(bundle);
-    const acts = actionsForFeature(catalog, feature);
+  // Initialise a modal draft from the user's current effective (pending-aware) access.
+  const draftFromBlocks = (blocks) => {
     const draft = {};
-    acts.forEach(({ action, permission_id }) => {
-      // Initialise from the user's current effective (pending-aware) access.
-      draft[permission_id] = permGrantedNow({ permission_id, feature, action });
-    });
-    setModalDraft(draft);
-    setModalReason('');
-    setModalBundle({ bundle, feature, actions: acts });
+    blocks.forEach((b) =>
+      b.actions.forEach(({ action, permission_id }) => {
+        draft[permission_id] = permGrantedNow({ permission_id, feature: b.feature, action });
+      })
+    );
+    return draft;
   };
+
+  const openBundleModal = (bundle) => {
+    const blocks = featureBlocks(configureFeatures(bundle));
+    setModalDraft(draftFromBlocks(blocks));
+    setModalReason('');
+    setModalBundle({ title: `${bundle.name} — actions`, blocks });
+  };
+
+  const openOtherModal = () => {
+    const blocks = featureBlocks(ORPHAN_FEATURES);
+    setModalDraft(draftFromBlocks(blocks));
+    setModalReason('');
+    setModalBundle({ title: `${OTHER_HOME.name} — actions`, blocks });
+  };
+
+  // Every action across the open modal's feature blocks, flattened.
+  const modalActions = (modalBundle?.blocks || []).flatMap((b) => b.actions);
 
   const toggleModalAction = (permId) => {
     setModalDraft((d) => ({ ...d, [permId]: !d[permId] }));
@@ -221,7 +188,7 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
 
   const applyBundleModal = () => {
     const next = {};
-    (modalBundle?.actions || []).forEach(({ permission_id }) => {
+    modalActions.forEach(({ permission_id }) => {
       const desired = !!modalDraft[permission_id];
       const roleDef = roleDefaultGranted(permission_id);
       // matches role default -> no override; otherwise explicit grant/deny
@@ -240,7 +207,7 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
 
   // Derive the {permission_id, is_granted} change list for the open modal's draft.
   const draftToChanges = () =>
-    (modalBundle?.actions || []).map(({ permission_id }) => {
+    modalActions.map(({ permission_id }) => {
       const desired = !!modalDraft[permission_id];
       const roleDef = roleDefaultGranted(permission_id);
       const state = desired === roleDef ? 'inherit' : (desired ? 'grant' : 'deny');
@@ -272,7 +239,7 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
     }
   };
 
-  // Page-level Save (Advanced tab / staged pending).
+  // Page-level Save for staged pending changes (from the modal's "Stage" button).
   const handleSave = async () => {
     const changes = Object.entries(pending).map(([permId, state]) => ({
       permission_id: Number(permId),
@@ -289,7 +256,29 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
   };
 
   const pendingCount = Object.keys(pending).length;
-  const groups       = groupByFeatureGroup(catalog);
+
+  // Group bundles under their sidebar-section headers (SECTION_ORDER; unknown
+  // sections trail alphabetically), rows by sort_order.
+  const sections = (() => {
+    const bySection = {};
+    bundles.forEach((b) => {
+      const key = b.sidebar_section || '—';
+      (bySection[key] = bySection[key] || []).push(b);
+    });
+    const order = (s) => {
+      const i = SECTION_ORDER.indexOf(s);
+      return i === -1 ? SECTION_ORDER.length : i;
+    };
+    return Object.keys(bySection)
+      .sort((a, b) => order(a) - order(b) || a.localeCompare(b))
+      .map((section) => ({
+        section,
+        rows: bySection[section].slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+      }));
+  })();
+
+  // Orphan features that actually exist in the catalog → show the synthetic Other row.
+  const otherFeatures = featureBlocks(ORPHAN_FEATURES);
 
   return (
       <div className="rbac-console">
@@ -347,34 +336,25 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
 
             {!loading && !error && userPerms && (
               <div className="rcx-panel">
-                {/* Tabs */}
-                <div className="rcx-tabs">
-                  {['simple', 'advanced'].map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      className={`rcx-tab${tab === t ? ' is-active' : ''}`}
-                      onClick={() => setTab(t)}
-                    >
-                      {t === 'simple' ? 'Navigation Access' : 'Advanced · Full Matrix'}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Simple tab: nav bundle row list */}
-                {tab === 'simple' && (
-                  <div>
-                    {bundles.length === 0 && <p className="rcx-muted">No navigation bundles found.</p>}
-                    <div className="rcx-navlist">
-                      {bundles.map((bundle) => {
+                {/* Navigation Access list, grouped by sidebar section */}
+                {bundles.length === 0 && <p className="rcx-muted">No navigation bundles found.</p>}
+                <div className="rcx-navlist">
+                  {sections.map(({ section, rows }) => (
+                    <React.Fragment key={section}>
+                      <h3 className="rcx-navgroup">{section}</h3>
+                      {rows.map((bundle) => {
                         const status = bundleStatus(bundle);
                         const dirty = bundleHasPending(bundle);
+                        const extraCount = configureFeatures(bundle).length - 1;
                         const labels = { none: 'No access', view: 'View-only', partial: 'Partial', full: 'Full' };
                         return (
                           <div key={bundle.bundle_id} className="rcx-navrow">
                             <div className="rcx-navrow-main">
                               <span className="rcx-navrow-name">{bundle.name}</span>
-                              <span className="rcx-navrow-section">{bundle.sidebar_section || '—'}</span>
+                              <span className="rcx-navrow-section">
+                                {featureTitle(requiredFeatureOf(bundle) || '—')}
+                                {extraCount > 0 && ` · +${extraCount} more`}
+                              </span>
                             </div>
                             <div className="rcx-navrow-right">
                               {dirty && <span className="rcx-navrow-dirty" title="Unsaved changes" />}
@@ -386,55 +366,26 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
                           </div>
                         );
                       })}
-                    </div>
-                  </div>
-                )}
+                    </React.Fragment>
+                  ))}
 
-                {/* Advanced tab: full matrix */}
-                {tab === 'advanced' && (
-                  <div className="rcx-matrix-wrap" style={{ boxShadow: 'none', border: '1px solid var(--rc-line)' }}>
-                    <table className="rcx-matrix" style={{ minWidth: 480 }}>
-                      <thead>
-                        <tr>
-                          <th>Feature / Action</th>
-                          <th className="rcx-rolehead" style={{ minWidth: 180 }}>Override</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {groups.map((group) => (
-                          <React.Fragment key={group.label}>
-                            <tr className="rcx-group">
-                              <td colSpan={2}>{group.label}</td>
-                            </tr>
-                            {group.features.map((feat) =>
-                              ACTIONS.filter((a) => feat.actions[a] != null).map((action) => {
-                                const permId = feat.actions[action];
-                                const state  = stateFor(permId);
-                                const base   = roleDefault(permId);
-                                return (
-                                  <tr className="rcx-row" key={`${feat.feature}.${action}`}>
-                                    <td className="rcx-feat">
-                                      <span className="rcx-feat-name">{feat.title}</span>
-                                      <span className="rcx-action-tag">{ACTION_META[action]?.label || action}</span>
-                                    </td>
-                                    <td className="rcx-cell">
-                                      <TriStateSelect
-                                        value={state}
-                                        onChange={(v) => setPermState(permId, v)}
-                                        baselineGranted={base}
-                                        isPending={permId in pending}
-                                      />
-                                    </td>
-                                  </tr>
-                                );
-                              })
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                  {otherFeatures.length > 0 && (
+                    <React.Fragment>
+                      <h3 className="rcx-navgroup">{OTHER_HOME.sidebar_section}</h3>
+                      <div className="rcx-navrow">
+                        <div className="rcx-navrow-main">
+                          <span className="rcx-navrow-name">{OTHER_HOME.name}</span>
+                          <span className="rcx-navrow-section">Permissions with no navigation page</span>
+                        </div>
+                        <div className="rcx-navrow-right">
+                          <button type="button" className="rcx-btn rcx-btn--ghost" onClick={openOtherModal}>
+                            Configure
+                          </button>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  )}
+                </div>
 
                 {/* Reason + Save */}
                 <div className="rcx-reason">
@@ -486,36 +437,43 @@ const UserPermissionOverrides = ({ tabSwitcher = null }) => {
           </div>
         )}
 
-        {/* Per-page action modal */}
+        {/* Per-page action modal (one sub-block per related feature) */}
         {modalBundle && (
-          <Modal isOpen={true} title={`${modalBundle.bundle.name} — actions`} onClose={cancelBundleModal} maxWidth={460}>
+          <Modal isOpen={true} title={modalBundle.title} onClose={cancelBundleModal} maxWidth={480}>
             <div className="rbac-console rbac-console--modal">
-            <div className="rcx-actionlist">
-              {modalBundle.actions.map(({ action, permission_id }) => {
-                const viaRole = roleDefaultGranted(permission_id);
-                const checked = !!modalDraft[permission_id];
-                // Will this checkbox produce an explicit override (differs from role default)?
-                const willOverride = checked !== viaRole;
-                return (
-                  <label className="rcx-actionrow" key={permission_id}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleModalAction(permission_id)}
-                    />
-                    <span className="rcx-actionrow-label">{ACTION_META[action]?.label || action}</span>
-                    <span className={`rcx-actionrow-hint ${viaRole ? 'rcx-actionrow-hint--role' : ''}`}>
-                      role: {viaRole ? 'allowed' : 'blocked'}
-                    </span>
-                    {willOverride && (
-                      <span className={`rcx-actionrow-hint ${checked ? 'rcx-actionrow-hint--role' : 'rcx-actionrow-hint--deny'}`}>
-                        {checked ? 'grant' : 'deny'}
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
+            {modalBundle.blocks.length === 0 ? (
+              <p className="rcx-muted">This page has no configurable actions.</p>
+            ) : modalBundle.blocks.map((block) => (
+              <div key={block.feature} style={{ marginBottom: '0.9rem' }}>
+                {modalBundle.blocks.length > 1 && <h4 className="rcx-navgroup" style={{ marginTop: 0 }}>{block.title}</h4>}
+                <div className="rcx-actionlist">
+                  {block.actions.map(({ action, permission_id }) => {
+                    const viaRole = roleDefaultGranted(permission_id);
+                    const checked = !!modalDraft[permission_id];
+                    // Will this checkbox produce an explicit override (differs from role default)?
+                    const willOverride = checked !== viaRole;
+                    return (
+                      <label className="rcx-actionrow" key={permission_id}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleModalAction(permission_id)}
+                        />
+                        <span className="rcx-actionrow-label">{ACTION_META[action]?.label || action}</span>
+                        <span className={`rcx-actionrow-hint ${viaRole ? 'rcx-actionrow-hint--role' : ''}`}>
+                          role: {viaRole ? 'allowed' : 'blocked'}
+                        </span>
+                        {willOverride && (
+                          <span className={`rcx-actionrow-hint ${checked ? 'rcx-actionrow-hint--role' : 'rcx-actionrow-hint--deny'}`}>
+                            {checked ? 'grant' : 'deny'}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
             <p className="rcx-modal-note">
               Tick to <strong>allow</strong> an action for this user, untick to <strong>block</strong> it.
               Leaving it the same as the role default keeps it inherited; changing it sets a per-user

@@ -1,23 +1,23 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Modal from './Modal';
 import {
-  consumableSupplyAPI,
+  installationMaterialSupplyAPI,
   pendingProductsAPI,
   categoriesAPI,
   brandsAPI,
   unitsAPI,
   locationsAPI,
   batchAPI,
+  capacitiesAPI,
+  variantsAPI,
+  acTypesAPI,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 import { getRoleKey, ROLES } from '../utils/roles';
 import '../styles/item_management.css';
 
-/** Matches backend ProductController / Item Management appliance capacities. */
-const APPLIANCE_CAPACITY_RATINGS = ['1HP', '1.5HP', '2HP', '2.5HP', '3HP', '5HP'];
-
-/** Used when GET /consumable-supply/catalog fails or returns empty (e.g. backend route missing). */
+/** Used when GET /installation-material-supply/catalog fails or returns empty (e.g. backend route missing). */
 const DEFAULT_SUPPLY_TYPES = [
   'Refrigerant',
   'Copper / tubing',
@@ -42,7 +42,7 @@ const DEFAULT_PACKAGING_UNITS = [
   { key: 'pair', label: 'Pair' },
 ];
 
-const emptyConsumable = (barcode) => ({
+const emptyInstallationMaterial = (barcode) => ({
   barcode: barcode || '',
   category_id: '',
   brand_id: '',
@@ -60,6 +60,8 @@ const emptyAppliance = (barcode) => ({
   model_code: '',
   capacity_rating: '',
   variant: '',
+  ac_type_id: '',
+  unit_role: '',
   category_id: '',
   brand_id: '',
   unit_id: '',
@@ -70,7 +72,7 @@ const emptyAppliance = (barcode) => ({
 });
 
 /**
- * Submit consumable or appliance registration for approval (pending_products).
+ * Submit installation material or appliance registration for approval (pending_products).
  * Used from Inventory Operation when a barcode is not in the catalog.
  */
 export default function ProductRegisterModal({
@@ -89,7 +91,7 @@ export default function ProductRegisterModal({
   const showApplianceModelCode = roleKey === ROLES.ADMIN || roleKey === ROLES.BRANCH_MANAGER;
   const showApplianceWarranty = !isWarehousePersonnel;
 
-  const [kind, setKind] = useState('consumable');
+  const [kind, setKind] = useState('installation_material');
   const [catalog, setCatalog] = useState(null);
   const [serverSupplyTypes, setServerSupplyTypes] = useState(null);
   const [supplyTypesLoading, setSupplyTypesLoading] = useState(false);
@@ -97,8 +99,11 @@ export default function ProductRegisterModal({
   const [brands, setBrands] = useState([]);
   const [units, setUnits] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [capacities, setCapacities] = useState([]);
+  const [variants, setVariants] = useState([]);
+  const [acTypes, setAcTypes] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const [con, setCon] = useState(() => emptyConsumable(initialBarcode));
+  const [con, setCon] = useState(() => emptyInstallationMaterial(initialBarcode));
   const [app, setApp] = useState(() => emptyAppliance(initialBarcode));
 
   const loadLookups = useCallback(() => {
@@ -106,21 +111,30 @@ export default function ProductRegisterModal({
       setLocations(Array.isArray(r?.data) ? r.data : []);
     }).catch(() => setLocations([]));
 
-    batchAPI.get({ include: ['categories', 'brands', 'units'] }).then((res) => {
+    batchAPI.get({ include: ['categories', 'brands', 'units', 'capacities', 'variants', 'acTypes'] }).then((res) => {
       const d = res?.data || {};
       setCategories(Array.isArray(d.categories?.data) ? d.categories.data : []);
       setBrands(Array.isArray(d.brands?.data) ? d.brands.data : []);
       setUnits(Array.isArray(d.units?.data) ? d.units.data : []);
+      setCapacities(Array.isArray(d.capacities?.data) ? d.capacities.data : []);
+      setVariants(Array.isArray(d.variants?.data) ? d.variants.data : []);
+      setAcTypes(Array.isArray(d.acTypes?.data) ? d.acTypes.data : []);
     }).catch(async () => {
       try {
-        const [c, b, u] = await Promise.all([
+        const [c, b, u, cap, v, ac] = await Promise.all([
           categoriesAPI.getAll(),
           brandsAPI.getAll(),
           unitsAPI.getAll(),
+          capacitiesAPI.getAll(),
+          variantsAPI.getAll(),
+          acTypesAPI.getAll(),
         ]);
         setCategories(Array.isArray(c?.data) ? c.data : []);
         setBrands(Array.isArray(b?.data) ? b.data : []);
         setUnits(Array.isArray(u?.data) ? u.data : []);
+        setCapacities(Array.isArray(cap?.data) ? cap.data : []);
+        setVariants(Array.isArray(v?.data) ? v.data : []);
+        setAcTypes(Array.isArray(ac?.data) ? ac.data : []);
       } catch {
         /* ignore */
       }
@@ -129,20 +143,20 @@ export default function ProductRegisterModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    const base = emptyConsumable(initialBarcode);
+    const base = emptyInstallationMaterial(initialBarcode);
     setCon({
       ...base,
       supply_type: '',
       packaging_unit: DEFAULT_PACKAGING_UNITS[0]?.key ?? '',
     });
     setApp(emptyAppliance(initialBarcode));
-    setKind('consumable');
+    setKind('installation_material');
     setServerSupplyTypes(null);
     loadLookups();
     setSupplyTypesLoading(true);
     Promise.all([
-      consumableSupplyAPI.getSupplyTypes().catch(() => null),
-      consumableSupplyAPI.getCatalog().catch(() => null),
+      installationMaterialSupplyAPI.getSupplyTypes().catch(() => null),
+      installationMaterialSupplyAPI.getCatalog().catch(() => null),
     ])
       .then(([stRes, catRes]) => {
         const list = Array.isArray(stRes?.data) ? stRes.data : [];
@@ -185,6 +199,47 @@ export default function ProductRegisterModal({
     });
   }, [isOpen, supplyTypesLoading, supplyTypes, packagingUnits]);
 
+  /** Capacity options, plus the item's current value if it would otherwise be dropped. */
+  const filteredCapacities = useMemo(() => {
+    const base = capacities;
+    const current = app.capacity_rating;
+    if (current && !base.some((c) => c.capacity_value === current)) {
+      return [...base, { capacity_id: `__current-${current}`, capacity_value: current, __archived: true }];
+    }
+    return base;
+  }, [capacities, app.capacity_rating]);
+
+  /** Variant options, plus the item's current value if it would otherwise be dropped. */
+  const filteredVariants = useMemo(() => {
+    const base = variants;
+    const current = app.variant;
+    if (current && !base.some((v) => v.variant_name === current)) {
+      return [...base, { variant_id: `__current-${current}`, variant_name: current, __archived: true }];
+    }
+    return base;
+  }, [variants, app.variant]);
+
+  /** True once at least one real (non-archived) capacity/variant option exists. */
+  const hasFilteredCapacities = filteredCapacities.some((c) => !c.__archived);
+  const hasFilteredVariants = filteredVariants.some((v) => !v.__archived);
+
+  /**
+   * Changing the AC type re-applies that type's default unit role and
+   * DISCARDS any manual choice made before the change. Preserving the manual
+   * choice would silently leave a product marked 'complete' under a type that
+   * means two-piece -- the exact wrong state. The user can re-pick the side
+   * immediately; the field stays editable.
+   */
+  const handleAcTypeChange = (nextId) => {
+    const chosen = acTypes.find((t) => String(t.ac_type_id) === String(nextId));
+
+    setApp((a) => ({
+      ...a,
+      ac_type_id: nextId,
+      unit_role: chosen && !chosen.is_two_piece ? 'complete' : '',
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (editingItem) {
@@ -193,7 +248,7 @@ export default function ProductRegisterModal({
     }
     setSubmitting(true);
     try {
-      if (kind === 'consumable') {
+      if (kind === 'installation_material') {
         if (!con.barcode.trim()) {
           toast.error('Barcode is required.');
           return;
@@ -240,6 +295,12 @@ export default function ProductRegisterModal({
             model_code: app.model_code.trim() || null,
             capacity_rating: app.capacity_rating.trim() || null,
             variant: app.variant.trim() || null,
+            // Always sent together, even when empty: ProductController::update()
+            // rebuilds appliance_details with updateOrCreate on a full payload,
+            // so an omitted field is nulled out -- sending one without the other
+            // would silently wipe the other.
+            ac_type_id: app.ac_type_id ? Number(app.ac_type_id) : null,
+            unit_role: app.unit_role || null,
             category_id: Number(app.category_id),
             brand_id: Number(app.brand_id),
             unit_id: Number(app.unit_id),
@@ -267,7 +328,7 @@ export default function ProductRegisterModal({
   if (editingItem) {
     return (
       <Modal isOpen onClose={onClose} title="Register product">
-        <p style={{ color: '#374151', marginBottom: 16 }}>Use Item Management to edit catalog products.</p>
+        <p style={{ color: 'var(--text-body)', marginBottom: 16 }}>Use Item Management to edit catalog products.</p>
         <div className="im-modal-footer">
           <button type="button" className="im-modal-btn-cancel" onClick={onClose}>Close</button>
         </div>
@@ -281,13 +342,13 @@ export default function ProductRegisterModal({
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <button
             type="button"
-            onClick={() => setKind('consumable')}
+            onClick={() => setKind('installation_material')}
             style={{
               flex: 1,
               padding: '8px 12px',
               borderRadius: 8,
-              border: kind === 'consumable' ? '2px solid #dc2626' : '1px solid #e5e7eb',
-              background: kind === 'consumable' ? '#fef2f2' : '#fff',
+              border: kind === 'installation_material' ? '2px solid #dc2626' : '1px solid var(--border-color)',
+              background: kind === 'installation_material' ? 'var(--danger-soft-bg)' : 'var(--bg-card)',
               fontWeight: 600,
               fontSize: 13,
               cursor: 'pointer',
@@ -302,8 +363,8 @@ export default function ProductRegisterModal({
               flex: 1,
               padding: '8px 12px',
               borderRadius: 8,
-              border: kind === 'appliance' ? '2px solid #dc2626' : '1px solid #e5e7eb',
-              background: kind === 'appliance' ? '#fef2f2' : '#fff',
+              border: kind === 'appliance' ? '2px solid #dc2626' : '1px solid var(--border-color)',
+              background: kind === 'appliance' ? 'var(--danger-soft-bg)' : 'var(--bg-card)',
               fontWeight: 600,
               fontSize: 13,
               cursor: 'pointer',
@@ -313,7 +374,7 @@ export default function ProductRegisterModal({
           </button>
         </div>
 
-        {kind === 'consumable' ? (
+        {kind === 'installation_material' ? (
           <>
             <div className="im-form-field">
               <label>BARCODE *</label>
@@ -469,44 +530,88 @@ export default function ProductRegisterModal({
                 </div>
                 <div className="im-form-field">
                   <label>CAPACITY</label>
-                  <input
-                    type="text"
-                    value={app.capacity_rating}
-                    onChange={(e) => setApp((a) => ({ ...a, capacity_rating: e.target.value }))}
-                    placeholder="e.g. 1HP"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="im-form-field">
-                <label>CAPACITY</label>
-                {!showApplianceModelCode ? (
                   <select
                     value={app.capacity_rating}
                     onChange={(e) => setApp((a) => ({ ...a, capacity_rating: e.target.value }))}
                   >
                     <option value="">Select capacity (optional)</option>
-                    {APPLIANCE_CAPACITY_RATINGS.map((r) => (
-                      <option key={r} value={r}>{r}</option>
+                    {filteredCapacities.map((c) => (
+                      <option key={c.capacity_id} value={c.capacity_value}>
+                        {c.__archived ? `${c.capacity_value} (archived)` : c.capacity_value}
+                      </option>
                     ))}
                   </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={app.capacity_rating}
-                    onChange={(e) => setApp((a) => ({ ...a, capacity_rating: e.target.value }))}
-                    placeholder="e.g. 1HP"
-                  />
+                  {!hasFilteredCapacities && (
+                    <p className="im-barcode-hint">No capacities defined yet. Add them on the Item Lookups page.</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="im-form-field">
+                <label>CAPACITY</label>
+                <select
+                  value={app.capacity_rating}
+                  onChange={(e) => setApp((a) => ({ ...a, capacity_rating: e.target.value }))}
+                >
+                  <option value="">Select capacity (optional)</option>
+                  {filteredCapacities.map((c) => (
+                    <option key={c.capacity_id} value={c.capacity_value}>
+                      {c.__archived ? `${c.capacity_value} (archived)` : c.capacity_value}
+                    </option>
+                  ))}
+                </select>
+                {!hasFilteredCapacities && (
+                  <p className="im-barcode-hint">No capacities defined yet. Add them on the Item Lookups page.</p>
                 )}
               </div>
             )}
             <div className="im-form-field">
               <label>VARIANT</label>
-              <input
-                type="text"
+              <select
                 value={app.variant}
                 onChange={(e) => setApp((a) => ({ ...a, variant: e.target.value }))}
-              />
+              >
+                <option value="">Select variant (optional)</option>
+                {filteredVariants.map((v) => (
+                  <option key={v.variant_id} value={v.variant_name}>
+                    {v.__archived ? `${v.variant_name} (archived)` : v.variant_name}
+                  </option>
+                ))}
+              </select>
+              {!hasFilteredVariants && (
+                <p className="im-barcode-hint">No variants defined yet. Add them on the Item Lookups page.</p>
+              )}
+            </div>
+            <div className="im-form-row">
+              <div className="im-form-field">
+                <label htmlFor="pr-ac-type">AC TYPE</label>
+                <select
+                  id="pr-ac-type"
+                  value={app.ac_type_id}
+                  onChange={(e) => handleAcTypeChange(e.target.value)}
+                >
+                  <option value="">Select AC type (optional)</option>
+                  {acTypes.map((t) => (
+                    <option key={t.ac_type_id} value={t.ac_type_id}>{t.ac_type_name}</option>
+                  ))}
+                </select>
+                {acTypes.length === 0 && (
+                  <p className="im-barcode-hint">No AC types defined yet. Add them on the Item Lookups page.</p>
+                )}
+              </div>
+              <div className="im-form-field">
+                <label htmlFor="pr-unit-role">UNIT ROLE</label>
+                <select
+                  id="pr-unit-role"
+                  value={app.unit_role}
+                  onChange={(e) => setApp((a) => ({ ...a, unit_role: e.target.value }))}
+                >
+                  <option value="">Select unit role</option>
+                  <option value="indoor">Indoor unit</option>
+                  <option value="outdoor">Outdoor unit</option>
+                  <option value="complete">Complete unit</option>
+                </select>
+              </div>
             </div>
             <div className="im-form-row">
               <div className="im-form-field">
@@ -604,7 +709,7 @@ export default function ProductRegisterModal({
           </>
         )}
 
-        <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
           Submissions go to the approval queue. An admin or branch manager must approve before the item appears in Item Master.
         </p>
 
@@ -617,7 +722,7 @@ export default function ProductRegisterModal({
             className="im-modal-btn-confirm"
             disabled={
               submitting ||
-              (kind === 'consumable' && (supplyTypesLoading || supplyTypes.length === 0))
+              (kind === 'installation_material' && (supplyTypesLoading || supplyTypes.length === 0))
             }
           >
             {submitting ? 'Submitting…' : 'Submit for approval'}

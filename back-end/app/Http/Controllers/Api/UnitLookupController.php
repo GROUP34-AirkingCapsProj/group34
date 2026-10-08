@@ -2,121 +2,82 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\HandlesLookupCrud;
 use App\Http\Controllers\Controller;
-use App\Traits\ApiResponse;
 use App\Models\UnitLookup;
+use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
 
+/**
+ * A pure vanilla lookup: no category scope, no cascade, no merge. All CRUD
+ * behaviour comes from HandlesLookupCrud; this controller supplies only
+ * configuration.
+ *
+ * Deliberately does NOT override lookupOrderColumns(): unit_lookup has no
+ * sort_order column, and the trait's default (name column only) is already
+ * correct — see HandlesLookupCrud::lookupOrderColumns() for why.
+ */
 class UnitLookupController extends Controller
 {
     use ApiResponse;
+    use HandlesLookupCrud;
 
-    public function index(Request $request)
+    protected function lookupModel(): string
     {
-        try {
-            $query = UnitLookup::orderBy('unit_name');
-
-            if ($request->has('search')) {
-                $query->where('unit_name', 'like', '%' . $request->search . '%');
-            }
-
-            return $this->success($query->get(), 'Units retrieved successfully');
-        } catch (\Exception $e) {
-            return $this->error('Failed to retrieve units: ' . $e->getMessage(), 500);
-        }
+        return UnitLookup::class;
     }
 
-    public function store(Request $request)
+    protected function lookupNameColumn(): string
     {
-        try {
-            $validated = $request->validate([
-                'unit_name'         => 'required|string|max:100|unique:unit_lookup,unit_name',
-                'unit_abbreviation' => 'nullable|string|max:20',
-            ]);
-
-            $unit = UnitLookup::create($validated);
-
-            return $this->success($unit, 'Unit created successfully', 201);
-        } catch (ValidationException $e) {
-            return $this->validationError($e->errors());
-        } catch (\Exception $e) {
-            return $this->error('Failed to create unit: ' . $e->getMessage(), 500);
-        }
+        return 'unit_name';
     }
 
-    public function show($id)
+    protected function lookupLabel(): string
     {
-        try {
-            $unit = UnitLookup::findOrFail($id);
-            return $this->success($unit, 'Unit retrieved successfully');
-        } catch (\Exception $e) {
-            return $this->error('Unit not found', 404);
-        }
+        return 'Unit';
     }
 
-    public function update(Request $request, $id)
+    protected function lookupRules(Request $request, $id = null): array
     {
-        try {
-            $unit = UnitLookup::findOrFail($id);
-
-            $validated = $request->validate([
-                'unit_name'         => 'sometimes|string|max:100|unique:unit_lookup,unit_name,' . $id . ',unit_id',
-                'unit_abbreviation' => 'nullable|string|max:20',
-            ]);
-
-            $unit->update($validated);
-
-            return $this->success($unit, 'Unit updated successfully');
-        } catch (ValidationException $e) {
-            return $this->validationError($e->errors());
-        } catch (\Exception $e) {
-            return $this->error('Failed to update unit: ' . $e->getMessage(), 500);
-        }
+        return [
+            // Widths mirror the columns exactly (unit_name varchar(50),
+            // unit_abbreviation varchar(10)) so an over-length value is a
+            // clean 422 instead of reaching MySQL and raising SQLSTATE 22001
+            // under strict mode.
+            'unit_name' => [
+                $id === null ? 'required' : 'sometimes',
+                'string',
+                'max:50',
+                $this->lookupUniqueRule($request, $id),
+            ],
+            'unit_abbreviation' => 'nullable|string|max:10',
+        ];
     }
 
-    public function destroy($id)
+    /**
+     * unitsAPI.getArchived(params) passes a `search` parameter that the
+     * archived list must keep honouring; this same filter also covers the
+     * active list since HandlesLookupCrud::lookupArchivedFilters() defaults
+     * to delegating here.
+     */
+    protected function lookupIndexFilters(Request $request, $query): void
     {
-        try {
-            $unit = UnitLookup::findOrFail($id);
-            $unit->delete();
-            return $this->success(null, 'Unit archived successfully');
-        } catch (\Exception $e) {
-            return $this->error('Failed to delete unit: ' . $e->getMessage(), 500);
-        }
-    }
-
-    public function archived(Request $request)
-    {
-        $query = UnitLookup::onlyTrashed();
-
         if ($request->filled('search')) {
-            $query->where('unit_name', 'like', '%' . $request->search . '%');
+            $query->where('unit_name', 'like', '%' . $request->input('search') . '%');
         }
-
-        return $this->success(
-            $query->orderBy('deleted_at', 'desc')->get(),
-            'Archived units retrieved'
-        );
     }
 
-    public function restore($id)
+    protected function usageCountFor(Model $row): int
     {
-        $unit = UnitLookup::onlyTrashed()->find($id);
-        if (! $unit) {
-            return $this->notFound('Archived unit not found');
-        }
-        $unit->restore();
-        return $this->success($unit->fresh(), 'Unit restored successfully');
-    }
-
-    public function forceDestroy($id)
-    {
-        $unit = UnitLookup::onlyTrashed()->find($id);
-        if (! $unit) {
-            return $this->notFound('Archived unit not found');
-        }
-        $unit->forceDelete();
-        return $this->success(null, 'Unit permanently deleted');
+        // unit_id is a real foreign key on installation_material_details
+        // (the products' installation material-unit detail row), so a plain where() is
+        // correct — the whereExactString form elsewhere in this codebase is
+        // only needed for string-valued lookups copied verbatim onto
+        // products, which this is not.
+        return DB::table('installation_material_details')
+            ->where('unit_id', $row->unit_id)
+            ->count();
     }
 }

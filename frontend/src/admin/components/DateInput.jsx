@@ -40,7 +40,7 @@ const DateInput = ({
         style={{
           position: 'absolute', right: 8, top: '50%',
           transform: 'translateY(-50%)',
-          color: '#94a3b8',
+          color: 'var(--ink-blue-300)',
           cursor: disabled ? 'default' : 'pointer',
           pointerEvents: disabled ? 'none' : 'auto',
         }}

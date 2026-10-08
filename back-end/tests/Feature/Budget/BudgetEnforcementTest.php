@@ -116,7 +116,7 @@ class BudgetEnforcementTest extends BudgetTestCase
             ->assertStatus(201);
     }
 
-    public function test_approve_commits_via_ledger(): void
+    public function test_approve_validates_availability_but_reserves_nothing(): void
     {
         $admin = $this->makeUser('admin');
         $budget = $this->makeBudget(10000);
@@ -127,8 +127,10 @@ class BudgetEnforcementTest extends BudgetTestCase
             ->assertSuccessful();
 
         $budget->refresh();
-        $this->assertSame('5000.00', (string) $budget->committed);
-        $this->assertSame(1, BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'commit')->count());
+        $this->assertSame(14, (int) $pr->fresh()->status_id);
+        // Reservation now happens at PO approval, not PR approval — a PR is only a request.
+        $this->assertSame('0.00', (string) $budget->committed);
+        $this->assertSame(0, BudgetTransaction::where('pr_id', $pr->pr_id)->where('txn_type', 'commit')->count());
     }
 
     public function test_approve_blocks_when_funds_consumed_since_submission(): void
@@ -137,9 +139,19 @@ class BudgetEnforcementTest extends BudgetTestCase
         $budget = $this->makeBudget(10000);
         $pr = $this->makePr($budget, 6000, 13);
 
-        // Another PR ate the funds between submission and approval.
-        $rival = $this->makePr($budget, 7000, 14);
-        app(BudgetService::class)->commit($rival);
+        // Another PO ate the funds between submission and approval.
+        $rivalPr = $this->makePr($budget, 0, 14);
+        $rivalPo = $this->makePo($rivalPr, 7000, 7);
+        DB::table('purchase_order_details')->insert([
+            'po_id'            => $rivalPo->po_id,
+            'product_id'       => $this->makeProduct(),
+            'quantity_ordered' => 1,
+            'unit_price'       => 7000,
+            'subtotal'         => 7000,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+        app(BudgetService::class)->commitPo($rivalPo->fresh()->load('details'));
 
         $response = $this->actingAs($admin, 'sanctum')
             ->patchJson("/api/purchase-requests/{$pr->pr_id}/approve");
@@ -160,49 +172,6 @@ class BudgetEnforcementTest extends BudgetTestCase
             ->assertStatus(422);
     }
 
-    public function test_restock_create_pr_attaches_active_warehouse_budget(): void
-    {
-        $admin = $this->makeUser('admin');
-        $whId = (int) DB::table('locations')->where('location_type', 'warehouse')
-            ->orderBy('location_id')->value('location_id');
-        DB::table('budget_allocations')->where('location_id', $whId)
-            ->whereNull('deleted_at')
-            ->where('period_start', '<=', today())->where('period_end', '>=', today())
-            ->update(['deleted_at' => now()]);
-        $budget = $this->makeBudget(100000, ['location_id' => $whId]);
-        $productId = $this->makeProduct();
-
-        $response = $this->actingAs($admin, 'sanctum')
-            ->postJson('/api/restock/create-pr', [
-                'items' => [['product_id' => $productId, 'quantity' => 5]],
-            ]);
-
-        $response->assertStatus(201);
-        $prId = $response->json('data.pr_id');
-        $this->assertEquals($budget->budget_id, \App\Models\PurchaseRequest::find($prId)->budget_id);
-    }
-
-    public function test_restock_create_pr_blocks_without_active_budget(): void
-    {
-        $admin = $this->makeUser('admin');
-        $productId = $this->makeProduct();
-        // Ensure NO active budget covers today for the first warehouse.
-        $whId = (int) DB::table('locations')->where('location_type', 'warehouse')
-            ->orderBy('location_id')->value('location_id');
-        DB::table('budget_allocations')->where('location_id', $whId)
-            ->whereNull('deleted_at')
-            ->where('period_start', '<=', today())->where('period_end', '>=', today())
-            ->update(['deleted_at' => now()]);
-
-        $response = $this->actingAs($admin, 'sanctum')
-            ->postJson('/api/restock/create-pr', [
-                'items' => [['product_id' => $productId, 'quantity' => 5]],
-            ]);
-
-        $response->assertStatus(422);
-        $this->assertStringContainsString('budget', strtolower($response->json('message')));
-    }
-
     public function test_recommendations_payload_includes_active_budget_summary(): void
     {
         $admin = $this->makeUser('admin');
@@ -220,50 +189,5 @@ class BudgetEnforcementTest extends BudgetTestCase
         $response->assertSuccessful();
         $this->assertEquals($budget->budget_id, $response->json('data.budget.budget_id'));
         $this->assertEquals(40000, $response->json('data.budget.available'));
-    }
-
-    public function test_store_rejects_pr_against_unverified_budget(): void
-    {
-        $ia = $this->makeUser('inventory_analyst');
-        $this->makeBudget(10000, ['verification_status' => 'pending']);
-
-        $response = $this->actingAs($ia, 'sanctum')
-            ->postJson('/api/purchase-requests', $this->prPayload());
-
-        $response->assertStatus(422);
-        $this->assertStringContainsString('verified', strtolower($response->json('message')));
-    }
-
-    /**
-     * resolveActiveBudget() only ever returns verified budgets (Task 2), so
-     * store() can't distinguish "rejected" from "pending" from "never
-     * verified" — a rejected budget for the destination warehouse produces
-     * the same generic "no verified active budget" rejection as an unverified one.
-     */
-    public function test_store_message_reflects_rejected_budget(): void
-    {
-        $ia = $this->makeUser('inventory_analyst');
-        $this->makeBudget(10000, ['verification_status' => 'rejected', 'verification_note' => 'bad amount']);
-
-        $response = $this->actingAs($ia, 'sanctum')
-            ->postJson('/api/purchase-requests', $this->prPayload());
-
-        $response->assertStatus(422);
-        $this->assertStringContainsString('no verified active budget', strtolower($response->json('message')));
-    }
-
-    public function test_approve_blocked_when_budget_unverified_after_submission(): void
-    {
-        $admin = $this->makeUser('admin');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 13);
-        $budget->update(['verification_status' => 'pending']); // simulates a post-submission reset
-
-        $response = $this->actingAs($admin, 'sanctum')
-            ->patchJson("/api/purchase-requests/{$pr->pr_id}/approve");
-
-        $response->assertStatus(422);
-        $this->assertStringContainsString('verified', strtolower($response->json('message')));
-        $this->assertSame(13, $pr->fresh()->status_id); // rolled back, still pending
     }
 }

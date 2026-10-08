@@ -16,10 +16,10 @@
 
 .branch-view-toggle {
     display: inline-flex;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
     border-radius: 10px;
     overflow: hidden;
-    background: #fff;
+    background: var(--bg-card);
 }
 
 .branch-toggle-btn {
@@ -29,17 +29,17 @@
     padding: 9px 12px;
     font-size: 13px;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-body);
     cursor: pointer;
 }
 
 .branch-toggle-btn.active {
-    background: #fef2f2;
+    background: var(--danger-soft-bg);
     color: #DC143C;
 }
 
 .branch-toggle-btn:not(.active):hover {
-    background: #f9fafb;
+    background: var(--bg-muted);
 }
 
 .branch-toolbar {
@@ -58,11 +58,11 @@
 .branch-search input {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
     border-radius: 10px;
     font-size: 14px;
     outline: none;
-    background: #fff;
+    background: var(--bg-card);
 }
 
 .branch-search input:focus {
@@ -73,11 +73,11 @@
 .branch-search select {
     width: 100%;
     padding: 8px 32px 8px 12px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
     border-radius: 10px;
     font-size: 14px;
-    color: #374151;
-    background: #fff;
+    color: var(--text-body);
+    background: var(--bg-card);
     appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -95,13 +95,13 @@
 .branch-page-header-left h1 {
     font-size: 24px;
     font-weight: 700;
-    color: #111827;
+    color: var(--text-dark);
     margin: 0 0 4px 0;
 }
 
 .branch-page-header-left p {
     font-size: 14px;
-    color: #6b7280;
+    color: var(--text-muted);
     margin: 0;
 }
 
@@ -131,8 +131,8 @@
 
 /* Individual Card */
 .branch-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 24px;
     transition: box-shadow 0.2s;
@@ -150,13 +150,13 @@
 .branch-card-header h3 {
     font-size: 18px;
     font-weight: 700;
-    color: #111827;
+    color: var(--text-dark);
     margin: 0 0 2px 0;
 }
 
 .branch-code {
     font-size: 13px;
-    color: #9ca3af;
+    color: var(--text-label);
     font-weight: 500;
 }
 
@@ -172,7 +172,7 @@
 .branch-label {
     display: block;
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--text-label);
     font-weight: 500;
     margin-bottom: 2px;
 }
@@ -180,7 +180,7 @@
 .branch-value {
     display: block;
     font-size: 14px;
-    color: #374151;
+    color: var(--text-body);
     font-weight: 500;
 }
 
@@ -199,13 +199,13 @@
     justify-content: space-between;
     align-items: center;
     padding-top: 16px;
-    border-top: 1px solid #f3f4f6;
+    border-top: 1px solid var(--border-soft);
 }
 
 /* List view */
 .branch-list-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     overflow: hidden;
 }
@@ -226,26 +226,26 @@
     font-size: 12px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #6b7280;
-    background: #f9fafb;
-    border-bottom: 1px solid #e5e7eb;
+    color: var(--text-muted);
+    background: var(--bg-muted);
+    border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
 }
 
 .branch-table tbody td {
     padding: 12px 16px;
-    border-bottom: 1px solid #f3f4f6;
-    color: #374151;
+    border-bottom: 1px solid var(--border-soft);
+    color: var(--text-body);
     vertical-align: top;
 }
 
 .branch-td-title {
     font-weight: 700;
-    color: #111827;
+    color: var(--text-dark);
 }
 
 .branch-td-muted {
-    color: #6b7280;
+    color: var(--text-muted);
     white-space: nowrap;
 }
 
@@ -266,9 +266,9 @@
 }
 
 .branch-page-btn {
-    border: 1px solid #e5e7eb;
-    background: #fff;
-    color: #374151;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-body);
     padding: 8px 10px;
     border-radius: 10px;
     font-size: 13px;
@@ -276,7 +276,7 @@
 }
 
 .branch-page-btn:hover:not(:disabled) {
-    background: #f9fafb;
+    background: var(--bg-muted);
 }
 
 .branch-page-btn:disabled {
@@ -286,13 +286,13 @@
 
 .branch-page-btn.active {
     border-color: #DC143C;
-    background: #fef2f2;
+    background: var(--danger-soft-bg);
     color: #DC143C;
 }
 
 .branch-page-meta {
     margin-left: auto;
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 13px;
 }
 
@@ -308,14 +308,14 @@
 }
 
 .btn-edit-link:hover {
-    color: #a01028;
+    color: var(--ink-rose-700-2);
     text-decoration: underline;
 }
 
 .btn-deactivate-link {
     background: none;
     border: none;
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
@@ -324,14 +324,14 @@
 }
 
 .btn-deactivate-link:hover {
-    color: #374151;
+    color: var(--text-body);
     text-decoration: underline;
 }
 
 .btn-activate-link {
     background: none;
     border: none;
-    color: #16a34a;
+    color: var(--text-success);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
@@ -340,7 +340,7 @@
 }
 
 .btn-activate-link:hover {
-    color: #166534;
+    color: var(--ink-green-800);
     text-decoration: underline;
 }
 
@@ -358,8 +358,8 @@
 
 /* Status Badges */
 .status-active {
-    background: #dcfce7;
-    color: #16a34a;
+    background: var(--tint-green);
+    color: var(--text-success);
     padding: 4px 14px;
     border-radius: 20px;
     font-size: 12px;
@@ -367,8 +367,8 @@
 }
 
 .status-inactive {
-    background: #f3f4f6;
-    color: #6b7280;
+    background: var(--bg-hover);
+    color: var(--text-muted);
     padding: 4px 14px;
     border-radius: 20px;
     font-size: 12px;
@@ -403,7 +403,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 20px 30px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-soft);
 }
 
 .modal-header h2 {
@@ -412,7 +412,7 @@
 }
 
 .close {
-    color: #999;
+    color: var(--ink-slate-400);
     font-size: 32px;
     font-weight: bold;
     cursor: pointer;
@@ -438,17 +438,17 @@
 .form-section-title {
     font-size: 13px;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-body);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     margin: 0 0 16px 0;
     padding-bottom: 8px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .form-hint {
     font-size: 12px;
-    color: #6b7280;
+    color: var(--text-muted);
     margin: 12px 0 0 0;
     line-height: 1.45;
 }
@@ -470,7 +470,7 @@ form {
 
 .form-group label {
     display: block;
-    color: #333;
+    color: var(--ink-slate-800);
     font-weight: bold;
     margin-bottom: 8px;
     font-size: 14px;
@@ -479,12 +479,12 @@ form {
 .form-group input {
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 14px;
-    color: #374151;
+    color: var(--text-body);
     outline: none;
-    background: #fff;
+    background: var(--bg-card);
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
@@ -496,11 +496,11 @@ form {
 .form-group select {
     width: 100%;
     padding: 8px 32px 8px 12px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 14px;
-    color: #374151;
-    background: #fff;
+    color: var(--text-body);
+    background: var(--bg-card);
     appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -520,8 +520,8 @@ form {
 }
 
 .form-group select:disabled {
-    background-color: #f3f4f6;
-    color: #9ca3af;
+    background-color: var(--bg-hover);
+    color: var(--text-label);
     cursor: not-allowed;
     opacity: 0.7;
 }
@@ -531,14 +531,14 @@ form {
     justify-content: flex-end;
     gap: 10px;
     padding-top: 20px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border-soft);
 }
 
 .btn-cancel {
     background: white;
-    color: #666;
+    color: var(--ink-slate-600);
     padding: 10px 25px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--line-slate-100);
     border-radius: 8px;
     font-size: 14px;
     font-weight: bold;
@@ -546,7 +546,7 @@ form {
 }
 
 .btn-cancel:hover {
-    background: #f8f9fa;
+    background: var(--bg-muted);
 }
 
 .btn-save {

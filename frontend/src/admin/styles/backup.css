@@ -1,0 +1,165 @@
+/* ================================================================
+   BACKUP PAGE
+   Supplements archive_settings.css (as-* primitives) with the pieces
+   that have no existing analog: stat cards, the two-column layout,
+   the read-only schedule summary, and the safety-card run button.
+   ================================================================ */
+
+.bk-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.bk-stat-card {
+  flex: 1 1 200px;
+  min-width: 180px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bk-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-blue-300);
+}
+
+.bk-stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink-blue-800-3);
+}
+
+.bk-stat-value--sm {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.bk-stat-sub {
+  font-size: 12px;
+  color: var(--ink-blue-500);
+}
+
+.bk-columns {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .bk-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bk-summary {
+  margin-top: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-muted);
+}
+
+.bk-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.bk-summary span {
+  color: var(--ink-blue-500);
+}
+
+.bk-summary strong {
+  color: var(--ink-blue-800-3);
+  font-weight: 600;
+  text-align: right;
+}
+
+.bk-schedule-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.bk-safety-item {
+  margin-bottom: 16px;
+}
+
+.bk-safety-item h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-blue-800-3);
+  margin: 0 0 4px;
+}
+
+.bk-safety-item p {
+  font-size: 13px;
+  color: var(--ink-blue-500);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.bk-run-now-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.bk-run-now-btn:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.bk-run-now-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bk-actions-cell {
+  display: flex;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.bk-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-info);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.bk-link-btn:hover:not(:disabled) {
+  color: var(--ink-blue);
+}
+
+.bk-link-btn:disabled {
+  color: var(--ink-blue-300);
+  cursor: not-allowed;
+  text-decoration: none;
+}

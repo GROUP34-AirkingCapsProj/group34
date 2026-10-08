@@ -4,15 +4,24 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\SchedulerTickController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\InventoryController;
+use App\Http\Controllers\Api\InventoryBatchController;
 use App\Http\Controllers\Api\BatchController;
-use App\Http\Controllers\Api\CategoryLookupController;
 use App\Http\Controllers\Api\BrandLookupController;
+use App\Http\Controllers\Api\CapacityLookupController;
+use App\Http\Controllers\Api\CategoryLookupController;
+use App\Http\Controllers\Api\VariantLookupController;
+use App\Http\Controllers\Api\AcTypeLookupController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\SerialController;
+use App\Http\Controllers\Api\LabelPrintController;
+use App\Http\Controllers\Api\LabelPrinterSettingsController;
+use App\Http\Controllers\Api\BarcodeQueueController;
+use App\Http\Controllers\Api\AnalyticsDashboardController;
 // ERD-aligned controllers
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\BudgetAllocationController;
@@ -24,9 +33,8 @@ use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\DeliveryReceiptController;
 use App\Http\Controllers\Api\IssuanceController;
 use App\Http\Controllers\Api\TransferController;
-use App\Http\Controllers\Api\TransferRequestController;
-use App\Http\Controllers\Api\ISTController;
 use App\Http\Controllers\Api\AdjustmentController;
+use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\BarcodeAdjustmentController;
 use App\Http\Controllers\Api\ProfitLossController;
 use App\Http\Controllers\Api\ActivityLogController;
@@ -44,10 +52,12 @@ use App\Http\Controllers\Api\SystemSessionSettingsController;
 use App\Http\Controllers\Api\CompanySettingsController;
 use App\Http\Controllers\Api\AccountPolicyController;
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\ForgotPasswordOtpController;
 use App\Http\Controllers\Api\WarrantyController;
 use App\Http\Controllers\Api\IssuanceScanController;
 use App\Http\Controllers\Api\ArchiveController;
 use App\Http\Controllers\Api\ArchiveSettingsController;
+use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\NavBundleController;
 use App\Http\Controllers\Api\AccountController;
@@ -68,18 +78,43 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 */
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:12,1');
-Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:12,1');
+// Mid-login step for an account that must clear a second factor but has no
+// recovery address on file. Re-verifies the password, so it is throttled like
+// /login rather than more loosely.
+Route::post('/login/recovery-email', [AuthController::class, 'submitRecoveryEmail'])->middleware('throttle:12,1');
+// throttle:verify-otp keys on the submitted email first, then the IP. A plain
+// per-IP limit caps nothing here: the attacker picks the address.
+Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:verify-otp');
 Route::get('/login/challenge', [AuthController::class, 'loginChallenge'])->middleware('throttle:30,1');
-Route::post('/register', [AuthController::class, 'register']);
+// NO PUBLIC REGISTRATION. Accounts are created only through
+// POST /users, gated on permission:user_account_management,create.
+// The old unauthenticated /register took `role_id` straight from the request
+// body and activated the account, so anyone who could reach the API could mint
+// themselves an admin token. The frontend never called it.
 
 Route::post('/password-reset/complete', [PasswordResetController::class, 'complete'])->middleware('throttle:12,1');
+
+// OTP-based forgot password (email or SMS delivery)
+Route::post('/forgot-password', [ForgotPasswordOtpController::class, 'forgot'])->middleware('throttle:8,1');
+Route::post('/verify-reset-otp', [ForgotPasswordOtpController::class, 'verify'])->middleware('throttle:12,1');
+Route::post('/reset-password', [ForgotPasswordOtpController::class, 'reset'])->middleware('throttle:8,1');
 
 // Broadcasting auth for private channels — bare auth:sanctum (NOT auditor.readonly /
 // location.scope) so auditors can authenticate to the org channel. Channel-level
 // authorization is enforced in routes/channels.php via ChannelAccess.
 Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
-Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend.sanctum.session'])->group(function () {
+// External cron entry point for Laravel's scheduler. Carries its own shared-secret
+// check (see SchedulerTickController) rather than auth:sanctum, because the caller
+// is a cron service with no user and no session. 404s unless SCHEDULER_RUN_TOKEN is
+// configured, so it does not exist at all in environments that do not use it.
+//
+// throttle:6,1 against a once-a-minute caller: generous enough to absorb a retry
+// or a clock skew, tight enough that the token cannot be brute-forced at speed.
+Route::match(['get', 'post'], '/scheduler/tick', SchedulerTickController::class)
+    ->middleware('throttle:6,1');
+
+Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend.sanctum.session', 'password.changed'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
@@ -121,6 +156,9 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('role:admin')->put('/system/company-settings', [CompanySettingsController::class, 'update']);
     Route::middleware('role:admin')->get('/system/account-policy', [AccountPolicyController::class, 'show']);
     Route::middleware('role:admin')->put('/system/account-policy', [AccountPolicyController::class, 'update']);
+    Route::get('/system/label-printers', [LabelPrinterSettingsController::class, 'index']);
+    Route::middleware('role:admin')->put('/system/label-printers/{location}', [LabelPrinterSettingsController::class, 'update']);
+    Route::middleware('role:admin')->post('/system/label-printers/{location}/test', [LabelPrinterSettingsController::class, 'test']);
     Route::middleware(['role:admin', 'throttle:30,1'])->post('/password-reset/issue', [PasswordResetController::class, 'issue']);
     Route::middleware(['role:admin', 'throttle:60,1'])->get('/password-reset/active', [PasswordResetController::class, 'active']);
     Route::middleware(['role:admin', 'throttle:60,1'])->post('/password-reset/active/{passwordResetCode}/revoke', [PasswordResetController::class, 'revoke']);
@@ -141,6 +179,12 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:user_account_management,update')->group(function () {
         Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update']);
         Route::put('/users/{user}/change-password', [UserController::class, 'changePassword']);
+        // Throttled like the neighbouring password-reset/issue route: every call
+        // mints a NEW password and invalidates the previous one, so a double-click
+        // or a stuck retry loop would both burn a credential an admin may have
+        // already read out and flood the user's personal inbox.
+        Route::post('/users/{user}/resend-credentials', [UserController::class, 'resendCredentials'])
+            ->middleware('throttle:30,1');
         Route::put('/users/{user}/status', [UserController::class, 'updateStatus']);
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);
     });
@@ -169,8 +213,12 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::put('/role-permissions', [PermissionController::class, 'updateRoleDefaults']);
         Route::get('/users/{userId}/permissions', [PermissionController::class, 'userPermissions']);
         Route::put('/users/{userId}/permissions', [PermissionController::class, 'updateUserPermissions']);
-        Route::get('/permission-audit-logs', [PermissionController::class, 'auditLogs']);
     });
+    // Permission Audit is read-only log viewing, so it is delegable via its own
+    // permission (unlike the editor endpoints above, which stay admin-only to
+    // avoid privilege escalation). Admin is always allowed via the resolver bypass.
+    Route::middleware('permission:permission_audit,read')
+        ->get('/permission-audit-logs', [PermissionController::class, 'auditLogs']);
 
     /*
     |--------------------------------------------------------------------------
@@ -242,6 +290,22 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
+    | BACKUP — schedule, manual run, history, restore
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin')
+         ->prefix('backup')
+         ->group(function () {
+             Route::get('/settings',              [BackupController::class, 'settings']);
+             Route::put('/settings',              [BackupController::class, 'updateSettings']);
+             Route::post('/run',                  [BackupController::class, 'runNow']);
+             Route::get('/history',               [BackupController::class, 'history']);
+             Route::get('/history/{id}/download', [BackupController::class, 'download']);
+             Route::post('/history/{id}/restore', [BackupController::class, 'restore']);
+         });
+
+    /*
+    |--------------------------------------------------------------------------
     | ERD: CATEGORY (category_lookup)
     |--------------------------------------------------------------------------
     */
@@ -274,16 +338,118 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | ERD: UNIT LOOKUP (unit_lookup)
     |--------------------------------------------------------------------------
     */
+    // All five item-master lookups (units, categories, brands, capacities,
+    // variants) leave their GETs ungated for any
+    // authenticated user: they are classification vocabularies feeding
+    // pickers used app-wide — ProductRegisterModal, BarcodeScan,
+    // OrderBuilder, InventoryManagement, BudgetManagementPage,
+    // SetManagementPage — not sensitive records. In particular,
+    // ProductRegisterModal (rendered from BarcodeScan.jsx, gated on
+    // barcode_inventory_processing.create — admin, branch_manager,
+    // warehouse_personnel) uses strict capacity/variant dropdowns, while
+    // lookup_management.read only grants admin, inventory_analyst, auditor.
+    // Those role sets overlap only on admin, so gating these reads would
+    // leave warehouse/branch users with empty dropdowns and unable to
+    // register an appliance. The unified Item Lookups admin page itself is
+    // still gated at the nav/route level on lookup_management.read — do NOT
+    // re-add a permission: middleware to any of these six GET routes "for
+    // consistency"; that re-breaks registration for two of the three roles
+    // that need it.
+    //
+    // Writes are NOT all implemented on the same key: capacities, variants,
+    // and units gate create/update/archive on
+    // permission:lookup_management, while categories and brands deliberately
+    // keep their own long-standing category_management / brand_management
+    // keys so nobody's effective access changed when this page shipped.
+    // PermissionSeeder::matrix() grants category_management and
+    // brand_management the exact same role sets as lookup_management for
+    // create/update/archive, so all six lookups behave identically from a
+    // user's perspective even though two are wired through different keys —
+    // see LookupRouteAccessTest for the test that pins that equivalence.
     Route::get('/units/archived', [UnitLookupController::class, 'archived']);
     Route::get('/units', [UnitLookupController::class, 'index']);
     Route::get('/units/{id}', [UnitLookupController::class, 'show']);
-    // Units are a seeded lookup with no dedicated management UI; writes stay on role:
-    // (admin + inventory_analyst create/update, admin-only archive) — no permission feature.
-    Route::middleware('role:admin,inventory_analyst')->post('/units', [UnitLookupController::class, 'store']);
-    Route::middleware('role:admin,inventory_analyst')->put('/units/{id}', [UnitLookupController::class, 'update']);
-    Route::middleware('role:admin')->delete('/units/{id}', [UnitLookupController::class, 'destroy']);
-    Route::middleware('role:admin')->post('/units/{id}/restore', [UnitLookupController::class, 'restore']);
-    Route::middleware('role:admin')->delete('/units/{id}/force', [UnitLookupController::class, 'forceDestroy']);
+    Route::middleware('permission:lookup_management,create')
+        ->post('/units', [UnitLookupController::class, 'store']);
+    Route::middleware('permission:lookup_management,update')
+        ->put('/units/{id}', [UnitLookupController::class, 'update']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/units/{id}', [UnitLookupController::class, 'destroy']);
+    Route::middleware('permission:lookup_management,archive')
+        ->post('/units/{id}/restore', [UnitLookupController::class, 'restore']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/units/{id}/force', [UnitLookupController::class, 'forceDestroy']);
+
+    /* ---------------------------------------------------------------
+     | Capacities (Item Lookups page - Appliance tab)
+     | 'archived' precedes '{id}' so it is not swallowed by the wildcard.
+     | Reads are deliberately ungated — see the comment above the
+     | unit_lookup routes for why (ProductRegisterModal / BarcodeScan role
+     | mismatch).
+     * ------------------------------------------------------------- */
+    Route::get('/capacities/archived', [CapacityLookupController::class, 'archived']);
+    Route::get('/capacities', [CapacityLookupController::class, 'index']);
+    Route::get('/capacities/{id}', [CapacityLookupController::class, 'show']);
+    Route::middleware('permission:lookup_management,create')
+        ->post('/capacities', [CapacityLookupController::class, 'store']);
+    Route::middleware('permission:lookup_management,update')
+        ->put('/capacities/{id}', [CapacityLookupController::class, 'update']);
+    Route::middleware('permission:lookup_management,update')
+        ->post('/capacities/{id}/merge', [CapacityLookupController::class, 'merge']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/capacities/{id}', [CapacityLookupController::class, 'destroy']);
+    Route::middleware('permission:lookup_management,archive')
+        ->post('/capacities/{id}/restore', [CapacityLookupController::class, 'restore']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/capacities/{id}/force', [CapacityLookupController::class, 'forceDestroy']);
+
+    /* ---------------------------------------------------------------
+     | Variants (Item Lookups page - Appliance tab)
+     | 'archived' precedes '{id}' so it is not swallowed by the wildcard.
+     | Reads are deliberately ungated — see the comment above the
+     | unit_lookup routes for why (ProductRegisterModal / BarcodeScan role
+     | mismatch).
+     * ------------------------------------------------------------- */
+    Route::get('/variants/archived', [VariantLookupController::class, 'archived']);
+    Route::get('/variants', [VariantLookupController::class, 'index']);
+    Route::get('/variants/{id}', [VariantLookupController::class, 'show']);
+    Route::middleware('permission:lookup_management,create')
+        ->post('/variants', [VariantLookupController::class, 'store']);
+    Route::middleware('permission:lookup_management,update')
+        ->put('/variants/{id}', [VariantLookupController::class, 'update']);
+    Route::middleware('permission:lookup_management,update')
+        ->post('/variants/{id}/merge', [VariantLookupController::class, 'merge']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/variants/{id}', [VariantLookupController::class, 'destroy']);
+    Route::middleware('permission:lookup_management,archive')
+        ->post('/variants/{id}/restore', [VariantLookupController::class, 'restore']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/variants/{id}/force', [VariantLookupController::class, 'forceDestroy']);
+
+    /* ---------------------------------------------------------------
+     | AC Types (Item Lookups page - Appliance tab)
+     | 'archived' precedes '{id}' so it is not swallowed by the wildcard.
+     | Reads are deliberately ungated — see the comment above the
+     | unit_lookup routes for why (ProductRegisterModal / BarcodeScan role
+     | mismatch). ProductRegisterModal reads this dropdown, so gating it
+     | would empty the picker for warehouse and branch users.
+     |
+     | No /merge route: merging folds two spellings of a string-valued
+     | lookup together, and ac_type_id is a foreign key.
+     * ------------------------------------------------------------- */
+    Route::get('/ac-types/archived', [AcTypeLookupController::class, 'archived']);
+    Route::get('/ac-types', [AcTypeLookupController::class, 'index']);
+    Route::get('/ac-types/{id}', [AcTypeLookupController::class, 'show']);
+    Route::middleware('permission:lookup_management,create')
+        ->post('/ac-types', [AcTypeLookupController::class, 'store']);
+    Route::middleware('permission:lookup_management,update')
+        ->put('/ac-types/{id}', [AcTypeLookupController::class, 'update']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/ac-types/{id}', [AcTypeLookupController::class, 'destroy']);
+    Route::middleware('permission:lookup_management,archive')
+        ->post('/ac-types/{id}/restore', [AcTypeLookupController::class, 'restore']);
+    Route::middleware('permission:lookup_management,archive')
+        ->delete('/ac-types/{id}/force', [AcTypeLookupController::class, 'forceDestroy']);
 
     /*
     |--------------------------------------------------------------------------
@@ -301,33 +467,14 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
-    | BACKWARD COMPAT: /branches & /warehouses → proxy to /locations
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/branches', function (Illuminate\Http\Request $request) {
-        $request->merge(['location_type' => 'branch_office']);
-        return app()->call([LocationController::class, 'index']);
-    });
-    Route::get('/warehouses', function (Illuminate\Http\Request $request) {
-        $request->merge(['location_type' => 'warehouse']);
-        return app()->call([LocationController::class, 'index']);
-    });
-
-    /*
-    |--------------------------------------------------------------------------
     | ERD: PRODUCT (Product table)
     |--------------------------------------------------------------------------
     */
     Route::get('/products/archived', [ProductController::class, 'archived']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/export', [ProductController::class, 'export']);
-    // Issuable units — must be BEFORE /{product} wildcard
-    Route::get('/products/{id}/issuable-units', [ProductController::class, 'issuableUnits']);
-    Route::put('/products/issuable-units/{issuable_unit_id}', [ProductController::class, 'updateIssuableUnit']);
-    Route::delete('/products/issuable-units/{issuable_unit_id}', [ProductController::class, 'destroyIssuableUnit']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
     Route::middleware('permission:item_master_management,create')->post('/products', [ProductController::class, 'store']);
-    Route::middleware('permission:item_master_management,create')->post('/products/{id}/issuable-units', [ProductController::class, 'storeIssuableUnit']);
     Route::middleware('permission:item_master_management,update')->put('/products/{product}', [ProductController::class, 'update']);
     Route::middleware('permission:item_master_management,archive')->delete('/products/{product}', [ProductController::class, 'destroy']);
     Route::middleware('permission:item_master_management,archive')->post('/products/{id}/restore', [ProductController::class, 'restore']);
@@ -340,7 +487,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:item_master_management,update')->put('/items/{product}', [ProductController::class, 'update']);
     Route::middleware('permission:item_master_management,archive')->delete('/items/{product}', [ProductController::class, 'destroy']);
 
-    Route::get('/consumable-supply/catalog', [PendingProductController::class, 'catalog']);
+    Route::get('/installation-material-supply/catalog', [PendingProductController::class, 'catalog']);
     Route::get('/supply-types', [PendingProductController::class, 'supplyTypesIndex']);
     Route::middleware('permission:item_master_management,create')->post('/pending-products', [PendingProductController::class, 'store']);
     // List: procurement/audit visibility; approve: same as create submitters who run Item Master workflow
@@ -358,6 +505,16 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:barcode_assignment,create')->post('/serials', [SerialController::class, 'store']);
     Route::middleware('permission:barcode_assignment,update')->put('/serials/{serial}', [SerialController::class, 'update']);
     Route::middleware('permission:barcode_assignment,archive')->delete('/serials/{serial}', [SerialController::class, 'destroy']);
+
+    /* Barcode stickers straight to the Zebra. The browser can only ever build
+       a PDF and open a print dialog, so direct printing runs through here. */
+    Route::get('/barcode-labels/status', [LabelPrintController::class, 'status']);
+    Route::post('/barcode-labels/print', [LabelPrintController::class, 'print']);
+
+    /* The printing queue: everything received that still carries a scannable
+       identity, filtered down to what a clerk is about to label. */
+    Route::get('/barcode-labels/queue', [BarcodeQueueController::class, 'index']);
+    Route::get('/barcode-labels/queue/ids', [BarcodeQueueController::class, 'ids']);
 
     /*
     |--------------------------------------------------------------------------
@@ -417,12 +574,19 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
             Route::get('/',               [\App\Http\Controllers\Api\WarrantyClaimController::class, 'index']);
             Route::get('/{claimId}',      [\App\Http\Controllers\Api\WarrantyClaimController::class, 'show']);
             Route::get('/{claimId}/slip', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'downloadSlip']);
+            Route::get('/{claimId}/receipt/pdf', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'receiptPdf']);
         });
         Route::middleware('permission:warranty_claims,create')->group(function () {
             Route::post('/init',           [\App\Http\Controllers\Api\WarrantyClaimController::class, 'init']);
+            Route::post('/{claimId}/order/custom', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'addCustomOrderLine']);
+            Route::post('/{claimId}/order/set', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'addSetOrder']);
             Route::post('/{claimId}/item', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'addItem']);
         });
-        Route::middleware('permission:warranty_claims,update')->delete('/{claimId}/item/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'removeItem']);
+        Route::middleware('permission:warranty_claims,update')->group(function () {
+            Route::put('/{claimId}/order/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'updateOrderLine']);
+            Route::delete('/{claimId}/order/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'removeOrderLine']);
+            Route::delete('/{claimId}/item/{detailId}', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'removeItem']);
+        });
         Route::middleware('permission:warranty_claims,approve')->post('/{claimId}/complete', [\App\Http\Controllers\Api\WarrantyClaimController::class, 'complete']);
     });
 
@@ -436,15 +600,150 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
          ->group(function () {
              Route::post('/init',
                  [IssuanceScanController::class, 'initSession']);
+             Route::get('/active-draft',
+                 [IssuanceScanController::class, 'activeDraft']);
              Route::post('/scan',
                  [IssuanceScanController::class, 'scanItem']);
              Route::delete('/item/{detail_id}',
                  [IssuanceScanController::class, 'removeItem']);
              Route::post('/complete/{issuance_id}',
                  [IssuanceScanController::class, 'completeIssuance']);
+             Route::post('/{issuance_id}/revert-to-draft',
+                 [IssuanceScanController::class, 'revertToDraft']);
              Route::get('/session/{issuance_id}',
                  [IssuanceScanController::class, 'getSessionStatus']);
          });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Product Sets (BOQ templates)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('permission:product_set_management,read')->group(function () {
+        Route::get('/product-sets', [\App\Http\Controllers\Api\ProductSetController::class, 'index']);
+    });
+    // Must be registered before /product-sets/{id} below, or "archived" is
+    // swallowed as an {id}.
+    Route::middleware('permission:product_set_management,archive')
+         ->get('/product-sets/archived', [\App\Http\Controllers\Api\ProductSetController::class, 'archived']);
+    Route::middleware('permission:product_set_management,read')
+         ->get('/product-sets/{id}', [\App\Http\Controllers\Api\ProductSetController::class, 'show']);
+    Route::middleware('permission:product_set_management,create')
+         ->post('/product-sets', [\App\Http\Controllers\Api\ProductSetController::class, 'store']);
+    Route::middleware('permission:product_set_management,update')
+         ->put('/product-sets/{id}', [\App\Http\Controllers\Api\ProductSetController::class, 'update']);
+    Route::middleware('permission:product_set_management,archive')->group(function () {
+        Route::delete('/product-sets/{id}', [\App\Http\Controllers\Api\ProductSetController::class, 'destroy']);
+        Route::post('/product-sets/{id}/restore', [\App\Http\Controllers\Api\ProductSetController::class, 'restore']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Aircon Models (indoor + outdoor unit compositions)
+    |--------------------------------------------------------------------------
+    | {airconModel} is route-model bound, so its SoftDeletes scope 404s an
+    | archived model on show/update/destroy. restore takes a raw {id} — the
+    | binding would hide the very rows it needs.
+    */
+    Route::middleware('permission:aircon_model_management,read')
+         ->get('/aircon-models', [\App\Http\Controllers\Api\AirconModelController::class, 'index']);
+    Route::middleware('permission:aircon_model_management,create')
+         ->post('/aircon-models', [\App\Http\Controllers\Api\AirconModelController::class, 'store']);
+    // Must be registered before /aircon-models/{airconModel} below, or
+    // "archived" is handed to the implicit binding as a model key and 404s.
+    Route::middleware('permission:aircon_model_management,read')
+         ->get('/aircon-models/archived', [\App\Http\Controllers\Api\AirconModelController::class, 'archived']);
+    Route::middleware('permission:aircon_model_management,read')
+         ->get('/aircon-models/{airconModel}', [\App\Http\Controllers\Api\AirconModelController::class, 'show']);
+    Route::middleware('permission:aircon_model_management,update')
+         ->put('/aircon-models/{airconModel}', [\App\Http\Controllers\Api\AirconModelController::class, 'update']);
+    Route::middleware('permission:aircon_model_management,archive')->group(function () {
+        Route::delete('/aircon-models/{airconModel}', [\App\Http\Controllers\Api\AirconModelController::class, 'destroy']);
+        Route::post('/aircon-models/{id}/restore', [\App\Http\Controllers\Api\AirconModelController::class, 'restore']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Legacy aircon conversion (one complete row -> an indoor/outdoor pair)
+    |--------------------------------------------------------------------------
+    | Lives beside the models block rather than with the product routes because
+    | what it produces is an aircon model, and it is gated on the same
+    | permission as composing one by hand.
+    |
+    | {product} is route-model bound, so an archived product 404s rather than
+    | being rewritten. The original product row keeps its product_id and
+    | becomes one side of the pair -- see AirconConversionController for why
+    | that is not negotiable.
+    */
+    Route::middleware('permission:aircon_model_management,create')
+         ->post('/products/{product}/convert-to-two-piece', [\App\Http\Controllers\Api\AirconConversionController::class, 'convert']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Incident Reports (FIFO-violation overrides)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('permission:incident_reports,read')
+         ->get('/incident-reports', [\App\Http\Controllers\Api\IncidentReportController::class, 'index']);
+    // Declared BEFORE /incident-reports/{id}/photo so `lookup` is never
+    // captured as an {id}.
+    Route::middleware('permission:incident_reports,create')
+         ->get('/incident-reports/lookup', [\App\Http\Controllers\Api\IncidentReportController::class, 'lookup']);
+    Route::middleware('permission:incident_reports,create')
+         ->post('/incident-reports', [\App\Http\Controllers\Api\IncidentReportController::class, 'store']);
+    Route::middleware(['permission:incident_reports,create', 'throttle:30,1'])
+         ->post('/incident-reports/photo', [\App\Http\Controllers\Api\IncidentReportController::class, 'uploadPhoto']);
+    // Evidence photos live on the private `local` disk; this is the only
+    // route allowed to read them back, gated the same way index() is.
+    // auth:sanctum + Bearer token, not ?token=, so the frontend fetches with
+    // an Authorization header and hands the browser a blob — same pattern as
+    // the Goods Received Note downloads below.
+    Route::middleware(['auth:sanctum', 'permission:incident_reports,read'])
+         ->get('/incident-reports/{id}/photo', [\App\Http\Controllers\Api\IncidentReportController::class, 'showPhoto']);
+    /*
+    |--------------------------------------------------------------------------
+    | Inspection (before the admin decides) and the decision itself
+    |--------------------------------------------------------------------------
+    | The inspector attaches evidence and records an outcome for each physical
+    | item, then submits; the admin confirms, rejects, or dismisses. `inspect`
+    | and `resolve` are deliberately different permissions — the client's form
+    | carries two signature lines so that one person cannot both examine the
+    | goods and approve their write-off.
+    */
+    // The read side of the inspection: one report with its items, its evidence
+    // and the inspector's findings. Declared BEFORE the {id}/... routes for
+    // readability only — it cannot shadow them, being a different depth.
+    // `read`, not `inspect`: the admin who decides holds resolve + read and
+    // must be able to see what was submitted.
+    Route::middleware('permission:incident_reports,read')
+         ->get('/incident-reports/{id}', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'show'])
+         ->whereNumber('id');
+    Route::middleware('permission:incident_reports,inspect')
+         ->post('/incident-reports/{id}/evidence', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'storeEvidence']);
+    Route::middleware('permission:incident_reports,inspect')
+         ->delete('/incident-reports/{id}/evidence/{evidenceId}', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'destroyEvidence']);
+    // Read-side: the admin reviewing a submission needs to see the photos, and
+    // holds `read`, not `inspect`. Private `local` disk behind auth:sanctum,
+    // exactly like the filing photo above.
+    Route::middleware(['auth:sanctum', 'permission:incident_reports,read'])
+         ->get('/incident-reports/{id}/evidence/{evidenceId}/photo', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'showEvidencePhoto']);
+    Route::middleware('permission:incident_reports,inspect')
+         ->post('/incident-reports/{id}/items/{itemId}/outcome', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'setOutcome']);
+    Route::middleware('permission:incident_reports,inspect')
+         ->post('/incident-reports/{id}/inspection', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'submit']);
+    Route::middleware('permission:incident_reports,resolve')
+         ->post('/incident-reports/{id}/decide', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'decide']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | The incident-items register (replaces /stock-holds)
+    |--------------------------------------------------------------------------
+    | Read-only: what is quarantined, scrapped, returned or missing. The old
+    | worklist's Dispose action is gone — the inspection replaced it, and
+    | `incident_reports.dispose` with it.
+    */
+    Route::middleware('permission:incident_reports,read')
+         ->get('/incident-items', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'index']);
 
     /*
     |--------------------------------------------------------------------------
@@ -457,6 +756,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/export', [PurchaseOrderController::class, 'export']);
     Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/products-by-supplier/{supplier_id}', [PurchaseOrderController::class, 'productsBySupplier']);
     Route::get('/purchase-orders/{id}', [PurchaseOrderController::class, 'show']);
+    Route::middleware('permission:purchase_order_creation,read')->get('/purchase-orders/{id}/pdf', [PurchaseOrderController::class, 'pdf']);
+    Route::get('/purchase-orders/{id}/history', [PurchaseOrderController::class, 'history']);
     Route::middleware('permission:purchase_order_creation,create')->post('/purchase-orders', [PurchaseOrderController::class, 'store']);
     Route::middleware('permission:purchase_order_creation,update')->put('/purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
     Route::middleware('permission:purchase_order_creation,archive')->delete('/purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
@@ -482,16 +783,14 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::get('/budget-allocations/{id}/available', [BudgetAllocationController::class, 'available']);
         Route::get('/budget-allocations/{id}/transactions', [BudgetAllocationController::class, 'transactions']);
     });
-    Route::middleware('role:admin')->group(function () {
-        Route::post('/budget-allocations', [BudgetAllocationController::class, 'store']);
-        Route::put('/budget-allocations/{id}', [BudgetAllocationController::class, 'update']);
+    // Budget CRUD is now permission-driven so admin can delegate it (admin always
+    // passes via the resolver bypass). Defaults grant these to admin only.
+    Route::middleware('permission:budget_verification,create')->post('/budget-allocations', [BudgetAllocationController::class, 'store']);
+    Route::middleware('permission:budget_verification,update')->put('/budget-allocations/{id}', [BudgetAllocationController::class, 'update']);
+    Route::middleware('permission:budget_verification,archive')->group(function () {
         Route::delete('/budget-allocations/{id}', [BudgetAllocationController::class, 'destroy']);
         Route::post('/budget-allocations/{id}/restore', [BudgetAllocationController::class, 'restore']);
         Route::delete('/budget-allocations/{id}/force', [BudgetAllocationController::class, 'forceDestroy']);
-    });
-    Route::middleware('permission:budget_verification,verify')->group(function () {
-        Route::patch('/budget-allocations/{id}/verify', [BudgetAllocationController::class, 'verify']);
-        Route::patch('/budget-allocations/{id}/reject', [BudgetAllocationController::class, 'reject']);
     });
 
     /*
@@ -504,9 +803,12 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:purchase_request_creation,read')->group(function () {
         Route::get('/purchase-requests/archived', [PurchaseRequestController::class, 'archived']);
         Route::get('/purchase-requests/export', [PurchaseRequestController::class, 'export']);
+        Route::get('/purchase-requests/low-stock', [PurchaseRequestController::class, 'lowStock']);
     });
 
     Route::middleware('permission:purchase_request_creation,read')->get('/purchase-requests/{id}', [PurchaseRequestController::class, 'show']);
+    Route::middleware('permission:purchase_request_creation,read')
+        ->get('/purchase-requests/{id}/history', [PurchaseRequestController::class, 'history']);
 
     // PR approval — gated by the DB permission system (purchase_request_approval, approve).
     // Default grants SA only; admins can grant others via the Role Permissions editor / overrides.
@@ -533,7 +835,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |----------------------------------------------------------------------
-    | PO Recommendation analytics (restock engine)
+    | PR Recommendation analytics (restock engine)
     |----------------------------------------------------------------------
     */
     Route::middleware('permission:po_recommendations,read')->group(function () {
@@ -542,11 +844,25 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     });
     Route::middleware('permission:po_recommendations,create')->group(function () {
         Route::post('/restock/recalculate', [RestockRecommendationController::class, 'recalculate']);
-        Route::post('/restock/create-pr', [RestockRecommendationController::class, 'createPr']);
     });
     Route::middleware('permission:po_recommendations,update')->group(function () {
         Route::post('/restock/suggestions/{id}/apply', [RestockRecommendationController::class, 'applySuggestion']);
         Route::post('/restock/suggestions/{id}/dismiss', [RestockRecommendationController::class, 'dismissSuggestion']);
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Analytics Dashboard (admin / inventory analyst / auditor)
+    |----------------------------------------------------------------------
+    | Spec: docs/superpowers/specs/2026-08-02-analytics-dashboard-backend-design.md
+    */
+    Route::middleware('permission:analytics_dashboard,read')->group(function () {
+        Route::get('/analytics/stock-level',          [AnalyticsDashboardController::class, 'stockLevel']);
+        Route::get('/analytics/movement',             [AnalyticsDashboardController::class, 'movement']);
+        Route::get('/analytics/predictions',          [AnalyticsDashboardController::class, 'predictions']);
+        Route::get('/analytics/profit-loss',          [AnalyticsDashboardController::class, 'profitLoss']);
+        Route::get('/analytics/location-performance', [AnalyticsDashboardController::class, 'locationPerformance']);
+        Route::get('/analytics/filters',              [AnalyticsDashboardController::class, 'filters']);
     });
 
     /*
@@ -556,6 +872,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/receivings', [ReceivingController::class, 'index']);
     Route::get('/receivings/po-scan-status/{poId}', [ReceivingController::class, 'poScanStatus']);
+    Route::get('/receivings/po-log', [ReceivingController::class, 'poLog']);
     Route::get('/receivings/{id}', [ReceivingController::class, 'show']);
     Route::middleware('permission:delivery_receiving,create')->post('/receivings', [ReceivingController::class, 'store']);
     Route::middleware('permission:delivery_receiving,update')->put('/receivings/{id}', [ReceivingController::class, 'update']);
@@ -605,6 +922,24 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/issuances/archived', [IssuanceController::class, 'archived']);
     Route::get('/issuances', [IssuanceController::class, 'index']);
+    Route::middleware('permission:inventory_issuance,read')
+         ->get('/issuances/{id}/quote', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'quote']);
+    Route::middleware('permission:inventory_issuance,read')
+         ->get('/issuances/{id}/pick-plan', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'pickPlan']);
+    // Gated on 'create', NOT 'read': confirming a quote reserves stock and moves
+    // the order Draft -> Pending — a write with side effects, part of the counter
+    // operator's build/confirm/pick flow (warehouse_personnel, branch_manager,
+    // admin). Gating on 'read' would let a read-only auditor reserve stock.
+    Route::middleware('permission:inventory_issuance,create')
+         ->post('/issuances/{id}/confirm-quote', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'confirmQuote']);
+    Route::middleware('permission:inventory_issuance,create')->group(function () {
+        Route::post('/issuances/{id}/lines/set',        [\App\Http\Controllers\Api\IssuanceOrderController::class, 'addSetLine']);
+        Route::post('/issuances/{id}/lines/custom',     [\App\Http\Controllers\Api\IssuanceOrderController::class, 'addCustomLine']);
+        Route::put('/issuances/{id}/lines/{lineId}',    [\App\Http\Controllers\Api\IssuanceOrderController::class, 'updateLine']);
+        Route::delete('/issuances/{id}/lines/{lineId}', [\App\Http\Controllers\Api\IssuanceOrderController::class, 'removeLine']);
+    });
+    Route::middleware('permission:inventory_issuance,create')
+         ->post('/issuances/{id}/cancel', [IssuanceController::class, 'cancel']);
     Route::get('/issuances/{id}', [IssuanceController::class, 'show']);
     Route::middleware('permission:inventory_issuance,create')->post('/issuances', [IssuanceController::class, 'store']);
     Route::middleware('permission:inventory_issuance,update')->put('/issuances/{id}', [IssuanceController::class, 'update']);
@@ -614,52 +949,41 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
-    | IST — INTERBRANCH STOCK TRANSFER (IST document, linked to request)
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/ist', [ISTController::class, 'index']);
-    Route::get('/ist/prepare/{requestId}', [ISTController::class, 'prepareFromRequest']);
-    Route::get('/ist/{id}/scan-status', [ISTController::class, 'scanStatus']);
-    Route::get('/ist/{id}/receive', [ISTController::class, 'receiveForm']);
-    Route::get('/ist/{id}/receipt', [ISTController::class, 'receipt']);
-    // NOTE: /ist/{id}/receipt/pdf is a browser-download route — defined below with
-    // auth.query.token so the <a href> link can authenticate via ?token=.
-    Route::get('/ist/{id}', [ISTController::class, 'show']);
-    Route::middleware('permission:inventory_transfers,create')->group(function () {
-        Route::post('/ist', [ISTController::class, 'store']);
-        Route::post('/ist/{transferId}/scan', [ISTController::class, 'scan']);
-        Route::delete('/ist/{transferId}/scan/{scanId}', [ISTController::class, 'removeScan']);
-        Route::post('/ist/{transferId}/confirm-dispatch', [ISTController::class, 'confirmDispatch']);
-    });
-    Route::middleware('permission:inventory_transfers,update')->group(function () {
-        Route::post('/ist/{id}/receive', [ISTController::class, 'receiveStore']);
-        Route::post('/ist/{transferId}/receive-scan', [ISTController::class, 'receiveScan']);
-        Route::delete('/ist/{transferId}/receive-scan/{scanId}', [ISTController::class, 'removeReceiveScan']);
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | TRANSFER REQUESTS (interbranch stock request workflow)
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/transfer-requests', [TransferRequestController::class, 'index']);
-    Route::get('/transfer-requests/{id}', [TransferRequestController::class, 'show']);
-    Route::middleware('permission:inventory_transfers,create')->post('/transfer-requests', [TransferRequestController::class, 'store']);
-    Route::middleware('permission:inventory_transfers,approve')->group(function () {
-        Route::patch('/transfer-requests/{id}/approve', [TransferRequestController::class, 'approve']);
-        Route::patch('/transfer-requests/{id}/reject', [TransferRequestController::class, 'reject']);
-    });
-
-    /*
-    |--------------------------------------------------------------------------
     | ERD: TRANSFER (transfer)
     |--------------------------------------------------------------------------
     */
     Route::get('/transfers/archived', [TransferController::class, 'archived']);
     Route::get('/transfers', [TransferController::class, 'index']);
     Route::get('/transfers/{id}', [TransferController::class, 'show']);
+    Route::middleware('permission:inventory_transfers,create')->post('/transfers', [TransferController::class, 'store']);
+    Route::get('/transfers/{id}/pick-list', [TransferController::class, 'pickList']);
+    Route::middleware('permission:inventory_transfers,read')
+        ->get('/transfers/{id}/source-availability', [TransferController::class, 'sourceAvailability']);
+    Route::middleware('permission:inventory_transfers,approve')->group(function () {
+        Route::post('/transfers/{id}/verify', [TransferController::class, 'verify']);
+        Route::patch('/transfers/{id}/reject', [TransferController::class, 'reject']);
+    });
+    // Requester (or admin/IA) edits/cancels a still-Pending request; ownership enforced in-method.
+    Route::middleware('permission:inventory_transfers,update')->group(function () {
+        Route::patch('/transfers/{id}/request', [TransferController::class, 'updateRequest']);
+        Route::patch('/transfers/{id}/cancel', [TransferController::class, 'cancel']);
+    });
+    Route::get('/transfers/{id}/scan-status', [TransferController::class, 'scanStatus']);
+    Route::get('/transfers/{id}/receive-form', [TransferController::class, 'receiveForm']);
+    Route::get('/transfers/{id}/receipt', [TransferController::class, 'receipt']);
+    Route::middleware('permission:inventory_transfers,create')->group(function () {
+        Route::post('/transfers/{id}/scan', [TransferController::class, 'scan']);
+        Route::post('/transfers/{id}/count-scan', [TransferController::class, 'countScan']);
+        Route::delete('/transfers/{id}/scan/{scanId}', [TransferController::class, 'removeScan']);
+        Route::post('/transfers/{id}/confirm-dispatch', [TransferController::class, 'confirmDispatch']);
+    });
+    Route::middleware('permission:inventory_transfers,update')->group(function () {
+        Route::post('/transfers/{id}/receive-scan', [TransferController::class, 'receiveScan']);
+        Route::post('/transfers/{id}/count-receive-scan', [TransferController::class, 'countReceiveScan']);
+        Route::delete('/transfers/{id}/receive-scan/{scanId}', [TransferController::class, 'removeReceiveScan']);
+        Route::post('/transfers/{id}/receive-confirm', [TransferController::class, 'receiveStore']);
+    });
     Route::middleware('role:admin')->group(function () {
-        Route::post('/transfers', [TransferController::class, 'store']);
         Route::put('/transfers/{id}', [TransferController::class, 'update']);
         Route::post('/transfers/{id}/receive', [TransferController::class, 'receive']);
         Route::post('/transfers/{id}/tracking', [TransferController::class, 'addTracking']);
@@ -728,26 +1052,11 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 
     /*
     |--------------------------------------------------------------------------
-    | ERD: AUDIT_LOG (audit_log)
+    | AUDIT TRAIL (legacy, unstructured)
     |--------------------------------------------------------------------------
     */
     Route::middleware('permission:audit_trail_viewing,read')->group(function () {
-        Route::get('/audit-log', function (Illuminate\Http\Request $request) {
-            $query = \App\Models\AuditLog::with('user')->orderBy('created_at', 'desc');
-            if ($request->has('user_id')) {
-                $query->where('user_id', $request->user_id);
-            }
-            if ($request->has('action')) {
-                $query->where('action', $request->action);
-            }
-            return $query->paginate($request->input('per_page', 50));
-        });
-
-        Route::get('/audit-trail', function (\Illuminate\Http\Request $request) {
-            return \App\Models\AuditTrail::with('user')
-                ->orderBy('created_at', 'desc')
-                ->paginate($request->input('per_page', 50));
-        });
+        Route::get('/audit-trail', [AuditTrailController::class, 'legacyIndex']);
 
         Route::get('/audit-trail/user/{userId}', function ($userId) {
             return \App\Models\AuditTrail::where('user_id', $userId)
@@ -765,7 +1074,36 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
         Route::get('/audit-trail/v2', [AuditTrailController::class, 'index']);
         Route::get('/audit-trail/v2/filter-options', [AuditTrailController::class, 'filterOptions']);
         Route::get('/audit-trail/v2/{audit_id}', [AuditTrailController::class, 'show']);
+        Route::get('/login-sessions', [\App\Http\Controllers\Api\LoginSessionController::class, 'index']);
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | AUDIT & EVIDENCE EXPLORER
+    |--------------------------------------------------------------------------
+    | Read-only apart from resolving a drift finding, which is the auditor's own
+    | act and carries its own permission.
+    */
+    Route::middleware('permission:audit_evidence,read')->prefix('audit-evidence')->group(function () {
+        Route::get('/summary', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'summary']);
+        Route::get('/breakdown', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'breakdown']);
+        Route::get('/movements', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'movements']);
+        Route::get('/reconciliation', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'reconciliation']);
+        Route::get('/exceptions', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'exceptions']);
+        Route::get('/batches/{batchId}/lifecycle', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'batchLifecycle'])
+            ->whereNumber('batchId');
+        // Serials and correlation ids carry colons, dots and dashes, so the default
+        // segment pattern is widened rather than letting a valid id 404.
+        Route::get('/serials/{serial}/lifecycle', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'serialLifecycle'])
+            ->where('serial', '[A-Za-z0-9\-_\.:]+');
+        Route::get('/events/{correlationId}', [\App\Http\Controllers\Api\AuditEvidenceController::class, 'event'])
+            ->where('correlationId', '[A-Za-z0-9\-_\.:]+');
+    });
+
+    Route::middleware('permission:audit_evidence,resolve_exception')
+        ->post('/audit-evidence/exceptions/{findingId}/resolve',
+            [\App\Http\Controllers\Api\AuditEvidenceController::class, 'resolveException'])
+        ->whereNumber('findingId');
 
     /*
     |--------------------------------------------------------------------------
@@ -784,6 +1122,14 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     */
     Route::get('/inventory', [InventoryController::class, 'index']);
     Route::get('/inventory/{inventory}/history', [InventoryController::class, 'stockHistory']);
+    Route::get('/inventory/{inventory}/batches', [InventoryController::class, 'batches']);
+    Route::get('/inventory-batches', [InventoryBatchController::class, 'index']);
+    Route::middleware('permission:location_based_inventory,update')
+        ->patch('/inventory-batches/{batch}', [InventoryBatchController::class, 'update']);
+    Route::get('/po-inventory-groups', [\App\Http\Controllers\Api\PoInventoryController::class, 'index']);
+    Route::get('/po-inventory-groups/{po}', [\App\Http\Controllers\Api\PoInventoryController::class, 'show']);
+    Route::middleware('permission:location_based_inventory,update')
+        ->patch('/po-inventory-groups/{po}', [\App\Http\Controllers\Api\PoInventoryController::class, 'updateLocation']);
     Route::get('/inventory/{inventory}', [InventoryController::class, 'show']);
     Route::get('/inventory/location/{location}', [InventoryController::class, 'byLocation']);
     Route::get('/inventory/product/{product}', [InventoryController::class, 'byItem']);
@@ -800,6 +1146,18 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:barcode_inventory_processing,create')->group(function () {
         Route::post('/inventory/scan-barcode', [InventoryController::class, 'scanBarcode']);
         Route::post('/inventory/scan-transaction', [InventoryScanTransactionController::class, 'store']);
+        Route::post('/inventory/receive-count', \App\Http\Controllers\Api\ReceiveCountController::class);
+        Route::post('/inventory/receive-verify', \App\Http\Controllers\Api\ReceiveVerifyController::class);
+        Route::post('/inventory/receive-topup', \App\Http\Controllers\Api\ReceiveTopUpController::class);
+        // Staged PO receiving: scans and counts land in a draft the clerk can
+        // review and correct, and only /submit moves stock.
+        Route::get('/receiving-drafts', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'show']);
+        Route::post('/receiving-drafts', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'store']);
+        Route::post('/receiving-drafts/{draft}/items', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'storeItem']);
+        Route::patch('/receiving-drafts/{draft}/items/{item}', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'updateItem']);
+        Route::delete('/receiving-drafts/{draft}/items/{item}', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'destroyItem']);
+        Route::delete('/receiving-drafts/{draft}', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'destroy']);
+        Route::post('/receiving-drafts/{draft}/submit', \App\Http\Controllers\Api\ReceivingDraftSubmitController::class);
         Route::post('/barcode/scan', [BarcodeScanController::class, 'scanLookup']);
         Route::get('/barcode-scans', [BarcodeScanController::class, 'index']);
         Route::post('/barcode-scans', [BarcodeScanController::class, 'store']);
@@ -810,69 +1168,26 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | REPORTS & ANALYTICS
     |--------------------------------------------------------------------------
     */
+    // Task 14: removed seven dead closures that used to live here
+    // (inventory-valuation, sales-summary, movement-history, low-stock-report,
+    // adjustments-summary, receivings-summary, profit-loss-summary). Nothing in
+    // the frontend called any of them, and low-stock-report was actively wrong —
+    // it compared stock against the global products.recommended_stocks while
+    // ignoring the per-location inventory.reorder_level, so it could never
+    // report a per-location shortfall. That logic now lives correctly in
+    // App\Reports\Definitions\LowStockReport, served through the routes below.
     Route::prefix('reports')->group(function () {
-        Route::get('/inventory-valuation', function () {
-            $sub = '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)';
-            $products = \App\Models\Product::with(['category', 'applianceDetail.brand'])
-                ->selectRaw("products.*, {$sub} AS total_qty")
-                ->get()
-                ->map(fn($p) => [
-                    'product_id'   => $p->product_id,
-                    'product_name' => $p->product_name,
-                    'category'     => $p->category?->category_name,
-                    'brand'        => $p->applianceDetail?->brand?->brand_name,
-                    'quantity'     => (int) ($p->total_qty ?? 0),
-                    'cost_price'   => $p->cost_price,
-                    'total_value'  => ($p->total_qty ?? 0) * $p->cost_price,
-                ]);
-            return response()->json(['success' => true, 'data' => $products]);
+        Route::middleware('permission:report_viewing,read')->group(function () {
+            Route::get('/catalog', [ReportController::class, 'catalog']);
+            // The `user` filter's dropdown. Served here rather than from
+            // GET /users, which is admin-only while report_viewing is not —
+            // see ReportController::filterUsers().
+            Route::get('/filter-users', [ReportController::class, 'filterUsers']);
+            Route::get('/runs', [ReportController::class, 'runs']);
+            Route::get('/runs/{id}/download', [ReportController::class, 'download']);
         });
-        Route::get('/sales-summary', function (Illuminate\Http\Request $request) {
-            $query = \App\Models\Sale::with('customer');
-            if ($request->has('date_from')) {
-                $query->where('sale_date', '>=', $request->date_from);
-            }
-            if ($request->has('date_to')) {
-                $query->where('sale_date', '<=', $request->date_to);
-            }
-            return response()->json(['success' => true, 'data' => $query->paginate(50)]);
-        });
-        Route::get('/movement-history', function () {
-            return response()->json(['success' => true, 'data' => \App\Models\Transfer::with(['fromLocation', 'toLocation'])->orderBy('created_at', 'desc')->paginate(50)]);
-        });
-        Route::get('/low-stock-report', function () {
-            $sub = '(SELECT COALESCE(SUM(quantity_on_hand),0) FROM inventory WHERE inventory.product_id = products.product_id)';
-            $products = \App\Models\Product::with(['category', 'applianceDetail.brand'])
-                ->selectRaw("products.*, {$sub} AS total_qty")
-                ->whereRaw("{$sub} <= recommended_stocks")
-                ->get();
-            return response()->json(['success' => true, 'data' => $products]);
-        });
-        Route::get('/adjustments-summary', function (Illuminate\Http\Request $request) {
-            $query = \App\Models\Adjustment::with(['location', 'createdBy']);
-            if ($request->has('location_id')) {
-                $query->where('location_id', $request->location_id);
-            }
-            return response()->json(['success' => true, 'data' => $query->orderBy('created_at', 'desc')->paginate(50)]);
-        });
-        Route::get('/receivings-summary', function (Illuminate\Http\Request $request) {
-            $query = \App\Models\Receiving::with(['purchaseOrder.supplier', 'location', 'receivedBy']);
-            if ($request->has('location_id')) {
-                $query->where('location_id', $request->location_id);
-            }
-            return response()->json(['success' => true, 'data' => $query->orderBy('created_at', 'desc')->paginate(50)]);
-        });
-        Route::get('/profit-loss-summary', function (Illuminate\Http\Request $request) {
-            $query = \App\Models\ProfitLoss::with(['product', 'model', 'recordedBy']);
-            if ($request->has('product_id')) {
-                $query->where('product_id', $request->product_id);
-            }
-            return response()->json([
-                'success' => true,
-                'data'    => $query->orderBy('created_at', 'desc')->paginate(50),
-                'summary' => ['total_loss' => \App\Models\ProfitLoss::sum('total_loss_amount')],
-            ]);
-        });
+        Route::middleware('permission:report_viewing,create')
+            ->post('/generate', [ReportController::class, 'generate']);
     });
 });
 
@@ -882,8 +1197,41 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth.query.token', 'permission:delivery_receipt_generation,read'])
-     ->get('/issuance-scan/delivery-receipt/{issuance_id}/csv',
-         [IssuanceScanController::class, 'downloadDeliveryReceipt']);
+     ->get('/issuance-scan/delivery-receipt/{issuance_id}/pdf',
+         [IssuanceScanController::class, 'downloadDeliveryReceiptPdf']);
 
 Route::middleware(['auth.query.token', 'permission:inventory_transfers,read'])
-     ->get('/ist/{id}/receipt/pdf', [ISTController::class, 'receiptPdf']);
+     ->get('/transfers/{id}/receipt/pdf', [TransferController::class, 'receiptPdf']);
+
+Route::middleware(['auth.query.token', 'permission:inventory_adjustments,read'])
+     ->get('/adjustments/{id}/pdf', [AdjustmentController::class, 'pdf']);
+
+// A top-level browser navigation (opening/saving the report file) cannot set
+// an Authorization header, so this takes the token as a ?token= query param
+// like the other document downloads above. Same controller action as the
+// Bearer-token /reports/runs/{id}/download route inside the auth group.
+Route::middleware(['auth.query.token', 'permission:report_viewing,read'])
+     ->get('/reports/runs/{id}/file', [ReportController::class, 'download']);
+
+// sendBeacon (tab-close/refresh) can't set an Authorization header, so the
+// issuance wizard's abandon-revert beacon authenticates via ?token= like the
+// download routes. Same controller method as the Bearer POST route above.
+Route::middleware(['auth.query.token', 'permission:inventory_issuance,create'])
+     ->post('/issuance-scan/{issuance_id}/revert-to-draft-beacon',
+         [IssuanceScanController::class, 'revertToDraft']);
+
+// Goods Received Note downloads. These use standard Bearer auth (auth:sanctum),
+// NOT a ?token= query param — the frontend fetches the file with the Authorization
+// header and hands the browser a blob, so the token never appears in the URL
+// (avoids the "insecure" credential-in-URL warning over plain HTTP).
+Route::middleware(['auth:sanctum', 'permission:delivery_receiving,read'])
+     ->get('/receivings/{id}/receipt/pdf', [ReceivingController::class, 'receiptPdf']);
+
+Route::middleware(['auth:sanctum', 'permission:delivery_receiving,read'])
+     ->get('/receivings/{id}/receipt/csv', [ReceivingController::class, 'receiptCsv']);
+
+// Consolidated Goods Received Note for a whole PO (all sessions/warehouses)
+Route::middleware(['auth:sanctum', 'permission:delivery_receiving,read'])
+     ->get('/purchase-orders/{id}/receiving-receipt/pdf', [ReceivingController::class, 'poReceiptPdf']);
+Route::middleware(['auth:sanctum', 'permission:delivery_receiving,read'])
+     ->get('/purchase-orders/{id}/receiving-receipt/csv', [ReceivingController::class, 'poReceiptCsv']);

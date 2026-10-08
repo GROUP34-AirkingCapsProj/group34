@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+// See runtimeEnv.js: a bare process.env.X in this file compiles to a
+// permanent `undefined`.
+import { readEnv } from '../runtimeEnv';
 
-const url = process.env.REACT_APP_SUPABASE_URL?.trim();
-const anonKey = process.env.REACT_APP_SUPABASE_ANON_KEY?.trim();
+const url = readEnv('REACT_APP_SUPABASE_URL')?.trim();
+const anonKey = readEnv('REACT_APP_SUPABASE_ANON_KEY')?.trim();
 
 let singleton = null;
 

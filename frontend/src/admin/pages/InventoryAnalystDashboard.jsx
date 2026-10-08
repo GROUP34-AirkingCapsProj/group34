@@ -9,19 +9,19 @@ import '../styles/role_dashboards.css';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
-const qtyOf = (i) => Number(i.quantity_on_hand ?? i.quantity ?? 0);
-
 export default function InventoryAnalystDashboard() {
   const navigate = useNavigate();
-  const { data, inv, loading, error } = useRoleDashboard();
+  const { data, loading, error } = useRoleDashboard();
 
   if (loading) return <AdminLayout><Loader variant="page" label="Loading analytics" /></AdminLayout>;
   if (error)   return <AdminLayout><div className="rd-error"><p>{error}</p><button onClick={() => window.location.reload()}>Retry</button></div></AdminLayout>;
 
   const stats = data?.stats ?? {};
-  const totalSkus = inv.length;
-  const outOfStock = inv.filter((i) => qtyOf(i) <= 0).length;
-  const units = inv.reduce((s, i) => s + qtyOf(i), 0);
+  const totalSkus = Number(stats.total_items ?? 0);
+  const outOfStock = (data?.low_stock_items ?? []).filter(
+    (i) => Number(i.quantity_on_hand ?? i.on_hand ?? i.quantity ?? 0) <= 0
+  ).length;
+  const units = (data?.inventory_by_category?.values ?? []).reduce((s, v) => s + Number(v || 0), 0);
   const cat = data?.inventory_by_category ?? { labels: [], values: [] };
   const byLoc = data?.stock_status_by_location ?? { labels: [], inStock: [], lowStock: [] };
   const lowStockItems = data?.low_stock_items ?? [];
@@ -51,7 +51,7 @@ export default function InventoryAnalystDashboard() {
               <p className="ak-sub">Network-wide stock health, category mix and shortfalls.</p>
             </div>
             <div className="ak-header-aside ak-actions">
-              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/po-recommendations')}>Reorder advice</button>
+              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/purchase-requests')}>Reorder advice</button>
               <button className="ak-btn ak-btn--primary" onClick={() => navigate('/admin/inventory')}>Inventory</button>
             </div>
           </div>

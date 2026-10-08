@@ -1,9 +1,15 @@
 // Resolve at request time (not module load) so the same bundle works on desktop and on mobile
 // when opened via LAN IP. REACT_APP_API_URL often points at 127.0.0.1 — on a phone that is wrong.
+//
+// Read via readEnv(), not process.env.X directly — see runtimeEnv.js for why a
+// bare process.env.X in this file compiles to a permanent `undefined` no
+// environment variable can override.
+import { readEnv } from '../../runtimeEnv';
+
 const trimSlash = (u) => String(u || '').replace(/\/+$/, '');
-const rawEnvApi = process.env.REACT_APP_API_URL && String(process.env.REACT_APP_API_URL).trim();
-const publicApiOverride = process.env.REACT_APP_API_PUBLIC_URL && String(process.env.REACT_APP_API_PUBLIC_URL).trim();
-const apiPort = String(process.env.REACT_APP_API_PORT || '80').replace(/^:+/, '');
+const rawEnvApi = readEnv('REACT_APP_API_URL') && String(readEnv('REACT_APP_API_URL')).trim();
+const publicApiOverride = readEnv('REACT_APP_API_PUBLIC_URL') && String(readEnv('REACT_APP_API_PUBLIC_URL')).trim();
+const apiPort = String(readEnv('REACT_APP_API_PORT') || '80').replace(/^:+/, '');
 
 function isLoopbackHost(h) {
   return (
@@ -49,7 +55,15 @@ export const getApiBaseUrl = () => {
     if (!envPointsToLoopback) {
       return trimSlash(rawEnvApi);
     }
-    const proto = String(process.env.REACT_APP_API_HTTPS || '').toLowerCase() === 'true' ? 'https:' : 'http:';
+    // Follow the PAGE's protocol rather than hardcoding http:. An https:// page
+    // calling an http:// API is mixed content and the browser blocks it, which
+    // is what happens on a phone using the HTTPS vhost (needed for the camera:
+    // getUserMedia requires a secure context and localhost is exempt, LAN IPs
+    // are not). Following the page means one build serves both ports.
+    // REACT_APP_API_HTTPS still forces https: for an API that is HTTPS-only.
+    const proto = String(readEnv('REACT_APP_API_HTTPS') || '').toLowerCase() === 'true'
+      ? 'https:'
+      : (window.location.protocol === 'https:' ? 'https:' : 'http:');
     const portSuffix = (apiPort === '80' || apiPort === '') ? '' : `:${apiPort}`;
     return trimSlash(`${proto}//${h}${portSuffix}/api`);
   }
@@ -72,6 +86,71 @@ export const resolveStorageUrl = (path) => {
 };
 
 const TOKEN_KEY = 'token';
+
+/**
+ * Fetch a binary file (PDF/CSV) from the API using the Bearer token in the
+ * Authorization header — NOT in the URL — then open it in a new tab (for
+ * viewing/printing) or download it. Keeping the token out of the URL avoids the
+ * browser "insecure" credential-in-URL warning. Throws on non-2xx.
+ */
+export const openApiFile = async (
+  path,
+  {
+    download = false,
+    preview = false,
+    previewWindow: suppliedPreviewWindow = null,
+    filename = 'download',
+  } = {},
+) => {
+  // Reserve the preview tab during the user's click. Opening it after the
+  // authenticated fetch finishes is commonly blocked as an unsolicited popup.
+  const previewWindow = preview
+    ? (suppliedPreviewWindow && !suppliedPreviewWindow.closed
+      ? suppliedPreviewWindow
+      : window.open('', '_blank'))
+    : null;
+  const token = localStorage.getItem(TOKEN_KEY);
+  const url = `${getApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: '*/*',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!res.ok) {
+    if (previewWindow) previewWindow.close();
+    let msg = `Failed to load file (${res.status})`;
+    try { const j = await res.json(); if (j?.message) msg = j.message; } catch (_) { /* not JSON */ }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const objUrl = URL.createObjectURL(blob);
+  if (download) {
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if (previewWindow) previewWindow.location.href = objUrl;
+    setTimeout(() => URL.revokeObjectURL(objUrl), 10000);
+  } else {
+    // Reuse the tab reserved synchronously above so browsers do not block the
+    // PDF after the authenticated request finishes.
+    const w = previewWindow || window.open(objUrl, '_blank');
+    if (previewWindow) previewWindow.location.href = objUrl;
+    if (!w) {
+      // Popup blocked — fall back to a download so the user still gets the file.
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
+  }
+};
 
 /** Synced from login and system settings; drives client idle logout. */
 export const SESSION_TIMEOUT_MINUTES_KEY = 'session_timeout_minutes';
@@ -194,6 +273,7 @@ const apiRequest = async (endpoint, options = {}) => {
       networkError.message === 'Failed to fetch'
         ? 'Cannot reach the server. From back-end run: composer run serve-lan (or php artisan serve --host=0.0.0.0) for mobile on the same Wi‑Fi.'
         : networkError.message;
+    console.error(`[API] ${method} ${url} network error:`, msg);
     throw new Error(msg);
   }
 
@@ -212,10 +292,15 @@ const apiRequest = async (endpoint, options = {}) => {
         : response.status >= 500
           ? `Server error (${response.status}). Try again later.`
           : `Server returned ${response.status} with non-JSON response.`;
+    console.error(`[API] ${method} ${url} → ${response.status}:`, msg);
     throw new Error(msg);
   }
 
   if (!response.ok) {
+    console.error(`[API] ${method} ${url} → ${response.status}`, {
+      message: data.message,
+      errors: data.errors,
+    });
     // Token expired or missing — clear storage and bounce to login
     if (response.status === 401) {
       removeToken();
@@ -223,9 +308,21 @@ const apiRequest = async (endpoint, options = {}) => {
         window.location.href = '/admin/login';
       }
     }
+    // Server says the temporary password must be replaced. Can happen mid-session
+    // if an admin resets this user's password while they are logged in.
+    if (response.status === 403 && data.code === 'password_change_required') {
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/change-password')) {
+        window.location.href = '/admin/change-password';
+      }
+    }
     const err = new Error(data.message || 'API request failed');
     err.status = response.status;
     err.errors = data.errors || null;
+    // Preserve the full parsed body so callers can read structured payloads that
+    // arrive on a non-2xx status (e.g. the issuance/transfer scan endpoints return
+    // HTTP 422 with a `scan_result` verdict). Purely additive — existing callers
+    // only read message/status/errors.
+    err.data = data;
     if (data.login_attempts_remaining !== undefined && data.login_attempts_remaining !== null) {
       err.login_attempts_remaining = data.login_attempts_remaining;
     }
@@ -309,6 +406,26 @@ export const authAPI = {
   },
 
   /**
+   * Mid-login step for an account that must clear a second factor but has no
+   * recovery address on file. The password is sent again because the server
+   * re-verifies it: a pending login is not a credential, so knowing an address
+   * must not be enough to point someone's second factor at another inbox.
+   *
+   * @param {string} email
+   * @param {string} password
+   * @param {string} recoveryEmail
+   */
+  submitRecoveryEmail: async (email, password, recoveryEmail) =>
+    apiRequest('/login/recovery-email', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: String(email || '').trim(),
+        password: String(password ?? ''),
+        recovery_email: String(recoveryEmail || '').trim(),
+      }),
+    }),
+
+  /**
    * @param {string} email
    * @param {string|number} otp
    */
@@ -336,15 +453,40 @@ export const authAPI = {
   forgotPassword: async (email) => {
     return apiRequest('/forgot-password', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: String(email || '').trim() }),
     });
   },
 
   getUser: async () => apiRequest('/user'),
 };
 
-/** Admin-issued code (auth) + public reset completion (no auth). */
+/** Forgot-password email OTP (+ admin-issued RST- code reset). */
 export const passwordResetAPI = {
+  forgot: async ({ email }) =>
+    apiRequest('/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: String(email || '').trim(),
+      }),
+    }),
+  verifyResetOtp: async ({ email, otp }) =>
+    apiRequest('/verify-reset-otp', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: String(email || '').trim(),
+        otp: String(otp || '').trim(),
+      }),
+    }),
+  resetPassword: async ({ email, reset_token, password, password_confirmation }) =>
+    apiRequest('/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: String(email || '').trim(),
+        reset_token: String(reset_token || '').trim(),
+        password,
+        password_confirmation,
+      }),
+    }),
   issue: async (userId) =>
     apiRequest('/password-reset/issue', {
       method: 'POST',
@@ -365,6 +507,26 @@ export const passwordResetAPI = {
         password_confirmation,
       }),
     }),
+};
+
+/* ======================
+   ANALYTICS DASHBOARD API
+   Server-computed per-tab analytics. Replaces the page's old client-side
+   computation over /api/batch, which truncated at 500 inventory rows and
+   could not reach incident data at all.
+====================== */
+export const analyticsAPI = {
+  _qs: (params = {}) => {
+    const entries = Object.entries(params).filter(([, v]) => v !== '' && v != null);
+    const qs = new URLSearchParams(entries).toString();
+    return qs ? `?${qs}` : '';
+  },
+  getStockLevel: async (params = {}) => apiRequest(`/analytics/stock-level${analyticsAPI._qs(params)}`),
+  getMovement: async (params = {}) => apiRequest(`/analytics/movement${analyticsAPI._qs(params)}`),
+  getPredictions: async (params = {}) => apiRequest(`/analytics/predictions${analyticsAPI._qs(params)}`),
+  getProfitLoss: async (params = {}) => apiRequest(`/analytics/profit-loss${analyticsAPI._qs(params)}`),
+  getLocationPerformance: async (params = {}) => apiRequest(`/analytics/location-performance${analyticsAPI._qs(params)}`),
+  getFilters: async () => apiRequest('/analytics/filters'),
 };
 
 /* ======================
@@ -417,6 +579,21 @@ export const alertsAPI = {
 };
 
 /** Session timeout from system_settings (GET any auth user; PUT admin only). */
+/* Which printer each location uses. Reading is open to any signed-in user;
+   saving and testing are admin-only on the server. */
+export const labelPrintersAPI = {
+  getAll: async () => apiRequest('/system/label-printers'),
+
+  update: async (locationId, printer) =>
+    apiRequest(`/system/label-printers/${locationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(printer),
+    }),
+
+  test: async (locationId) =>
+    apiRequest(`/system/label-printers/${locationId}/test`, { method: 'POST' }),
+};
+
 export const systemSettingsAPI = {
   getSession: async () => apiRequest('/system/session-settings'),
   /**
@@ -467,6 +644,26 @@ export const archiveSettingsAPI = {
   },
 };
 
+/** Database backup / restore (admin only). */
+export const backupAPI = {
+  getSettings: async () => apiRequest('/backup/settings'),
+  updateSettings: async (payload) =>
+    apiRequest('/backup/settings', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  runNow: async () =>
+    apiRequest('/backup/run', { method: 'POST' }),
+  getHistory: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/backup/history?${query}` : '/backup/history');
+  },
+  download: async (id, filename = 'backup.sql') =>
+    openApiFile(`/backup/history/${id}/download`, { download: true, filename }),
+  restore: async (id) =>
+    apiRequest(`/backup/history/${id}/restore`, { method: 'POST' }),
+};
+
 /** Company letterhead settings (GET any auth user; PUT admin only). */
 export const companySettingsAPI = {
   get: async () => apiRequest('/system/company-settings'),
@@ -510,14 +707,42 @@ export const auditAPI = {
   },
   getFilterOptions: async () => apiRequest('/audit-trail/v2/filter-options'),
   getEntry: async (id) => apiRequest(`/audit-trail/v2/${id}`),
-  getLog: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(query ? `/audit-log?${query}` : '/audit-log');
+  getLoginSessions: async (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    ).toString();
+    return apiRequest(query ? `/login-sessions?${query}` : '/login-sessions');
   },
 };
 
 /* ======================
-   LOCATIONS API (ERD — replaces branches & warehouses)
+   AUDIT & EVIDENCE EXPLORER
+   Every call is scoped server-side; nothing here fetches a whole table.
+====================== */
+const evidenceQuery = (params = {}) =>
+  new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  ).toString();
+
+export const auditEvidenceAPI = {
+  getSummary: async (params = {}) => apiRequest(`/audit-evidence/summary?${evidenceQuery(params)}`),
+  getBreakdown: async (params = {}) => apiRequest(`/audit-evidence/breakdown?${evidenceQuery(params)}`),
+  getMovements: async (params = {}) => apiRequest(`/audit-evidence/movements?${evidenceQuery(params)}`),
+  getReconciliation: async (params = {}) => apiRequest(`/audit-evidence/reconciliation?${evidenceQuery(params)}`),
+  getEvent: async (correlationId) => apiRequest(`/audit-evidence/events/${encodeURIComponent(correlationId)}`),
+  getSerialLifecycle: async (serial) => apiRequest(`/audit-evidence/serials/${encodeURIComponent(serial)}/lifecycle`),
+  getBatchLifecycle: async (batchId) => apiRequest(`/audit-evidence/batches/${batchId}/lifecycle`),
+  getExceptions: async (params = {}) => apiRequest(`/audit-evidence/exceptions?${evidenceQuery(params)}`),
+  resolveException: async (findingId, resolutionNote) =>
+    apiRequest(`/audit-evidence/exceptions/${findingId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ resolution_note: resolutionNote }),
+    }),
+};
+
+/* ======================
+   LOCATIONS API — the single source for branches and warehouses alike.
+   `location_type` distinguishes them; there is no separate branch endpoint.
 ====================== */
 export const locationsAPI = {
   getAll: async (params = {}) => {
@@ -537,19 +762,6 @@ export const locationsAPI = {
   },
   restore: async (id) =>
     apiRequest(`/locations/${id}/restore`, { method: 'POST' }),
-};
-
-/* Backward-compat: branches & warehouses are now location_type filters on locations */
-export const branchesAPI = {
-  getAll: async (params = {}) =>
-    locationsAPI.getAll({ ...params, location_type: 'branch_office' }),
-  getById: async (id) => locationsAPI.getById(id),
-};
-
-export const warehousesAPI = {
-  getAll: async (params = {}) =>
-    locationsAPI.getAll({ ...params, location_type: 'warehouse' }),
-  getById: async (id) => locationsAPI.getById(id),
 };
 
 /* ======================
@@ -584,6 +796,26 @@ export const inventoryAPI = {
     return apiRequest(query ? `/inventory?${query}` : '/inventory');
   },
   getById: async (id) => apiRequest(`/inventory/${id}`),
+  getBatches: async (id) => apiRequest(`/inventory/${id}/batches`),
+  /** All batches with remaining stock, scoped server-side to the user's location. Powers the Warehouse Map tab. */
+  getWarehouseBatches: async () => apiRequest('/inventory-batches'),
+  /** Edit a batch's physical zone label only (never touches quantities). */
+  updateBatchZone: async (batchId, zoneLabel) =>
+    apiRequest(`/inventory-batches/${batchId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ zone_label: zoneLabel }),
+    }),
+  /** PO + warehouse inventory groups (Inventory Monitoring Console). */
+  getPoGroups: async () => apiRequest('/po-inventory-groups'),
+  /** One PO + warehouse group's 3-tab detail. */
+  getPoGroupDetail: async (poId, warehouseId) =>
+    apiRequest(`/po-inventory-groups/${poId}?location_id=${warehouseId}`),
+  /** Rename the Location (zone label) for a whole PO + warehouse group. */
+  updatePoGroupLocation: async (poId, warehouseId, zoneLabel) =>
+    apiRequest(`/po-inventory-groups/${poId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ location_id: warehouseId, zone_label: zoneLabel }),
+    }),
   create: async (data) =>
     apiRequest('/inventory', {
       method: 'POST',
@@ -614,6 +846,42 @@ export const inventoryAPI = {
     }),
   getHistory: async (inventoryId) =>
     apiRequest(`/inventory/${inventoryId}/history`),
+  /**
+   * Receive un-barcoded material by hand count. body: { po_detail_id, location_id?,
+   * quantity, zone_label?, accept_overage? }. Check `data.action` on the response —
+   * it is not always 'applied':
+   *   - 'applied'      posted; also returns quantity_received, units_entered,
+   *                    count_unit, receiving_number, batch_id, tags[].
+   *   - 'over_receipt' refused pending confirmation; returns ordered_pieces,
+   *                    already_received, remaining, counted, overage. Re-post
+   *                    with accept_overage: true to proceed.
+   *   - 'rejected'     refused outright; see data.reason.
+   */
+  receiveCount: async (data) =>
+    apiRequest('/inventory/receive-count', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+
+  /**
+   * Reconcile an already-scanned PO line to the piece count the clerk verified.
+   * Scanning posts each box at its expected contents, so this applies the delta
+   * once the boxes have actually been counted.
+   * body: { po_detail_id, location_id, packages, actual_pieces, accept_overage }.
+   * Returns { action: 'applied' | 'over_receipt' | 'rejected', ... }.
+   */
+  receiveVerify: async (data) =>
+    apiRequest('/inventory/receive-verify', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+
+  /**
+   * Record pieces that arrived after a short delivery — loose stock, not a new
+   * carton. Posts with packages_received = 0 so the package budget is untouched.
+   */
+  receiveTopUp: (data) =>
+    apiRequest('/inventory/receive-topup', { method: 'POST', body: JSON.stringify(data ?? {}) }),
 };
 
 /* ======================
@@ -711,6 +979,9 @@ export const purchaseOrdersAPI = {
    */
   getProductsBySupplier: async (supplierId) =>
     apiRequest(`/purchase-orders/products-by-supplier/${supplierId}`),
+
+  /** Curated lifecycle timeline for one PO (milestones with expandable changes). */
+  history: async (id) => apiRequest(`/purchase-orders/${id}/history`),
 };
 
 /* ======================
@@ -723,14 +994,6 @@ export const restockAPI = {
   },
   recalculate: async () =>
     apiRequest('/restock/recalculate', { method: 'POST' }),
-  createPR: async (items, neededByDate = null) =>
-    apiRequest('/restock/create-pr', {
-      method: 'POST',
-      body: JSON.stringify({
-        items,
-        ...(neededByDate ? { needed_by_date: neededByDate } : {}),
-      }),
-    }),
   getSuggestions: async (status = 'pending') =>
     apiRequest(`/restock/suggestions?status=${status}`),
   applySuggestion: async (id) =>
@@ -762,6 +1025,61 @@ export const receivingsAPI = {
   /** Per-product progress for a PO: ordered vs scanned, all serial numbers */
   poScanStatus: async (poId) =>
     apiRequest(`/receivings/po-scan-status/${poId}`),
+
+  /** Persistent receiving log, grouped by PO (not one row per scan). */
+  poLog: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/receivings/po-log${query ? `?${query}` : ''}`);
+  },
+};
+
+/* ======================
+   RECEIVING DRAFTS API
+====================== */
+/**
+ * Staged PO receiving. Scans and counts land in a server-side draft that the
+ * clerk reviews and corrects; only `submit` moves stock.
+ */
+export const receivingDraftsAPI = {
+  /** The open draft for this PO+warehouse, or `data: null` when there is none. */
+  getOpen: async (poId, locationId) => {
+    const query = new URLSearchParams({ po_id: poId, location_id: locationId }).toString();
+    return apiRequest(`/receiving-drafts?${query}`);
+  },
+
+  /** Opens a draft, or resumes the one already open for this PO+warehouse. */
+  open: async (payload) =>
+    apiRequest('/receiving-drafts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** payload: { po_detail_id, entry_mode, barcode?, quantity?, actual_pieces? } */
+  stageItem: async (draftId, payload) =>
+    apiRequest(`/receiving-drafts/${draftId}/items`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /** payload: { actual_pieces?, packages? } */
+  updateItem: async (draftId, itemId, payload) =>
+    apiRequest(`/receiving-drafts/${draftId}/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  removeItem: async (draftId, itemId) =>
+    apiRequest(`/receiving-drafts/${draftId}/items/${itemId}`, { method: 'DELETE' }),
+
+  discard: async (draftId) =>
+    apiRequest(`/receiving-drafts/${draftId}`, { method: 'DELETE' }),
+
+  /** The only call that posts to inventory. */
+  submit: async (draftId, acceptOverage = false) =>
+    apiRequest(`/receiving-drafts/${draftId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ accept_overage: acceptOverage }),
+    }),
 };
 
 /* ======================
@@ -792,6 +1110,8 @@ export const issuancesAPI = {
     return apiRequest(query ? `/issuances?${query}` : '/issuances');
   },
   getById: async (id) => apiRequest(`/issuances/${id}`),
+  cancel: async (id) =>
+    apiRequest(`/issuances/${id}/cancel`, { method: 'POST' }),
   create: async (data) =>
     apiRequest('/issuances', { method: 'POST', body: JSON.stringify(data) }),
   update: async (id, data) =>
@@ -852,6 +1172,69 @@ export const transfersAPI = {
   },
   restore: async (id) =>
     apiRequest(`/transfers/${id}/restore`, { method: 'POST' }),
+
+  /* ── Unified Transfers worklist workflow ──────────────────────────────
+     verify/reject (IA), dispatch scan (source), receive scan (destination),
+     and receipt. Body shapes are documented alongside each method. */
+
+  /** IA verifies a Pending transfer. body: { from_location_id?, to_location_id?, lines:[{transfer_detail_id, quantity_approved}] } */
+  verify: async (id, data) =>
+    apiRequest(`/transfers/${id}/verify`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  /** IA rejects a Pending transfer. body: { rejection_reason } */
+  reject: async (id, data) =>
+    apiRequest(`/transfers/${id}/reject`, { method: 'PATCH', body: JSON.stringify(data ?? {}) }),
+
+  /** Live per-product available stock at each candidate source warehouse. */
+  sourceAvailability: async (id) => apiRequest(`/transfers/${id}/source-availability`),
+
+  /** Requester (or admin/IA) edits a still-Pending request. body: { notes?, products:[{product_id, quantity_requested}] } */
+  updateRequest: async (id, data) =>
+    apiRequest(`/transfers/${id}/request`, { method: 'PATCH', body: JSON.stringify(data ?? {}) }),
+
+  /** Requester (or admin/IA) withdraws a still-Pending request (soft-deletes it). */
+  cancelRequest: async (id) =>
+    apiRequest(`/transfers/${id}/cancel`, { method: 'PATCH' }),
+
+  /** FIFO pick suggestions per line for an Approved transfer. */
+  pickList: async (id) => apiRequest(`/transfers/${id}/pick-list`),
+
+  /** Live per-line dispatch scan progress + history. */
+  scanStatus: async (id) => apiRequest(`/transfers/${id}/scan-status`),
+
+  /** Record one dispatch scan. body: { barcode, transfer_detail_id?, quantity? } */
+  scan: async (id, data) =>
+    apiRequest(`/transfers/${id}/scan`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  removeScan: async (id, scanId) =>
+    apiRequest(`/transfers/${id}/scan/${scanId}`, { method: 'DELETE' }),
+
+  confirmDispatch: async (id) =>
+    apiRequest(`/transfers/${id}/confirm-dispatch`, { method: 'POST' }),
+
+  /** Record one receive scan. body: { barcode, transfer_detail_id?, quantity? } */
+  receiveScan: async (id, data) =>
+    apiRequest(`/transfers/${id}/receive-scan`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  removeReceiveScan: async (id, scanId) =>
+    apiRequest(`/transfers/${id}/receive-scan/${scanId}`, { method: 'DELETE' }),
+
+  /** Record one dispatch hand count (no barcode). body: { transfer_detail_id, quantity } */
+  countScan: async (id, data) =>
+    apiRequest(`/transfers/${id}/count-scan`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  /** Record one receive hand count (no barcode). body: { transfer_detail_id, quantity } */
+  countReceiveScan: async (id, data) =>
+    apiRequest(`/transfers/${id}/count-receive-scan`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  /** Confirm receipt (-> Received). body: {} (backend infers receive location from user). */
+  receiveConfirm: async (id, data) =>
+    apiRequest(`/transfers/${id}/receive-confirm`, { method: 'POST', body: JSON.stringify(data ?? {}) }),
+
+  receipt: async (id) => apiRequest(`/transfers/${id}/receipt`),
+
+  receiptPdfUrl: (id, token) =>
+    `${getApiBaseUrl()}/transfers/${id}/receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`,
 };
 
 /* ======================
@@ -874,9 +1257,13 @@ export const istAPI = {
   receiveScan:       async (id, data)   => apiRequest(`/ist/${id}/receive-scan`, { method: 'POST', body: JSON.stringify(data) }),
   removeReceiveScan: async (id, scanId) => apiRequest(`/ist/${id}/receive-scan/${scanId}`, { method: 'DELETE' }),
   receipt:           async (id)         => apiRequest(`/ist/${id}/receipt`),
-  receiptPdfUrl:     (id)               => {
+  receiptPdfUrl:     (id, paperSize = null) => {
     const token = getToken();
-    return `${getApiBaseUrl()}/ist/${id}/receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    if (paperSize) params.set('paper_size', paperSize);
+    const query = params.toString();
+    return `${getApiBaseUrl()}/transfers/${id}/receipt/pdf${query ? `?${query}` : ''}`;
   },
 };
 
@@ -942,6 +1329,16 @@ export const warrantyClaimsAPI = {
   getById: async (id) => apiRequest(`/warranty-claims/${id}`),
   init: async (data) =>
     apiRequest('/warranty-claims/init', { method: 'POST', body: JSON.stringify(data) }),
+  addCustomOrderLine: async (id, productId, quantityInPieces) =>
+    apiRequest(`/warranty-claims/${id}/order/custom`, {
+      method: 'POST', body: JSON.stringify({ product_id: productId, quantity_in_pieces: quantityInPieces }),
+    }),
+  addSetOrder: async (id, setId, quantity) =>
+    apiRequest(`/warranty-claims/${id}/order/set`, {
+      method: 'POST', body: JSON.stringify({ set_id: setId, quantity }),
+    }),
+  removeOrderLine: async (id, detailId) =>
+    apiRequest(`/warranty-claims/${id}/order/${detailId}`, { method: 'DELETE' }),
   addItem: async (id, data) =>
     apiRequest(`/warranty-claims/${id}/item`, { method: 'POST', body: JSON.stringify(data) }),
   removeItem: async (id, detailId) =>
@@ -949,6 +1346,8 @@ export const warrantyClaimsAPI = {
   complete: async (id) =>
     apiRequest(`/warranty-claims/${id}/complete`, { method: 'POST' }),
   slipUrl: (id) => `/warranty-claims/${id}/slip`,
+  receiptPdfPath: (id, preview = false) =>
+    `/warranty-claims/${id}/receipt/pdf${preview ? '?preview=1' : ''}`,
 };
 
 /* ======================
@@ -991,13 +1390,49 @@ export const issuanceScanAPI = {
     apiRequest(`/issuance-scan/item/${detailId}`, { method: 'DELETE' }),
   getSession: async (issuanceId) =>
     apiRequest(`/issuance-scan/session/${issuanceId}`),
+  activeDraft: async () => apiRequest('/issuance-scan/active-draft'),
   complete: async (issuanceId) =>
     apiRequest(`/issuance-scan/complete/${issuanceId}`, { method: 'POST' }),
-  drCsvUrl: (issuanceId) => {
+  revertToDraft: async (issuanceId) =>
+    apiRequest(`/issuance-scan/${issuanceId}/revert-to-draft`, { method: 'POST' }),
+  revertToDraftUrl: (issuanceId) => {
     const base = getApiBaseUrl();
     const token = getToken();
-    return `${base}/issuance-scan/delivery-receipt/${issuanceId}/csv${token ? '?token=' + token : ''}`;
+    return `${base}/issuance-scan/${issuanceId}/revert-to-draft-beacon${token ? '?token=' + token : ''}`;
   },
+  drPdfUrl: (issuanceId, preview = false, paperSize = null) => {
+    const base = getApiBaseUrl();
+    const token = getToken();
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    if (preview) params.set('preview', '1');
+    if (paperSize) params.set('paper_size', paperSize);
+    const query = params.toString();
+    return `${base}/issuance-scan/delivery-receipt/${issuanceId}/pdf${query ? '?' + query : ''}`;
+  },
+};
+
+/* ======================
+   ISSUANCE ORDER API (Order → Quote wizard: draft line management)
+====================== */
+export const issuanceOrderAPI = {
+  /** Priced quote + grouped lines for a draft/pending issuance. GET /issuances/{id}/quote */
+  quote: async (id) => apiRequest(`/issuances/${id}/quote`),
+  /** Add a BOQ set to the order. payload: { set_id, set_quantity } */
+  addSet: async (id, payload) =>
+    apiRequest(`/issuances/${id}/lines/set`, { method: 'POST', body: JSON.stringify(payload) }),
+  /** Add a loose custom line. payload: { product_id, quantity } */
+  addCustom: async (id, payload) =>
+    apiRequest(`/issuances/${id}/lines/custom`, { method: 'POST', body: JSON.stringify(payload) }),
+  /** Change a line's quantity. payload: { quantity } */
+  updateLine: async (id, lineId, payload) =>
+    apiRequest(`/issuances/${id}/lines/${lineId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  /** Remove a line from the order. */
+  removeLine: async (id, lineId) =>
+    apiRequest(`/issuances/${id}/lines/${lineId}`, { method: 'DELETE' }),
+  /** Confirm the quote → transitions Draft to Pending. payload: { accept_shortages? } */
+  confirmQuote: async (id, payload = {}) =>
+    apiRequest(`/issuances/${id}/confirm-quote`, { method: 'POST', body: JSON.stringify(payload) }),
 };
 
 /* ======================
@@ -1013,6 +1448,7 @@ export const categoriesAPI = {
     apiRequest(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) => apiRequest(`/categories/${id}`, { method: 'DELETE' }),
   restore: async (id) => apiRequest(`/categories/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/categories/${id}/force`, { method: 'DELETE' }),
 };
 
 /* ======================
@@ -1035,6 +1471,7 @@ export const unitsAPI = {
   },
   restore: async (id) =>
     apiRequest(`/units/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/units/${id}/force`, { method: 'DELETE' }),
 };
 
 /* ======================
@@ -1049,6 +1486,109 @@ export const brandsAPI = {
     apiRequest(`/brands/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: async (id) => apiRequest(`/brands/${id}`, { method: 'DELETE' }),
   restore: async (id) => apiRequest(`/brands/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/brands/${id}/force`, { method: 'DELETE' }),
+};
+
+/* ======================
+   CAPACITIES API
+====================== */
+export const capacitiesAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/capacities?${query}` : '/capacities');
+  },
+  getArchived: async () => apiRequest('/capacities/archived'),
+  create: async (data) =>
+    apiRequest('/capacities', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/capacities/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: async (id) => apiRequest(`/capacities/${id}`, { method: 'DELETE' }),
+  restore: async (id) => apiRequest(`/capacities/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/capacities/${id}/force`, { method: 'DELETE' }),
+  merge: async (id, targetId) =>
+    apiRequest(`/capacities/${id}/merge`, { method: 'POST', body: JSON.stringify({ target_id: targetId }) }),
+};
+
+/* ======================
+   VARIANTS API
+====================== */
+export const variantsAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/variants?${query}` : '/variants');
+  },
+  getArchived: async () => apiRequest('/variants/archived'),
+  create: async (data) =>
+    apiRequest('/variants', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/variants/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: async (id) => apiRequest(`/variants/${id}`, { method: 'DELETE' }),
+  restore: async (id) => apiRequest(`/variants/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/variants/${id}/force`, { method: 'DELETE' }),
+  merge: async (id, targetId) =>
+    apiRequest(`/variants/${id}/merge`, { method: 'POST', body: JSON.stringify({ target_id: targetId }) }),
+};
+
+/* ======================
+   AC TYPES API
+====================== */
+export const acTypesAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/ac-types?${query}` : '/ac-types');
+  },
+  getArchived: async () => apiRequest('/ac-types/archived'),
+  create: async (data) =>
+    apiRequest('/ac-types', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/ac-types/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: async (id) => apiRequest(`/ac-types/${id}`, { method: 'DELETE' }),
+  restore: async (id) => apiRequest(`/ac-types/${id}/restore`, { method: 'POST' }),
+  forceDelete: async (id) => apiRequest(`/ac-types/${id}/force`, { method: 'DELETE' }),
+  // No `merge` here on purpose: the backend registers no merge route for this
+  // lookup. Merging exists to fold two spellings of a string-valued lookup
+  // together, and ac_type_id is a foreign key.
+};
+
+/* ======================
+   AIRCON MODELS API
+====================== */
+export const airconModelsAPI = {
+  /** `active_only` defaults to true server-side; pass active_only:false to widen. */
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/aircon-models?${query}` : '/aircon-models');
+  },
+  /** Soft-deleted models only. Gated on read, not archive — an auditor may look. */
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/aircon-models/archived?${query}` : '/aircon-models/archived');
+  },
+  getById: async (id) => apiRequest(`/aircon-models/${id}`),
+  create: async (data) =>
+    apiRequest('/aircon-models', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/aircon-models/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: async (id) => apiRequest(`/aircon-models/${id}`, { method: 'DELETE' }),
+  restore: async (id) => apiRequest(`/aircon-models/${id}/restore`, { method: 'POST' }),
+  /**
+   * Splits a legacy single-row aircon into an indoor/outdoor pair and returns
+   * the composed model.
+   *
+   * Keyed on a PRODUCT id, not a model id — there is no model yet; that is
+   * what this call produces. It lives on airconModelsAPI rather than
+   * productsAPI because the route is gated on aircon_model_management and its
+   * result is a model in the same shape getAll() returns.
+   *
+   * The existing product row survives the conversion and keeps its
+   * product_id; only the partner side is newly created. Anything already
+   * holding that id stays valid.
+   */
+  convert: async (productId, data) =>
+    apiRequest(`/products/${productId}/convert-to-two-piece`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 /* ======================
@@ -1082,6 +1622,50 @@ export const scanEventsAPI = {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/scan-events?${query}` : '/scan-events');
   },
+};
+
+/* ======================
+   BARCODE LABEL PRINTING API
+   Stickers sent straight to the Zebra. A browser cannot choose a printer or
+   skip the print dialog, so direct printing runs through the server; the PDF
+   path in printBarcodeLabels.js is the fallback when no printer is wired up.
+====================== */
+export const barcodeLabelsAPI = {
+  status: async () => apiRequest('/barcode-labels/status'),
+
+  /* The tag population to print from. `filters` maps straight onto the query
+     string the queue endpoint reads — empty values are dropped so a cleared
+     filter does not arrive as `?q=`. */
+  queue: async (filters = {}, page = 1, perPage = 24) => {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== '' && value != null) params.append(key, String(value));
+    });
+
+    return apiRequest(`/barcode-labels/queue?${params.toString()}`);
+  },
+
+  /* Every id matching those same filters, for "select all matching". Capped
+     server-side; the response says whether it truncated. */
+  queueIds: async (filters = {}) => {
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== '' && value != null) params.append(key, String(value));
+    });
+
+    return apiRequest(`/barcode-labels/queue/ids?${params.toString()}`);
+  },
+
+  /* mode 'bulk' (default) prints only tags we minted; 'single' is one
+     deliberate reprint and accepts a supplier or manufacturer code too. The
+     server enforces both — this argument only states the intent. */
+  print: async (serialIds, mode = 'bulk') =>
+    apiRequest('/barcode-labels/print', {
+      method: 'POST',
+      body: JSON.stringify({ serial_ids: serialIds, mode }),
+    }),
 };
 
 /* ======================
@@ -1155,6 +1739,33 @@ export const productsAPI = {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/products?${query}` : '/products');
   },
+  /**
+   * Every product matching `params`, not just the first page.
+   *
+   * getAll() with a big per_page is a silent truncation: the catalogue outgrew
+   * the guessed cap and products past it simply vanished from pickers, which
+   * reads to the user as "the product I have stock in isn't there". This walks
+   * `pagination.last_page` instead of guessing, so the list is complete
+   * whatever the catalogue size. The page cap is a runaway guard only.
+   */
+  getAllPages: async (params = {}, { perPage = 200, maxPages = 50 } = {}) => {
+    const first = await productsAPI.getAll({ ...params, per_page: perPage, page: 1 });
+    const items = Array.isArray(first?.data) ? [...first.data] : [];
+
+    const lastPage = Number(first?.pagination?.last_page) || 1;
+    const pages = Math.min(lastPage, maxPages);
+
+    for (let page = 2; page <= pages; page += 1) {
+      // Sequential, not parallel: the picker opens on a page that is already
+      // firing several lookups, and the catalogue is small enough that a burst
+      // of concurrent requests costs more than it saves.
+      // eslint-disable-next-line no-await-in-loop
+      const res = await productsAPI.getAll({ ...params, per_page: perPage, page });
+      if (Array.isArray(res?.data)) items.push(...res.data);
+    }
+
+    return { ...first, data: items };
+  },
   getById: async (id) => apiRequest(`/products/${id}`),
   create: async (data) =>
     apiRequest('/products', {
@@ -1174,15 +1785,204 @@ export const productsAPI = {
   },
   restore: async (id) =>
     apiRequest(`/products/${id}/restore`, { method: 'POST' }),
-  getIssuableUnits: async (productId) =>
-    apiRequest(`/products/${productId}/issuable-units`),
-  storeIssuableUnit: async (productId, data) =>
-    apiRequest(`/products/${productId}/issuable-units`, {
-      method: 'POST',
-      body: JSON.stringify(data),
+};
+
+/* ======================
+   PRODUCT SETS API (BOQ templates)
+====================== */
+export const productSetsAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/product-sets?${query}` : '/product-sets');
+  },
+  getById: async (id) => apiRequest(`/product-sets/${id}`),
+  create: async (data) =>
+    apiRequest('/product-sets', { method: 'POST', body: JSON.stringify(data) }),
+  update: async (id, data) =>
+    apiRequest(`/product-sets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  archive: async (id) =>
+    apiRequest(`/product-sets/${id}`, { method: 'DELETE' }),
+  /** Ranked set suggestions for a chosen appliance product. */
+  suggest: async (productId) =>
+    apiRequest(`/product-sets/suggest?product_id=${productId}`),
+  /** Soft-deleted sets only. */
+  getArchived: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/product-sets/archived?${query}` : '/product-sets/archived');
+  },
+  /** Refused with 422 if a live set has since taken the same set_code. */
+  restore: async (id) =>
+    apiRequest(`/product-sets/${id}/restore`, { method: 'POST' }),
+};
+
+/* ======================
+   INCIDENT REPORTS API
+====================== */
+/* stockHoldsAPI is gone with /stock-holds and its Dispose action: holds became
+   incident_items, and the inspection replaced the disposition. See
+   incidentItemsAPI at the end of this section. */
+
+/**
+ * A private-disk image as a Blob.
+ *
+ * Incident photos sit behind `permission:incident_reports,read` on the `local`
+ * disk, so a plain <img src> would 401 — the browser sends no Authorization
+ * header. Same approach the GRN PDF downloads use (see openApiFile): fetch with
+ * the Bearer header, hand the caller a blob to turn into an object URL.
+ */
+const fetchBlobWithAuth = async (path) => {
+  const token = getToken();
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    headers: {
+      Accept: '*/*',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!res.ok) {
+    let msg = `Failed to load photo (${res.status})`;
+    try {
+      const j = await res.json();
+      if (j?.message) msg = j.message;
+    } catch (_) { /* not JSON */ }
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  return res.blob();
+};
+
+export const incidentReportsAPI = {
+  list: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/incident-reports?${query}` : '/incident-reports');
+  },
+  /**
+   * Resolve a scanned or typed barcode to the product an incident is about.
+   * Returns { data: { matched_by, product, serial, location_quantity, batches } }.
+   *
+   * `matched_by` distinguishes how it was found:
+   *   'serial'            — an in-stock, issuable unit
+   *   'serial_any_state'  — a unit found outside the in-stock path (damaged,
+   *                         issued, written off). `serial.in_stock` is false.
+   *   'product_barcode'   — a product barcode; `serial` is null
+   *   'receiving_barcode' — the label applied at PO receiving; `serial` is null,
+   *                         but this IS a successful product match, not a miss
+   *
+   * Throws on 404 (no match) — the caller keeps the manual picker visible.
+   */
+  lookup: async ({ barcode, locationId }) => {
+    const q = new URLSearchParams({ barcode, location_id: String(locationId) }).toString();
+    return apiRequest(`/incident-reports/lookup?${q}`);
+  },
+  /**
+   * File a new incident report (POST /incident-reports). Payload keys the store
+   * endpoint validates: source_type ('issuance'|'transfer'|'standalone'),
+   * source_id (required unless standalone), related_issuance_id?, location_id,
+   * product_id + quantity (required unless reason is 'other'), batch_id?,
+   * serial_id?, expected_zone?, actual_zone?, occurred_at?, photo_path?,
+   * reason (not_found|theft|damaged|delivery_damage|wrong_type|zone_mismatch|
+   * customer_return|other), narrative.
+   */
+  file: async (payload) =>
+    apiRequest('/incident-reports', { method: 'POST', body: JSON.stringify(payload) }),
+  /**
+   * Upload an evidence photo first, then submit the returned path as
+   * `photo_path` when filing. Returns { data: { path } }.
+   */
+  uploadPhoto: async (file) => {
+    const form = new FormData();
+    form.append('photo', file);
+    return uploadRequest('/incident-reports/photo', form);
+  },
+  /**
+   * Evidence photo as a Blob. Photos are on a private disk behind
+   * `permission:incident_reports,read`, so a plain <img src> would 401 — the
+   * browser sends no Authorization header. Same approach the GRN PDF downloads
+   * use (see openApiFile): fetch with the Bearer header, hand the caller a blob.
+   */
+  photoBlob: async (id) => fetchBlobWithAuth(`/incident-reports/${id}/photo`),
+  /**
+   * One report in full: header, `items` (each with the inspector's outcome) and
+   * `evidence` (each either a photo or a skip with its written reason).
+   *
+   * Prefer `status_name` over `status_id` for every decision this client makes.
+   * The ids are install-specific — Awaiting Inspection is 53 on one database and
+   * 1862 on another — so branching on the number works here and is wrong on the
+   * next install.
+   */
+  get: async (id) => apiRequest(`/incident-reports/${id}`),
+
+  /**
+   * Attach one checklist requirement: `{ requirement, photo_path, photo_source }`
+   * for a photo, or `{ requirement, skipped_reason }` for a skip. One or the
+   * other — the server rejects neither.
+   *
+   * Photos go up through uploadPhoto() first; `photo_path` is what it returns.
+   */
+  addEvidence: async (id, payload) =>
+    apiRequest(`/incident-reports/${id}/evidence`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  removeEvidence: async (id, evidenceId) =>
+    apiRequest(`/incident-reports/${id}/evidence/${evidenceId}`, { method: 'DELETE' }),
+
+  /** An evidence photo as a Blob — same private-disk reasoning as photoBlob(). */
+  evidencePhotoBlob: async (id, evidenceId) =>
+    fetchBlobWithAuth(`/incident-reports/${id}/evidence/${evidenceId}/photo`),
+
+  /** The inspector's decision on ONE physical item: { outcome, note? }. */
+  setItemOutcome: async (id, itemId, payload) =>
+    apiRequest(`/incident-reports/${id}/items/${itemId}/outcome`, {
+      method: 'POST', body: JSON.stringify(payload),
     }),
-  destroyIssuableUnit: async (iuId) =>
-    apiRequest(`/products/issuable-units/${iuId}`, { method: 'DELETE' }),
+
+  /** Submit the inspection: Open or Awaiting Inspection → Awaiting Approval. Moves no stock. */
+  submitInspection: async (id, payload) =>
+    apiRequest(`/incident-reports/${id}/inspection`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  /**
+   * The admin's decision: `{ action: 'confirm' | 'reject' | 'dismiss' }`.
+   * `reject` requires `rejection_note`. **`confirm` is what moves the stock** —
+   * nothing before it has changed a quantity.
+   */
+  decide: async (id, payload) =>
+    apiRequest(`/incident-reports/${id}/decide`, { method: 'POST', body: JSON.stringify(payload) }),
+};
+
+/**
+ * The register of stock held out of inventory by an incident — quarantined,
+ * scrapped, returned or missing. Read-only: the old Dispose action is gone,
+ * because the inspection replaced it.
+ *
+ * `status` defaults to `quarantined` server-side; pass `all` for history.
+ */
+export const incidentItemsAPI = {
+  list: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/incident-items?${query}` : '/incident-items');
+  },
+};
+
+/* ======================
+   INVENTORY BATCHES API
+   GET /inventory-batches returns every batch with remaining stock, already
+   scoped server-side to the caller's location (centralized users see all).
+   Flat array under `data` — not paginated, and query params are ignored.
+====================== */
+export const inventoryBatchesAPI = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/inventory-batches?${query}` : '/inventory-batches');
+  },
+};
+
+/* ======================
+   PICKING API (shared FIFO pick plan for issuance + transfer dispatch)
+====================== */
+export const pickingAPI = {
+  /** FIFO pick plan for an issuance order. GET /issuances/{id}/pick-plan */
+  issuancePlan: async (id) => apiRequest(`/issuances/${id}/pick-plan`),
+  /** FIFO pick list for a transfer (IST) dispatch. GET /transfers/{id}/pick-list */
+  transferPlan: async (id) => apiRequest(`/transfers/${id}/pick-list`),
 };
 
 /* ======================
@@ -1217,6 +2017,8 @@ export const usersAPI = {
   },
   restore: async (id) =>
     apiRequest(`/users/${id}/restore`, { method: 'POST' }),
+  resendCredentials: async (id) =>
+    apiRequest(`/users/${id}/resend-credentials`, { method: 'POST' }),
 };
 
 /* ======================
@@ -1236,11 +2038,11 @@ export const profitLossAPI = {
 };
 
 /* ======================
-   CONSUMABLE SUPPLY + PENDING PRODUCT REGISTRATION
+   INSTALLATION MATERIAL SUPPLY + PENDING PRODUCT REGISTRATION
 ====================== */
-export const consumableSupplyAPI = {
-  getCatalog: async () => apiRequest('/consumable-supply/catalog'),
-  /** Same values validated on POST /pending-products (consumable supply_type). */
+export const installationMaterialSupplyAPI = {
+  getCatalog: async () => apiRequest('/installation-material-supply/catalog'),
+  /** Same values validated on POST /pending-products (installation material supply_type). */
   getSupplyTypes: async () => apiRequest('/supply-types'),
 };
 
@@ -1262,12 +2064,17 @@ export const pendingProductsAPI = {
    PURCHASE REQUESTS API  (PR → PO workflow)
 ====================== */
 export const purchaseRequestsAPI = {
+  getLowStock: async (locationId) =>
+    apiRequest(`/purchase-requests/low-stock?${new URLSearchParams({ location_id: locationId })}`),
   getAll: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/purchase-requests?${query}` : '/purchase-requests');
   },
 
   getById: async (id) => apiRequest(`/purchase-requests/${id}`),
+
+  /** Curated lifecycle timeline for one PR (milestones with expandable changes). */
+  history: async (id) => apiRequest(`/purchase-requests/${id}/history`),
 
   create: async (data) =>
     apiRequest('/purchase-requests', { method: 'POST', body: JSON.stringify(data) }),
@@ -1381,11 +2188,6 @@ export const budgetAllocationsAPI = {
   restore: async (id) =>
     apiRequest(`/budget-allocations/${id}/restore`, { method: 'POST' }),
 
-  verify: async (id, note) =>
-    apiRequest(`/budget-allocations/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ note: note ?? null }) }),
-
-  reject: async (id, reason) =>
-    apiRequest(`/budget-allocations/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
 };
 
 /* ======================
@@ -1405,7 +2207,7 @@ export const barcodeScanAPI = {
   },
   create: async (data) =>
     apiRequest('/barcode-scans', { method: 'POST', body: JSON.stringify(data) }),
-  /** Smart lookup: FOUND | NOT_FOUND | PENDING_CONSUMABLE */
+  /** Smart lookup: FOUND | NOT_FOUND | PENDING_INSTALLATION_MATERIAL */
   lookup: async (barcode) =>
     apiRequest('/barcode/scan', {
       method: 'POST',
@@ -1447,5 +2249,58 @@ export const barcodeAdjustmentAPI = {
   getComplianceLogs: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/compliance/logs?${query}` : '/compliance/logs');
+  },
+};
+
+/* ======================
+   REPORTS API
+   The catalog is the single source of truth for what a card offers and what
+   a generate dialog asks for — see App\Http\Controllers\Api\ReportController.
+====================== */
+export const reportsAPI = {
+  /** GET /reports/catalog → [{key, title, description, formats, parameters}] */
+  getCatalog: async () => apiRequest('/reports/catalog'),
+
+  /**
+   * POST /reports/generate. `parameters` is the flat wire object the dialog
+   * built (e.g. { date_from, date_to, location_id }) — the backend validates
+   * it against the report's own declared parameters.
+   */
+  generate: async ({ reportKey, format, parameters = {} }) =>
+    apiRequest('/reports/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        report_key: reportKey,
+        format,
+        parameters,
+      }),
+    }),
+
+  /**
+   * GET /reports/filter-users → [{user_id, first_name, last_name, username}]
+   * for the `user` parameter's dropdown. Not usersAPI.getAll: that route is
+   * gated on user_account_management.read (admin only), while reports are
+   * open to inventory_analyst and auditor too.
+   */
+  getFilterUsers: async () => apiRequest('/reports/filter-users'),
+
+  /** GET /reports/runs — paginated, newest first. */
+  getRuns: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(query ? `/reports/runs?${query}` : '/reports/runs');
+  },
+
+  /**
+   * Browser-navigable URL for a run's file. Uses a query-token rather than a
+   * fetch + blob because a top-level navigation (download / new-tab view)
+   * cannot set an Authorization header — see auth.query.token middleware.
+   */
+  fileUrl: (runId, { inline = false } = {}) => {
+    const token = getToken();
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    if (inline) params.set('inline', '1');
+    const query = params.toString();
+    return `${getApiBaseUrl()}/reports/runs/${runId}/file${query ? `?${query}` : ''}`;
   },
 };

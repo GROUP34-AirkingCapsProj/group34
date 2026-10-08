@@ -3,16 +3,18 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { authAPI, layoutAPI, resolveStorageUrl } from '../services/api';
 import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
-import { getEcho } from '../utils/echo';
 import { channelFor, REALTIME_EVENTS } from '../utils/realtimeChannel';
 import { playNotifySound, initNotifySound } from '../utils/notifySound';
+import { shouldChimeForBadge } from '../utils/badgeChime';
 import { buildSidebar } from '../utils/sidebarBuilder';
 import Sidebar, { adminMenuSections, prefetchRoute, avatarColor } from '../components/Sidebar';
 import LocationBadge from '../components/LocationBadge';
+import ThemeToggle from '../components/ThemeToggle';
 import '../styles/dashboard_air.css';
 import '../styles/airking_ds.css';
 import '../styles/global_overrides.css';
 import '../styles/responsive.css';
+import '../styles/theme_dark.css';
 
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
@@ -34,7 +36,12 @@ const AdminLayout = ({ children }) => {
   const profileRef = useRef(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const prevBadgeRef = useRef(0);
-  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  // Whether prevBadgeRef holds a real reading yet. The first summary response
+  // describes what was already waiting when the page opened, which is not news
+  // and must not chime -- without this, every page load with unread
+  // notifications would ring.
+  const badgeBaselineRef = useRef(false);
+  const [pendingPrCount, setPendingPrCount] = useState(0);
   const [awaitingIstCount, setAwaitingIstCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState(() => new Set());
@@ -82,9 +89,23 @@ const AdminLayout = ({ children }) => {
         const res = await layoutAPI.getSummary();
         const d = res?.data ?? {};
         if (!mounted) return;
-        setUnreadNotifications(Number(d.badge_count ?? 0));
-        prevBadgeRef.current = Number(d.badge_count ?? 0);
-        setPendingApprovalCount(Number(d.total_pending ?? 0));
+        const nextBadge = Number(d.badge_count ?? 0);
+
+        // The chime used to live only on the Reverb path, so deployments
+        // without a WebSocket server were silent however many notifications
+        // arrived -- the badge moved and nothing else did. Ringing on a rise
+        // here is what actually makes the comment below ("falls back to the
+        // 60s poll") true of the sound and not just the counts.
+        //
+        // See badgeChime.js for why a rise is the only case that rings.
+        if (shouldChimeForBadge(prevBadgeRef.current, nextBadge, badgeBaselineRef.current)) {
+          playNotifySound();
+        }
+        badgeBaselineRef.current = true;
+
+        setUnreadNotifications(nextBadge);
+        prevBadgeRef.current = nextBadge;
+        setPendingPrCount(Number(d.pending_pr_count ?? 0));
         setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
       } catch (_) {
         // leave existing counts on transient failure
@@ -102,17 +123,22 @@ const AdminLayout = ({ children }) => {
     };
   }, []);
 
-  // Realtime: push updates to the bell instantly via Echo/Reverb. Falls back to
-  // the 60s poll above when Reverb is unreachable. Only the push path plays sound.
+  // Realtime: defer Echo/Pusher until the browser is idle so dashboard APIs
+  // win the first-paint race. Falls back to the 60s poll above when Reverb is
+  // down -- for the chime as well as the counts, which is only true since the
+  // poll learned to ring on a rise. Deployed builds have no
+  // REACT_APP_REVERB_APP_KEY, so getEcho() returns null and this path never
+  // runs there; the poll is the whole notification story in production.
   useEffect(() => {
     if (!can('notification_panel', 'read')) return;
     const channelName = channelFor(user);
     if (!channelName) return;
-    const echo = getEcho();
-    if (!echo) return;
 
     let cancelled = false;
     let burstTimer = null;
+    let channel;
+    let echo;
+    let idleId;
 
     const refreshAndChime = async () => {
       try {
@@ -120,37 +146,55 @@ const AdminLayout = ({ children }) => {
         const d = res?.data ?? {};
         if (cancelled) return;
         setUnreadNotifications(Number(d.badge_count ?? 0));
+        // Also marks the baseline as taken, so the next poll compares against
+        // this reading and does not chime a second time for the same event.
         prevBadgeRef.current = Number(d.badge_count ?? 0);
-        setPendingApprovalCount(Number(d.total_pending ?? 0));
+        badgeBaselineRef.current = true;
+        setPendingPrCount(Number(d.pending_pr_count ?? 0));
         setAwaitingIstCount(Number(d.awaiting_fulfillment ?? 0) + Number(d.awaiting_receipt ?? 0));
-        // Chime on every notification (Messenger-style), not only when a count grew.
+        // Unconditional here: a socket event is itself the news, so there is no
+        // count to compare against -- unlike the poll, which only sees totals.
         playNotifySound();
       } catch (_) {
         // ignore — poll will reconcile
       }
     };
 
-    // One user action can emit several events; coalesce a burst into a single
-    // refetch + a single chime.
     const onEvent = () => {
       if (burstTimer) clearTimeout(burstTimer);
       burstTimer = setTimeout(refreshAndChime, 300);
     };
 
-    let channel;
-    try {
-      channel = echo.private(channelName);
-      REALTIME_EVENTS.forEach((evt) => channel.listen(evt, onEvent));
-    } catch (_) {
-      return;
+    const subscribe = async () => {
+      try {
+        const mod = await import('../utils/echo');
+        if (cancelled) return;
+        echo = mod.getEcho();
+        if (!echo) return;
+        channel = echo.private(channelName);
+        REALTIME_EVENTS.forEach((evt) => channel.listen(evt, onEvent));
+      } catch (_) {
+        // poll fallback remains
+      }
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(subscribe, { timeout: 4000 });
+    } else {
+      idleId = setTimeout(subscribe, 2000);
     }
 
     return () => {
       cancelled = true;
       if (burstTimer) clearTimeout(burstTimer);
+      if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof idleId === 'number') {
+        try { window.cancelIdleCallback(idleId); } catch (_) { /* ignore */ }
+      } else {
+        clearTimeout(idleId);
+      }
       try {
         REALTIME_EVENTS.forEach((evt) => channel && channel.stopListening(evt));
-        echo.leave(channelName);
+        if (echo && channelName) echo.leave(channelName);
       } catch (_) {
         // ignore
       }
@@ -176,20 +220,20 @@ const AdminLayout = ({ children }) => {
     return sessionStorage.getItem('activeNavItem') || '';
   });
 
-  // Prefetch ALL routes immediately after mount so every page's JS chunk
-  // is already in the browser cache before the user clicks anything.
+  // Soft prefetch: only a couple of likely next pages, after idle — hover still prefetches.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      [
-        '/admin/dashboard',
-        '/admin/inventory',
-        '/admin/po-recommendations',
-        '/admin/items',
-        '/admin/transactions',
-        '/admin/purchase-orders',
-      ].forEach(prefetchRoute);
-    }, 1000);
-    return () => clearTimeout(timer);
+    const run = () => {
+      ['/admin/inventory', '/admin/draft-po-creator'].forEach(prefetchRoute);
+    };
+    let idleId;
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(run, { timeout: 8000 });
+      return () => {
+        try { window.cancelIdleCallback(idleId); } catch (_) { /* ignore */ }
+      };
+    }
+    idleId = setTimeout(run, 5000);
+    return () => clearTimeout(idleId);
   }, []);
 
   const handleNavHover = useCallback((path) => {
@@ -312,7 +356,7 @@ const AdminLayout = ({ children }) => {
         roleKey={roleKey}
         roleMeta={roleMeta}
         onLogout={handleLogout}
-        pendingApprovalCount={pendingApprovalCount}
+        pendingPrCount={pendingPrCount}
         awaitingIstCount={awaitingIstCount}
         navLoading={permissionsLoading}
       />
@@ -340,6 +384,7 @@ const AdminLayout = ({ children }) => {
               locationName={userLocationName}
               className="header-location-badge"
             />
+            <ThemeToggle />
             {can('notification_panel', 'read') && (
               <button
                 type="button"

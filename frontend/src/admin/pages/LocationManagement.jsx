@@ -300,7 +300,7 @@ const LocationManagement = () => {
             </div>
           ))}
           {!loading && locations.length === 0 && (
-            <p style={{ color: '#9ca3af', gridColumn: '1/-1', textAlign: 'center', padding: 24 }}>No locations found.</p>
+            <p style={{ color: 'var(--text-label)', gridColumn: '1/-1', textAlign: 'center', padding: 24 }}>No locations found.</p>
           )}
         </div>
       ) : (
@@ -322,7 +322,7 @@ const LocationManagement = () => {
               </thead>
               <tbody>
                 {locations.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>{loading ? <Loader /> : 'No locations found'}</td></tr>
+                  <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-label)', padding: 24 }}>{loading ? <Loader /> : 'No locations found'}</td></tr>
                 ) : (
                   locations.map((loc) => (
                     <tr key={loc.location_id ?? loc.id}>

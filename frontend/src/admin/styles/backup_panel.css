@@ -1,0 +1,357 @@
+/* Backup panel — System Configuration tab */
+.bp-root {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.bp-loading {
+  padding: 28px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.bp-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bp-stat {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bp-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+
+.bp-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.bp-stat-value--sm {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.bp-stat-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.bp-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 14px;
+}
+
+.bp-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.bp-card--wide {
+  padding-bottom: 10px;
+}
+
+.bp-card-head h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  color: var(--text-dark);
+}
+
+.bp-card-head p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.bp-card-head--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bp-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-body);
+}
+
+.bp-field {
+  margin-bottom: 12px;
+}
+
+.bp-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-slate-700);
+  margin-bottom: 5px;
+}
+
+.bp-field input,
+.bp-field select {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 13px;
+  background: var(--bg-card);
+}
+
+.bp-summary {
+  margin-top: 8px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.bp-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.bp-summary span {
+  color: var(--text-muted);
+}
+
+.bp-summary strong {
+  color: var(--text-dark);
+  text-align: right;
+  font-weight: 600;
+}
+
+.bp-path {
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.bp-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.bp-btn {
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.bp-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bp-btn--ghost {
+  background: var(--bg-card);
+  border-color: var(--border-strong);
+  color: var(--text-body);
+}
+
+.bp-btn--primary {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+.bp-btn--block {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+}
+
+.bp-safety {
+  margin: 0 0 14px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink-slate-700);
+  line-height: 1.45;
+}
+
+.bp-safety li {
+  margin-bottom: 8px;
+}
+
+.bp-db {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.bp-db span {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.bp-db strong {
+  font-size: 14px;
+  color: var(--text-dark);
+}
+
+.bp-table-wrap {
+  overflow-x: auto;
+}
+
+.bp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.bp-table th,
+.bp-table td {
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.bp-table th {
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 11px;
+}
+
+.bp-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  max-width: 220px;
+  word-break: break-all;
+}
+
+.bp-details {
+  max-width: 180px;
+  color: var(--ink-slate-700);
+}
+
+.bp-empty {
+  text-align: center;
+  color: var(--text-label);
+  padding: 24px 8px !important;
+}
+
+.bp-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.bp-badge--success {
+  background: var(--tint-green);
+  color: var(--ink-green-800);
+}
+
+.bp-badge--failed {
+  background: var(--tint-red);
+  color: var(--ink-red-600);
+}
+
+.bp-badge--running {
+  background: var(--tint-amber);
+  color: var(--warning-text);
+}
+
+.bp-row-actions {
+  display: flex;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.bp-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-info);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bp-link--danger {
+  color: var(--text-danger);
+}
+
+.bp-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bp-muted {
+  color: var(--text-label);
+}
+
+@media (max-width: 960px) {
+  .bp-stats,
+  .bp-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Explanatory text under a field — the timezone warning and the retention
+   rationale. Smaller and dimmer than a label, but not so faint it reads as
+   decoration: both hints carry information an admin needs to not misconfigure
+   this. */
+.bp-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  opacity: 0.72;
+}
+
+/* A retention-pruned snapshot: the history row survives, the file does not, so
+   it reads as neither a success nor a failure. */
+.bp-badge--pruned {
+  background: rgba(130, 130, 130, 0.18);
+  color: #6b7280;
+}
+
+/* A row whose snapshot file is not on disk for reasons retention did not cause
+   -- a deleted folder, a moved storage path, a snapshot recorded by a different
+   install. Warmer than `pruned` because this one wants attention. */
+.bp-badge--missing {
+  background: rgba(217, 119, 6, 0.16);
+  color: #b45309;
+}

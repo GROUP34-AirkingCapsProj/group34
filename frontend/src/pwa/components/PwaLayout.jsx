@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import ThemeToggle from '../../admin/components/ThemeToggle';
 
 export default function PwaLayout() {
   const navigate = useNavigate();
@@ -10,16 +11,19 @@ export default function PwaLayout() {
       <header className="pwa-header">
         <div className="pwa-header-inner">
           <span className="pwa-brand">AirKing · Inventory</span>
-          <button
-            type="button"
-            className="pwa-header-signout"
-            onClick={async () => {
-              await signOut();
-              navigate('/pwa/login', { replace: true });
-            }}
-          >
-            Sign out
-          </button>
+          <div className="pwa-header-actions">
+            <ThemeToggle className="theme-toggle--pwa" size={16} />
+            <button
+              type="button"
+              className="pwa-header-signout"
+              onClick={async () => {
+                await signOut();
+                navigate('/pwa/login', { replace: true });
+              }}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
         {user?.email ? <p className="pwa-header-email">{user.email}</p> : null}
       </header>

@@ -26,16 +26,16 @@ Artisan::command('inventory:core-check {--commit : Persist changes (default is r
     $this->info('Running core inventory transaction check...');
     $this->line($commit ? 'Mode: COMMIT' : 'Mode: DRY RUN (rollback)');
 
-    // Choose a consumable product+source inventory row (stock can be zero; receive step will add stock first).
-    // Must be a consumable (non-appliance) so the transfer step works without serial numbers.
-    $consumableProductIds = Product::query()
+    // Choose an installation material product+source inventory row (stock can be zero; receive step will add stock first).
+    // Must be an installation material (non-appliance) so the transfer step works without serial numbers.
+    $installationMaterialProductIds = Product::query()
         ->where(function ($q) { $q->where('product_type', '!=', 'appliance')->orWhereNull('product_type'); })
         ->pluck('product_id');
 
     $sourceInv = Inventory::query()
         ->whereNotNull('location_id')
         ->whereNotNull('product_id')
-        ->whereIn('product_id', $consumableProductIds)
+        ->whereIn('product_id', $installationMaterialProductIds)
         ->orderByDesc('available_quantity')
         ->orderByDesc('quantity_on_hand')
         ->first();
@@ -53,7 +53,7 @@ Artisan::command('inventory:core-check {--commit : Persist changes (default is r
             ->first();
         $firstLocation = Location::query()->first();
         if (!$product || !$firstLocation) {
-            $this->error('Cannot run check: need at least one consumable product and one location.');
+            $this->error('Cannot run check: need at least one installation material product and one location.');
             return 1;
         }
         $sourceLocationId = $firstLocation->location_id;
@@ -144,7 +144,7 @@ Artisan::command('inventory:core-check {--commit : Persist changes (default is r
         $issuanceResp = app(IssuanceController::class)->store($issuanceReq);
         $assertOk($issuanceResp, 'Issuance');
 
-        // 3) Transfer: -1 source, +1 destination (via TransferService::directOverride — consumable, no serials)
+        // 3) Transfer: -1 source, +1 destination (via TransferService::directOverride — installation material, no serials)
         $systemUserId = (int) (DB::table('users')->value('user_id') ?? 1);
         app(TransferService::class)->directOverride(
             (int) $sourceLocationId,
@@ -223,3 +223,62 @@ Schedule::command('analytics:restock')
     ->dailyAt('06:00')
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/analytics-restock.log'));
+
+/*
+|--------------------------------------------------------------------------
+| SCHEDULED MAINTENANCE
+|--------------------------------------------------------------------------
+| These three lived in app/Console/Kernel.php::schedule(), which Laravel 12
+| never calls: bootstrap/app.php's Application::configure() binds the console
+| kernel to Illuminate\Foundation\Console\Kernel, so an App\Console\Kernel
+| subclass is simply never resolved. `schedule:list` showed only the restock
+| job above. This file is the one the framework reads — define schedules here.
+*/
+
+// Auto-archive. Time and frequency are configurable in the Archive Settings UI.
+Schedule::command('archive:auto')
+    ->dailyAt('02:00')
+    ->runInBackground()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/archive-auto.log'));
+
+// Warranty expiry: keeps the stored status_id in step with the calendar.
+//
+// Nothing DEPENDS on this running -- screens derive expiry from
+// warranty_end_date, so an install with no cron still reports every warranty
+// correctly. This exists so reporting and exports can trust the column, and so
+// the batch UPDATE that used to run inside the warranty list endpoint on every
+// page load has somewhere better to be.
+Schedule::command('warranties:expire')
+    ->dailyAt('01:00')
+    ->runInBackground()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/warranties-expire.log'));
+
+// Retention cleanup: permanently deletes archived records past their retention.
+Schedule::command('archive:cleanup')
+    ->weeklyOn(0, '03:00')
+    ->runInBackground()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/archive-cleanup.log'));
+
+// Database backup: fires every minute; the enabled/time gate lives inside
+// RunScheduledBackup itself (reads the stored backup_schedule setting fresh
+// on each tick), the only way for the Backup admin page's arbitrary time
+// field to actually drive this, since a Schedule:: expression is otherwise
+// fixed at deploy time.
+Schedule::command('backup:run')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/backup-run.log'));
+
+// Ledger drift check: proves the ledger still agrees with its sources, and turns
+// any movement it cannot account for into an audit finding the Explorer surfaces.
+// Runs after the day's postings have settled. A non-zero exit is expected whenever
+// drift exists — the findings are the output, the exit code is only a signal.
+Schedule::command('ledger:drift-check')
+    ->dailyAt('02:30')
+    ->runInBackground()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/ledger-drift-check.log'));

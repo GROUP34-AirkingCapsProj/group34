@@ -33,8 +33,10 @@ class User extends Authenticatable
         'first_name',
         'last_name',
         'email',
+        'recovery_email',
         'username',
         'password_hash',
+        'must_change_password',
         'phone',
         'avatar_path',
         'address',
@@ -43,18 +45,48 @@ class User extends Authenticatable
         'status_id',
         'otp_code',
         'otp_expires_at',
+        'otp_attempts',
         'alerts_last_seen_at',
     ];
 
     protected $hidden = [
         'password_hash',
         'remember_token',
+        // Holds a hash of the live login code. Not a password, but there is no
+        // reason for any client to receive it, and it used to serialise freely.
+        'otp_code',
     ];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
         'alerts_last_seen_at' => 'datetime',
+        'must_change_password' => 'boolean',
+        // verifyOtp() compares this in PHP now that the code is hashed and can
+        // no longer be matched in the query. Without the cast it reads back as
+        // a string and every comparison silently misbehaves.
+        'otp_expires_at' => 'datetime',
     ];
+
+    /**
+     * Where password-reset mail goes: the employee's personal inbox, not the
+     * company address they are locked out of. Falls back to the login email for
+     * users created before recovery_email existed.
+     */
+    public function getResetMailAddressAttribute(): string
+    {
+        return $this->recovery_email ?: $this->email;
+    }
+
+    /**
+     * Notification mail routing. Note that the reset flow does NOT go through
+     * this method — it sends a Mailable via Mail::to(), and Laravel consults
+     * notification routing only for Notifications. Kept so any future
+     * $user->notify() reaches the recovery address too.
+     */
+    public function routeNotificationForMail($notification)
+    {
+        return $this->recovery_email ?: $this->email;
+    }
 
     // avatar_url is appended to every User serialization (incl. /api/user, /api/login)
     // so the frontend header/sidebar can render the photo without extra endpoints.
@@ -90,6 +122,19 @@ class User extends Authenticatable
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class, 'role_id', 'role_id');
+    }
+
+    /**
+     * The admin role reaches every feature in the system, so several places ask
+     * this question. The string comparison was already duplicated across at
+     * least five files; new code asks here instead of copying it a sixth time.
+     *
+     * Traverses the `role` relation, so callers on a hot path should eager-load
+     * it. Called once per login from TwoFactorPolicy.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role?->role_name === 'admin';
     }
 
     /**

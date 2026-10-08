@@ -11,6 +11,9 @@ use App\Models\Inventory;
 use App\Models\ItemSerial;
 use App\Models\Transfer;
 use App\Models\User;
+use App\Models\Receiving;
+use App\Models\InventoryBatch;
+use App\Services\InventoryBatchService;
 
 abstract class TransferTestCase extends TestCase
 {
@@ -50,11 +53,25 @@ abstract class TransferTestCase extends TestCase
         ]);
     }
 
-    protected function makeConsumable(): Product
+    protected function makeUserAt(\App\Models\Location $location, string $role): \App\Models\User
+    {
+        $map = ['admin' => 1, 'inventory_analyst' => 2, 'branch_manager' => 3, 'warehouse_personnel' => 4, 'auditor' => 5];
+        return \App\Models\User::create([
+            'username'      => 'u_' . uniqid(),
+            'first_name'    => 'T',
+            'last_name'     => 'U',
+            'email'         => uniqid() . '@example.test',
+            'password_hash' => bcrypt('secret'),
+            'role_id'       => $map[$role] ?? 4,
+            'location_id'   => $location->location_id,
+        ]);
+    }
+
+    protected function makeInstallationMaterial(): Product
     {
         return Product::create([
             'product_code' => 'CON-' . uniqid(),
-            'product_name' => 'Test Consumable',
+            'product_name' => 'Test Installation material',
             'product_type' => 'installation_material',
         ]);
     }
@@ -90,6 +107,7 @@ abstract class TransferTestCase extends TestCase
                 'location_id'   => $locationId,
                 'serial_number' => $sn,
                 'serial_type'   => 'received',
+                'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
             ]);
             $numbers[] = $sn;
         }
@@ -128,5 +146,64 @@ abstract class TransferTestCase extends TestCase
         }
 
         return $ist->fresh('details');
+    }
+
+    protected function makeReceiving(int $locationId): Receiving
+    {
+        return Receiving::create([
+            'location_id'      => $locationId,
+            'receiving_number' => 'RCV-' . uniqid(),
+            'receiving_date'   => now(),
+        ]);
+    }
+
+    /** Create a batch (with a real receiving) at a location. $attrs: zone_label, quantity_remaining, received_at. */
+    protected function makeBatch(Product $product, Location $location, array $attrs = []): InventoryBatch
+    {
+        $rcv = $this->makeReceiving($location->location_id);
+        return app(InventoryBatchService::class)->createBatch(
+            $product->product_id,
+            $location->location_id,
+            $rcv->receiving_id,
+            $attrs['quantity_remaining'] ?? 1,
+            $attrs['received_at'] ?? now(),
+            $attrs['zone_label'] ?? null
+        );
+    }
+
+    protected function makeSerial(Product $product, Location $location, string $sn, ?int $receivingId = null): ItemSerial
+    {
+        return ItemSerial::create([
+            'product_id'    => $product->product_id,
+            'location_id'   => $location->location_id,
+            'receiving_id'  => $receivingId,
+            'serial_number' => $sn,
+            'serial_type'   => 'received',
+            'status_id'     => ItemSerial::IN_STOCK_STATUS_ID,
+        ]);
+    }
+
+    /** New single-row transfer (transfer_request_id null, intent demand) at Approved with $lines = [[Product,$qty],...]. */
+    protected function makeApprovedTransfer(Location $from, Location $to, array $lines): Transfer
+    {
+        $t = Transfer::create([
+            'transfer_request_id' => null,
+            'from_location_id'    => $from->location_id,
+            'to_location_id'      => $to->location_id,
+            'intent'              => 'demand',
+            'transfer_number'     => 'TST-' . uniqid(),
+            'transfer_date'       => now(),
+            'status_id'           => $this->statusId('Approved'),
+        ]);
+        foreach ($lines as [$product, $qty]) {
+            $t->details()->create([
+                'product_id'           => $product->product_id,
+                'quantity_requested'   => $qty,
+                'quantity_scanned'     => 0,
+                'quantity_transferred' => 0,
+                'quantity_received'    => 0,
+            ]);
+        }
+        return $t->fresh('details.product');
     }
 }

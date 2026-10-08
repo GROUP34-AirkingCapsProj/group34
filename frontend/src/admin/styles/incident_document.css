@@ -1,0 +1,159 @@
+/*
+ * The unified INCIDENT REPORT FORM.
+ *
+ * One document rendered in three modes. The reporter fills their half, the same
+ * document reaches the inspector, the same document reaches the admin — so the
+ * layout below is deliberately paper-shaped: a sectioned sheet in the client's
+ * order, with a visible rule where it changes hands.
+ *
+ * Task 11 adds the @media print block to this same file, over this same markup.
+ * A separate print layout is a second thing to drift.
+ */
+
+.incdoc {
+  background: var(--ak-card);
+  border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius, 16px);
+  box-shadow: var(--ak-shadow);
+  padding: 1.1rem 1.25rem 1.4rem;
+  max-width: 900px;
+}
+
+.incdoc__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 2px solid var(--ak-ink, #14181f);
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.2rem;
+}
+
+.incdoc__title {
+  font-family: var(--ak-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.incdoc__subtitle {
+  color: var(--ak-ink-soft);
+  font-size: 0.82rem;
+  margin: 0.2rem 0 0;
+}
+
+/* ── one section of the sheet ─────────────────────────────────────────────── */
+
+.incdoc__section {
+  border-bottom: 1px solid var(--ak-line-soft);
+  padding: 0.95rem 0;
+}
+
+.incdoc__section:last-of-type { border-bottom: none; }
+
+.incdoc__section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.incdoc__section-title {
+  font-family: var(--ak-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ak-ink);
+  margin: 0;
+}
+
+.incdoc__hint {
+  color: var(--ak-ink-soft);
+  font-size: 0.82rem;
+  margin: 0 0 0.6rem;
+  max-width: 62ch;
+}
+
+/*
+ * Locked, never hidden. An inspector must see what the reporter claimed —
+ * that is half of what they are checking — and an admin must see both.
+ */
+.incdoc__section--readonly .incdoc__body { opacity: 0.92; }
+
+/*
+ * The inspector's half during filing: present, empty and greyed, so the
+ * reporter can see what will be asked later and what is not their job.
+ */
+.incdoc__section--awaiting { background: var(--ak-band); }
+.incdoc__section--awaiting .incdoc__section-title { color: var(--ak-ink-faint); }
+.incdoc__section--awaiting .incdoc__body { color: var(--ak-ink-faint); font-size: 0.85rem; }
+
+/* Where the document changes hands. Above it the reporter's, below the inspector's. */
+.incdoc__rule {
+  border: none;
+  border-top: 2px dashed var(--ak-ink-faint);
+  margin: 1.2rem 0 0.2rem;
+}
+
+.incdoc__rule-note {
+  color: var(--ak-ink-faint);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  margin: 0.35rem 0 0;
+}
+
+/* ── field layout ─────────────────────────────────────────────────────────── */
+
+.incdoc__row {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.incdoc__row > * { flex: 1 1 200px; min-width: 0; }
+
+.incdoc__unit {
+  border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius-sm, 10px);
+  padding: 0.8rem;
+  margin: 0 0 0.7rem;
+  background: var(--ak-card);
+}
+
+.incdoc__unit-legend {
+  font-family: var(--ak-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0 0.35rem;
+}
+
+/* A checklist line the reporter can read but not act on. */
+.incdoc__checklist { margin: 0; padding-left: 1.1rem; }
+.incdoc__checklist li { margin: 0.2rem 0; }
+
+/* ── the actions bar ──────────────────────────────────────────────────────── */
+
+.incdoc__actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  padding-top: 1rem;
+}
+
+.incdoc__blockers {
+  margin: 0.8rem 0 0;
+  font-size: 0.85rem;
+}
+
+.incdoc__blockers ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }

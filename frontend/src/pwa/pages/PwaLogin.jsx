@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import ThemeToggle from '../../admin/components/ThemeToggle';
 import '../styles/pwa.css';
 
 export default function PwaLogin() {
@@ -19,6 +20,7 @@ export default function PwaLogin() {
   if (!configured && !loading) {
     return (
       <div className="pwa-login-page">
+        <ThemeToggle className="theme-toggle--login" size={20} />
         <div className="pwa-login-card">
           <h1>Supabase required</h1>
           <p>
@@ -64,6 +66,7 @@ export default function PwaLogin() {
 
   return (
     <div className="pwa-login-page">
+      <ThemeToggle className="theme-toggle--login" size={20} />
       <div className="pwa-login-card">
         <h1>Inventory PWA</h1>
         <p>Sign in with your Supabase account to scan and manage stock.</p>

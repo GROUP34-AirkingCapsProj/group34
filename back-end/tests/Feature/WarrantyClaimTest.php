@@ -11,13 +11,13 @@ class WarrantyClaimTest extends TestCase
     use DatabaseTransactions;
     use CreatesWarrantyTestData;
 
-    public function test_repair_resolves_consumable_by_item_serial_barcode(): void
+    public function test_repair_resolves_installation_material_by_item_serial_barcode(): void
     {
         $this->actingUser();
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 20);
+        $part = $this->makeInstallationMaterial($locationId, 20);
 
         // Physical scanned barcode lives on an item_serial row, NOT on products.barcode
         $code = 'PARTBC-' . strtoupper(uniqid());
@@ -36,10 +36,14 @@ class WarrantyClaimTest extends TestCase
             'location_id'  => $locationId,
         ]);
 
+        // A scan FULFILS an order line; it no longer creates one. The part has to
+        // be on the warranty order before anyone can scan it against the claim.
+        $this->service()->addCustomOrderLine($claim, (int) $part->product_id, 2);
+
         $detail = $this->service()->addItem($claim, ['barcode' => $code, 'quantity' => 2]);
 
         $this->assertSame((int) $part->product_id, (int) $detail->product_id);
-        $this->assertNull($detail->serial_number, 'Consumable repair part should not store a serial.');
+        $this->assertNull($detail->serial_number, 'Installation material repair part should not store a serial.');
         $this->assertSame(2, (int) $detail->quantity_in_pieces);
     }
 
@@ -114,6 +118,37 @@ class WarrantyClaimTest extends TestCase
         $this->assertSame((int) $pending, (int) $claim->status_id);
     }
 
+    public function test_http_init_derives_customer_from_issued_serial(): void
+    {
+        $this->actingUser();
+        $customer = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+
+        $response = $this->postJson('/api/warranty-claims/init', [
+            'serial_number' => $appliance['serial'],
+            'claim_type'    => 'repair',
+            'location_id'   => $appliance['location']->location_id,
+        ])->assertStatus(201);
+
+        $response->assertJsonPath('data.customer.customer_id', $customer->customer_id);
+    }
+
+    public function test_manual_serial_entry_accepts_common_formatting_differences(): void
+    {
+        $this->actingUser();
+        $customer = $this->makeCustomer();
+        $appliance = $this->makeAppliance($customer);
+        $manuallyTyped = strtolower(str_replace('-', ' ', $appliance['serial']));
+
+        $this->postJson('/api/warranty-claims/init', [
+            'serial_number' => $manuallyTyped,
+            'claim_type'    => 'repair',
+            'location_id'   => $appliance['location']->location_id,
+        ])
+            ->assertStatus(201)
+            ->assertJsonPath('data.serial_number', $appliance['serial']);
+    }
+
     public function test_init_claim_rejects_expired_warranty(): void
     {
         $this->actingUser();
@@ -163,13 +198,13 @@ class WarrantyClaimTest extends TestCase
         ]);
     }
 
-    public function test_repair_addItem_deducts_consumable_stock(): void
+    public function test_repair_addItem_deducts_installation_material_stock(): void
     {
         $this->actingUser();
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 100);
+        $part = $this->makeInstallationMaterial($locationId, 100);
 
         $claim = $this->service()->initClaim([
             'customer_id'  => $customer->customer_id,
@@ -177,6 +212,8 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'repair',
             'location_id'  => $locationId,
         ]);
+
+        $this->service()->addCustomOrderLine($claim, (int) $part->product_id, 3);
 
         $detail = $this->service()->addItem($claim, [
             'barcode'  => $part->barcode ?: $part->product_code,
@@ -206,6 +243,8 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'replacement',
             'location_id'  => $locationId,
         ]);
+
+        $this->service()->addCustomOrderLine($claim, (int) $replacement['product']->product_id, 1);
 
         $detail = $this->service()->addItem($claim, [
             'barcode' => $replacement['serial'],
@@ -251,10 +290,14 @@ class WarrantyClaimTest extends TestCase
             'location_id'  => $appliance['location']->location_id,
         ]);
 
+        $this->service()->addCustomOrderLine($claim, (int) $r1['product']->product_id, 1);
         $this->service()->addItem($claim, ['barcode' => $r1['serial']]);
 
+        // The one-unit rule now lives on the ORDER, not on the scan: a
+        // replacement order cannot be extended past a single unit, so the second
+        // unit is refused before anybody gets to scan it.
         $this->expectException(\App\Exceptions\WarrantyClaimException::class);
-        $this->service()->addItem($claim->fresh(), ['barcode' => $r2['serial']]);
+        $this->service()->addCustomOrderLine($claim->fresh(), (int) $r2['product']->product_id, 1);
     }
 
     public function test_remove_repair_part_restores_stock(): void
@@ -263,7 +306,7 @@ class WarrantyClaimTest extends TestCase
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 100);
+        $part = $this->makeInstallationMaterial($locationId, 100);
 
         $claim  = $this->service()->initClaim([
             'customer_id'  => $customer->customer_id,
@@ -271,6 +314,7 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'repair',
             'location_id'  => $locationId,
         ]);
+        $this->service()->addCustomOrderLine($claim, (int) $part->product_id, 4);
         $detail = $this->service()->addItem($claim, ['barcode' => $part->barcode ?: $part->product_code, 'quantity' => 4]);
 
         $this->service()->removeItem($claim->fresh(), $detail->claim_detail_id);
@@ -278,7 +322,15 @@ class WarrantyClaimTest extends TestCase
         $this->assertDatabaseHas('inventory', [
             'product_id' => $part->product_id, 'location_id' => $locationId, 'quantity_on_hand' => 100,
         ]);
-        $this->assertDatabaseMissing('warranty_claim_details', ['claim_detail_id' => $detail->claim_detail_id]);
+        // Reversing a scan un-fulfils the ORDER LINE rather than deleting it —
+        // the part is still on the warranty order, just no longer issued, so it
+        // can be re-scanned without re-ordering it.
+        $this->assertDatabaseHas('warranty_claim_details', [
+            'claim_detail_id'    => $detail->claim_detail_id,
+            'quantity_requested' => 4,
+            'quantity_issued'    => 0,
+            'quantity_in_pieces' => 0,
+        ]);
     }
 
     public function test_remove_replacement_unit_restores_serial(): void
@@ -294,6 +346,7 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'replacement',
             'location_id'  => $appliance['location']->location_id,
         ]);
+        $this->service()->addCustomOrderLine($claim, (int) $replacement['product']->product_id, 1);
         $detail = $this->service()->addItem($claim, ['barcode' => $replacement['serial']]);
 
         $this->service()->removeItem($claim->fresh(), $detail->claim_detail_id);
@@ -303,13 +356,13 @@ class WarrantyClaimTest extends TestCase
         ]);
     }
 
-    public function test_complete_repair_marks_original_claimed_no_new_warranty(): void
+    public function test_complete_repair_keeps_original_warranty_active_no_new_warranty(): void
     {
         $this->actingUser();
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 50);
+        $part = $this->makeInstallationMaterial($locationId, 50);
 
         $claim = $this->service()->initClaim([
             'customer_id'  => $customer->customer_id,
@@ -317,14 +370,20 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'repair',
             'location_id'  => $locationId,
         ]);
+        $this->service()->addCustomOrderLine($claim, (int) $part->product_id, 2);
         $this->service()->addItem($claim, ['barcode' => $part->barcode ?: $part->product_code, 'quantity' => 2]);
 
         $before = \App\Models\WarrantyRecord::count();
         $done = $this->service()->completeClaim($claim->fresh());
 
         $this->assertSame($this->service()->claimStatusId('Completed'), (int) $done->status_id);
-        $this->assertSame(35, (int) $appliance['warranty']->fresh()->status_id);
+        $this->assertSame(33, (int) $appliance['warranty']->fresh()->status_id);
         $this->assertSame($before, \App\Models\WarrantyRecord::count(), 'Repair must not create a warranty record.');
+        $this->assertDatabaseHas('warranty_claim_returns', [
+            'claim_id' => $claim->claim_id,
+            'holding_status' => 'returned_to_customer',
+            'release_disposition' => 'repaired_return',
+        ]);
     }
 
     public function test_complete_replacement_inherits_end_date_and_is_claimable(): void
@@ -343,6 +402,7 @@ class WarrantyClaimTest extends TestCase
             'claim_type'   => 'replacement',
             'location_id'  => $locationId,
         ]);
+        $this->service()->addCustomOrderLine($claim, (int) $replacement['product']->product_id, 1);
         $this->service()->addItem($claim, ['barcode' => $replacement['serial']]);
 
         $this->service()->completeClaim($claim->fresh());
@@ -378,7 +438,7 @@ class WarrantyClaimTest extends TestCase
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 30);
+        $part = $this->makeInstallationMaterial($locationId, 30);
 
         $init = $this->postJson('/api/warranty-claims/init', [
             'customer_id'   => $customer->customer_id,
@@ -390,6 +450,11 @@ class WarrantyClaimTest extends TestCase
 
         $claimId = $init['data']['claim_id'] ?? $init['claim_id'];
 
+        $this->postJson("/api/warranty-claims/{$claimId}/order/custom", [
+            'product_id'         => $part->product_id,
+            'quantity_in_pieces' => 1,
+        ])->assertOk();
+
         $this->postJson("/api/warranty-claims/{$claimId}/item", [
             'barcode'  => $part->barcode ?: $part->product_code,
             'quantity' => 1,
@@ -399,7 +464,7 @@ class WarrantyClaimTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true);
 
-        $this->assertSame(35, (int) $appliance['warranty']->fresh()->status_id);
+        $this->assertSame(33, (int) $appliance['warranty']->fresh()->status_id);
     }
 
     public function test_http_init_rejects_expired_with_422(): void
@@ -425,7 +490,7 @@ class WarrantyClaimTest extends TestCase
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 10);
+        $part = $this->makeInstallationMaterial($locationId, 10);
 
         $init = $this->postJson('/api/warranty-claims/init', [
             'customer_id'   => $customer->customer_id,
@@ -461,7 +526,7 @@ class WarrantyClaimTest extends TestCase
         $customer  = $this->makeCustomer();
         $appliance = $this->makeAppliance($customer);
         $locationId = $appliance['location']->location_id;
-        $part = $this->makeConsumable($locationId, 10);
+        $part = $this->makeInstallationMaterial($locationId, 10);
 
         $init = $this->postJson('/api/warranty-claims/init', [
             'customer_id'   => $customer->customer_id,

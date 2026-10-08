@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1194" height="942" viewBox="0 0 1194 942" role="img" aria-label="Gane and Sarson data flow diagram: Level 2 - Process 5.0 Issuance">
+  <style>
+    svg { background:#ffffff; }
+    .ext  { fill:#eef1f4; stroke:#000; stroke-width:1.7; }
+    .proc { fill:#ffffff; stroke:#000; stroke-width:1.7; }
+    .store{ fill:#ffffff; stroke:#000; stroke-width:1.7; }
+    .ln   { fill:none; stroke:#000; stroke-width:1.25; }
+    .en   { font-family:Arial,Helvetica,sans-serif; font-size:11.5px; fill:#000; }
+    .pn   { font-family:Arial,Helvetica,sans-serif; font-size:11.5px; font-weight:700; fill:#000; }
+    .pnum { font-family:Arial,Helvetica,sans-serif; font-size:11px; font-weight:700; fill:#000; }
+    .sn   { font-family:Arial,Helvetica,sans-serif; font-size:11.5px; fill:#000; }
+    .snum { font-family:Arial,Helvetica,sans-serif; font-size:11px; font-weight:700; fill:#000; }
+    .fl   { font-family:Arial,Helvetica,sans-serif; font-size:8.8px; fill:#33404a;
+            paint-order:stroke; stroke:#ffffff; stroke-width:3px; stroke-linejoin:round; }
+    .cap  { font-family:Arial,Helvetica,sans-serif; font-size:10px; letter-spacing:.12em; fill:#6b7681; }
+  </style>
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7"
+    orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#000"/></marker></defs>
+
+<text class="cap" x="40" y="34">EXTERNAL ENTITIES</text>
+<text class="cap" x="390" y="34">PROCESSES</text>
+<text class="cap" x="834" y="34">DATA STORES</text>
+<path class="ln" d="M240,92 L278,92 L278,118 L390,118" marker-end="url(#ar)"/>
+<path class="ln" d="M834,102 L711,102 L711,103 L680,103" marker-end="url(#ar)"/>
+<path class="ln" d="M680,133 L711,133 L711,491 L834,491" marker-end="url(#ar)"/>
+<path class="ln" d="M535,162 L535,222" marker-end="url(#ar)"/>
+<path class="ln" d="M834,277 L742,277 L742,251 L680,251" marker-end="url(#ar)"/>
+<path class="ln" d="M680,281 L773,281 L773,293 L834,293" marker-end="url(#ar)"/>
+<path class="ln" d="M390,266 L315,266 L315,110 L240,110" marker-end="url(#ar)"/>
+<path class="ln" d="M535,310 L535,370" marker-end="url(#ar)"/>
+<path class="ln" d="M834,309 L742,309 L742,414 L680,414" marker-end="url(#ar)"/>
+<path class="ln" d="M535,458 L535,518" marker-end="url(#ar)"/>
+<path class="ln" d="M240,866 L278,866 L278,562 L390,562" marker-end="url(#ar)"/>
+<path class="ln" d="M680,562 L711,562 L711,678 L834,678" marker-end="url(#ar)"/>
+<path class="ln" d="M535,606 L535,666" marker-end="url(#ar)"/>
+<path class="ln" d="M680,695 L773,695 L773,325 L834,325" marker-end="url(#ar)"/>
+<path class="ln" d="M680,725 L742,725 L742,509 L834,509" marker-end="url(#ar)"/>
+<path class="ln" d="M535,754 L535,814" marker-end="url(#ar)"/>
+<path class="ln" d="M680,843 L804,843 L804,696 L834,696" marker-end="url(#ar)"/>
+<path class="ln" d="M390,858 L352,858 L352,128 L240,128" marker-end="url(#ar)"/>
+<path class="ln" d="M680,873 L711,873 L711,874 L834,874" marker-end="url(#ar)"/>
+<rect class="ext" x="40" y="74" width="200" height="72"/>
+<text class="en" x="140" y="114" text-anchor="middle">Customer</text>
+<rect class="ext" x="40" y="830" width="200" height="72"/>
+<text class="en" x="140" y="870" text-anchor="middle">Warehouse Personnel</text>
+<rect class="proc" x="390" y="74" width="290" height="88" rx="9"/>
+<line class="ln" x1="390" y1="99" x2="680" y2="99"/>
+<text class="pnum" x="535" y="92" text-anchor="middle">5.1</text>
+<text class="pn" x="535" y="134" text-anchor="middle">Build Quote from Sets or Lines</text>
+<rect class="proc" x="390" y="222" width="290" height="88" rx="9"/>
+<line class="ln" x1="390" y1="247" x2="680" y2="247"/>
+<text class="pnum" x="535" y="240" text-anchor="middle">5.2</text>
+<text class="pn" x="535" y="276" text-anchor="middle">Confirm Quote and Reserve</text>
+<text class="pn" x="535" y="290" text-anchor="middle">Stock</text>
+<rect class="proc" x="390" y="370" width="290" height="88" rx="9"/>
+<line class="ln" x1="390" y1="395" x2="680" y2="395"/>
+<text class="pnum" x="535" y="388" text-anchor="middle">5.3</text>
+<text class="pn" x="535" y="430" text-anchor="middle">Suggest FIFO Pick Order</text>
+<rect class="proc" x="390" y="518" width="290" height="88" rx="9"/>
+<line class="ln" x1="390" y1="543" x2="680" y2="543"/>
+<text class="pnum" x="535" y="536" text-anchor="middle">5.4</text>
+<text class="pn" x="535" y="578" text-anchor="middle">Scan and Pick Items</text>
+<rect class="proc" x="390" y="666" width="290" height="88" rx="9"/>
+<line class="ln" x1="390" y1="691" x2="680" y2="691"/>
+<text class="pnum" x="535" y="684" text-anchor="middle">5.5</text>
+<text class="pn" x="535" y="720" text-anchor="middle">Complete Issuance and Deduct</text>
+<text class="pn" x="535" y="734" text-anchor="middle">Stock</text>
+<rect class="proc" x="390" y="814" width="290" height="88" rx="9"/>
+<line class="ln" x1="390" y1="839" x2="680" y2="839"/>
+<text class="pnum" x="535" y="832" text-anchor="middle">5.6</text>
+<text class="pn" x="535" y="868" text-anchor="middle">Record Warranty and Print</text>
+<text class="pn" x="535" y="882" text-anchor="middle">Receipt</text>
+<path class="store" d="M834,74 H1154 M834,130 H1154 M834,74 V130"/>
+<line class="ln" x1="870" y1="74" x2="870" y2="130"/>
+<text class="snum" x="852" y="106" text-anchor="middle">D2</text>
+<text class="sn" x="880" y="106">Product Catalogue</text>
+<path class="store" d="M834,261 H1154 M834,341 H1154 M834,261 V341"/>
+<line class="ln" x1="870" y1="261" x2="870" y2="341"/>
+<text class="snum" x="852" y="305" text-anchor="middle">D6</text>
+<text class="sn" x="880" y="305">Inventory and Batches</text>
+<path class="store" d="M834,472 H1154 M834,528 H1154 M834,472 V528"/>
+<line class="ln" x1="870" y1="472" x2="870" y2="528"/>
+<text class="snum" x="852" y="504" text-anchor="middle">D7</text>
+<text class="sn" x="880" y="504">Issuances and Sales</text>
+<path class="store" d="M834,659 H1154 M834,715 H1154 M834,659 V715"/>
+<line class="ln" x1="870" y1="659" x2="870" y2="715"/>
+<text class="snum" x="852" y="691" text-anchor="middle">D9</text>
+<text class="sn" x="880" y="691">Incidents and Warranty</text>
+<path class="store" d="M834,846 H1154 M834,902 H1154 M834,846 V902"/>
+<line class="ln" x1="870" y1="846" x2="870" y2="902"/>
+<text class="snum" x="852" y="878" text-anchor="middle">D10</text>
+<text class="sn" x="880" y="878">Audit and Activity Log</text>
+<text class="fl" x="284" y="99" text-anchor="start">requested items</text>
+<text class="fl" x="828" y="96" text-anchor="end">product set, price</text>
+<text class="fl" x="717" y="485" text-anchor="start">draft issuance</text>
+<text class="fl" x="543" y="192" text-anchor="start">confirmed lines</text>
+<text class="fl" x="828" y="271" text-anchor="end">available quantity</text>
+<text class="fl" x="686" y="294" text-anchor="start">pick reservation</text>
+<text class="fl" x="384" y="260" text-anchor="end">quotation</text>
+<text class="fl" x="543" y="340" text-anchor="start">reserved lines</text>
+<text class="fl" x="828" y="303" text-anchor="end">batch ages</text>
+<text class="fl" x="543" y="488" text-anchor="start">suggested batches</text>
+<text class="fl" x="284" y="556" text-anchor="start">item barcode</text>
+<text class="fl" x="717" y="672" text-anchor="start">FIFO override incident</text>
+<text class="fl" x="543" y="636" text-anchor="start">picked lines</text>
+<text class="fl" x="686" y="689" text-anchor="start">deduction, release hold</text>
+<text class="fl" x="748" y="548" text-anchor="start">completed issuance</text>
+<text class="fl" x="543" y="784" text-anchor="start">issued serials</text>
+<text class="fl" x="686" y="837" text-anchor="start">warranty record</text>
+<text class="fl" x="346" y="122" text-anchor="end">delivery receipt</text>
+<text class="fl" x="717" y="868" text-anchor="start">audit entry</text>
+</svg>

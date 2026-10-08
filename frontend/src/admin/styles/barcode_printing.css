@@ -1,0 +1,167 @@
+/* The printing page. Card styling itself lives in po_receiving.css under
+   .bsr-tag-card — shared with the per-product sheet, so a card looks the same
+   wherever it is rendered. Only what is new to this page is here. */
+
+.bpp-page { padding: 24px; }
+
+.bpp-header h1 { margin: 0 0 4px; font-size: 1.5rem; }
+.bpp-subtitle { margin: 0 0 20px; color: var(--ink-blue-500); max-width: 60ch; }
+
+.bpp-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-end;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.bpp-filter { display: flex; flex-direction: column; gap: 4px; }
+.bpp-filter label { font-size: 0.75rem; color: var(--ink-blue-700); font-weight: 600; }
+.bpp-filter input, .bpp-filter select {
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  min-width: 160px;
+}
+
+.bpp-filter-counts {
+  margin: 0;
+  flex-basis: 100%;
+  color: var(--ink-blue-700);
+  font-size: 0.875rem;
+}
+
+/* Sticky: on a 200-carton delivery the grid is long, and the print action
+   must stay reachable without scrolling back to the top. */
+.bpp-selection {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+
+.bpp-selection-count { font-weight: 700; }
+.bpp-selection-link {
+  background: none;
+  border: none;
+  color: var(--text-info);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+.bpp-selection-actions { margin-left: auto; display: flex; gap: 8px; }
+.bpp-selection-print, .bpp-selection-pdf {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid #2563eb;
+  cursor: pointer;
+}
+.bpp-selection-print { background: #2563eb; color: #fff; }
+.bpp-selection-pdf { background: var(--bg-card); color: var(--text-info); }
+
+.bpp-selection-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ink-blue-500);
+  font-size: 0.8rem;
+}
+
+.bpp-selection-warning {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--warning-text);
+  font-size: 0.875rem;
+}
+
+.bpp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.bpp-status { padding: 32px; text-align: center; color: var(--ink-blue-500); }
+
+/* Tier badge and print state, on the shared card. The card's own rule lives
+   in po_receiving.css and is not relative; the checkbox is absolutely
+   positioned on it, so the containing block is established here rather than
+   by editing a rule the per-product sheet also depends on. */
+.bsr-tag-card { position: relative; }
+
+.bsr-tag-card-tier {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-bottom: 6px;
+}
+.bsr-tag-card-tier--minted { background: var(--tint-blue); color: var(--ink-blue-600); }
+.bsr-tag-card-tier--supplier { background: var(--tint-amber); color: var(--warning-text); }
+.bsr-tag-card-tier--manufacturer { background: var(--tint-violet); color: var(--ink-violet-600); }
+
+.bsr-tag-card-meta { font-size: 0.72rem; color: var(--ink-blue-500); margin-top: 6px; }
+.bsr-tag-card-state { font-size: 0.75rem; color: var(--ink-blue-500); margin-top: 6px; }
+.bsr-tag-card--selected { outline: 2px solid #2563eb; }
+.bsr-tag-card-select { position: absolute; top: 8px; left: 8px; }
+.bsr-tag-card-reprint {
+  margin-top: 8px;
+  background: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+@media print {
+  .no-print { display: none !important; }
+}
+
+/* The three type-to-search filters. SearchSelect renders its own input at
+   width:100%, so the column has to have a width for it to fill — the menu is
+   portalled and positions itself against the input's rect, which is zero-wide
+   until this applies. */
+.bpp-filter .prod-search {
+  min-width: 190px;
+}
+
+.bpp-filter .prod-search input {
+  min-width: 0;
+}
+
+/* Counts on the left, the way out on the right. */
+.bpp-filter-footer {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bpp-filter-clear {
+  background: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 5px 12px;
+  color: var(--ink-blue-700);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bpp-filter-clear:hover {
+  background: var(--bg-hover);
+}

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1030" viewBox="0 0 900 1030" role="img"
+           aria-label="Flowchart sheet 1. Start, enter username and password, validate credentials. If invalid, log the failed attempt and show a CAPTCHA, then return to the login input. If valid, test whether two-factor is required; if so enter an OTP and validate it, looping back on failure. Then issue a token, load role permissions, display the dashboard, and continue to connector M.">
+  <style>
+    svg { background: #ffffff; }
+    .sym  { fill: #ffffff; stroke: #000000; stroke-width: 1.7; }
+    .flow { fill: none; stroke: #000000; stroke-width: 1.6; }
+    .jn   { fill: #000000; stroke: none; }
+    .mk   { fill: #000000; }
+    .t  { font-family: Arial, Helvetica, sans-serif; font-size: 12.5px; fill: #000000; text-anchor: middle; }
+    .tb { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .tc { font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .yn { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; font-weight: 700; fill: #000000; }
+    .nt { font-family: Arial, Helvetica, sans-serif; font-size: 11px; fill: #555555; }
+  </style>
+
+        <defs>
+          <marker id="f1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="mk" d="M0,0 L10,5 L0,10 z"></path>
+          </marker>
+        </defs>
+
+        <rect class="sym" x="190" y="16" width="180" height="48" rx="24"></rect>
+        <text class="tb" x="280" y="46">START</text>
+
+        <line class="flow" x1="280" y1="64" x2="280" y2="94" marker-end="url(#f1)"></line>
+
+        <polygon class="sym" points="174,96 410,96 386,148 150,148"></polygon>
+        <text class="t" x="280" y="126">Enter username and password</text>
+
+        <line class="flow" x1="280" y1="148" x2="280" y2="178" marker-end="url(#f1)"></line>
+
+        <rect class="sym" x="150" y="180" width="260" height="56"></rect>
+        <text class="t" x="280" y="204">Validate credentials</text>
+        <text class="t" x="280" y="221">against user account</text>
+
+        <line class="flow" x1="280" y1="236" x2="280" y2="266" marker-end="url(#f1)"></line>
+
+        <polygon class="sym" points="280,268 410,316 280,364 150,316"></polygon>
+        <text class="t" x="280" y="312">Credentials</text>
+        <text class="t" x="280" y="328">valid?</text>
+
+        <line class="flow" x1="410" y1="316" x2="508" y2="316" marker-end="url(#f1)"></line>
+        <text class="yn" x="432" y="308">No</text>
+
+        <rect class="sym" x="510" y="288" width="260" height="56"></rect>
+        <text class="t" x="640" y="312">Log failed attempt;</text>
+        <text class="t" x="640" y="329">show CAPTCHA after 3 tries</text>
+
+        <path class="flow" d="M640,288 V122 H402" marker-end="url(#f1)"></path>
+
+        <line class="flow" x1="280" y1="364" x2="280" y2="394" marker-end="url(#f1)"></line>
+        <text class="yn" x="292" y="384">Yes</text>
+
+        <polygon class="sym" points="280,396 410,444 280,492 150,444"></polygon>
+        <text class="t" x="280" y="440">Two-factor</text>
+        <text class="t" x="280" y="456">required?</text>
+
+        <path class="flow" d="M410,444 H820 V736 H286"></path>
+        <text class="yn" x="432" y="436">No</text>
+
+        <line class="flow" x1="280" y1="492" x2="280" y2="522" marker-end="url(#f1)"></line>
+        <text class="yn" x="292" y="512">Yes</text>
+
+        <polygon class="sym" points="174,524 410,524 386,576 150,576"></polygon>
+        <text class="t" x="280" y="555">Enter OTP code</text>
+
+        <line class="flow" x1="280" y1="576" x2="280" y2="606" marker-end="url(#f1)"></line>
+
+        <polygon class="sym" points="280,608 410,656 280,704 150,656"></polygon>
+        <text class="t" x="280" y="660">OTP valid?</text>
+
+        <path class="flow" d="M150,656 H70 V550 H164" marker-end="url(#f1)"></path>
+        <text class="yn" x="106" y="648">No</text>
+
+        <line class="flow" x1="280" y1="704" x2="280" y2="760" marker-end="url(#f1)"></line>
+        <text class="yn" x="292" y="722">Yes</text>
+        <circle class="jn" cx="280" cy="736" r="4"></circle>
+
+        <rect class="sym" x="150" y="762" width="260" height="56"></rect>
+        <text class="t" x="280" y="786">Issue access token;</text>
+        <text class="t" x="280" y="803">load role and permissions</text>
+
+        <line class="flow" x1="280" y1="818" x2="280" y2="848" marker-end="url(#f1)"></line>
+
+        <polygon class="sym" points="174,874 410,874 386,926 150,926"></polygon>
+        <text class="t" x="280" y="905">Display role-based dashboard</text>
+
+        <line class="flow" x1="280" y1="926" x2="280" y2="954" marker-end="url(#f1)"></line>
+
+        <circle class="sym" cx="280" cy="978" r="22"></circle>
+        <text class="tc" x="280" y="984">M</text>
+        <text class="nt" x="312" y="982">to Sheet 2 — main menu</text>
+      </svg>

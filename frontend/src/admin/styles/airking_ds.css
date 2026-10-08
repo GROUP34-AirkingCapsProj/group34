@@ -19,9 +19,15 @@
    per-page CSS. Migrate a page by wrapping it in `.ak-page` and swapping its
    bespoke header/card/button/table classes for the ak-* equivalents below.
    ============================================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Fonts load via <link> in public/index.html (non-blocking). Do not @import
+   Google Fonts here — CSS @import blocks stylesheet parsing. */
 
-.ak-page {
+/* Design tokens live on :root (not .ak-page) so controls rendered in a portaled
+   modal — createPortal(..., document.body), OUTSIDE any .ak-page — still resolve
+   them. Without this, an ak-btn--primary in a modal loses --ak-crimson and paints
+   white text on a transparent background (invisible), and ak-input loses its
+   border/fill. Global tokens are all --ak-* prefixed, so nothing else collides. */
+:root {
   /* ---- canvas + ink ---- */
   --ak-bg:        #f4f5fa;
   --ak-ink:       #14181f;
@@ -34,6 +40,10 @@
   /* ---- brand ---- */
   --ak-crimson:      #dc143c;
   --ak-crimson-deep: #a01028;
+  /* Triplets, not hexes: focus rings and button glows need rgba() with their own
+     alpha, and those must re-tint in dark or they stay light-mode saturated. */
+  --ak-crimson-rgb:      220, 20, 60;
+  --ak-crimson-deep-rgb: 160, 16, 40;
   --ak-gold:         #f5b301;
   --ak-amber:        #d97706;
   --ak-green:        #059669;
@@ -46,7 +56,35 @@
   --ak-radius-sm: 10px;
   --ak-shadow:    0 1px 2px rgba(20, 24, 31, 0.04), 0 12px 32px -18px rgba(20, 24, 31, 0.22);
   --ak-shadow-lg: 0 1px 2px rgba(20, 24, 31, 0.04), 0 22px 48px -30px rgba(20, 24, 31, 0.28);
+}
 
+/* Dark mirrors the navy set in index.css — same surfaces, same ink, same
+   chroma-reduced accents. Change both blocks together or the ak-* pages will
+   drift away from the shell around them. */
+html[data-theme='dark'] {
+  --ak-bg:        #18212f;
+  --ak-ink:       #d3dce8;
+  --ak-ink-soft:  #97a7ba;
+  --ak-ink-faint: #8797ab;
+  --ak-card:      #212d3f;
+  --ak-line:      #3a4a5f;
+  --ak-line-soft: #2d3a4e;
+  --ak-band:      #1b2537;
+  --ak-crimson:      #e1495f;
+  --ak-crimson-deep: #c03350;
+  --ak-crimson-rgb:      225, 73, 95;
+  --ak-crimson-deep-rgb: 192, 51, 80;
+  --ak-gold:         #e0ae4a;
+  --ak-amber:        #dd9c4b;
+  --ak-green:        #5fbf9b;
+  /* Lifted well past the shell blue — an accent blue on a navy card has to
+     out-step the surface it sits on, or it reads as part of the card. */
+  --ak-blue:         #7fb5e6;
+  --ak-shadow:    0 1px 2px rgba(8, 14, 24, 0.3), 0 12px 32px -16px rgba(8, 14, 24, 0.5);
+  --ak-shadow-lg: 0 1px 2px rgba(8, 14, 24, 0.3), 0 22px 48px -26px rgba(8, 14, 24, 0.6);
+}
+
+.ak-page {
   font-family: var(--ak-display);
   color: var(--ak-ink);
   -webkit-font-smoothing: antialiased;
@@ -93,6 +131,12 @@
   -webkit-mask-image: linear-gradient(105deg, #000 0%, transparent 62%);
           mask-image: linear-gradient(105deg, #000 0%, transparent 62%);
 }
+/* The grid is dark ink, so on a dark card it disappears and the header reads as
+   a flat slab. Flip it to light ink at a lower alpha — visible, never glaring. */
+html[data-theme='dark'] .ak-header::after {
+  opacity: 0.4;
+  background-image: radial-gradient(circle at center, rgba(211, 220, 232, 0.08) 1px, transparent 1.4px);
+}
 .ak-header-row {
   position: relative; z-index: 1;
   display: flex; align-items: flex-start; justify-content: space-between;
@@ -109,7 +153,7 @@
 }
 .ak-page .ak-eyebrow::before {
   content: ''; width: 7px; height: 7px; border-radius: 50%;
-  background: var(--ak-crimson); box-shadow: 0 0 0 3px rgba(220, 20, 60, 0.16);
+  background: var(--ak-crimson); box-shadow: 0 0 0 3px rgba(var(--ak-crimson-rgb), 0.16);
 }
 .ak-page .ak-title {
   font-family: var(--ak-display);
@@ -142,11 +186,11 @@
 
 .ak-btn--primary {
   background: var(--ak-crimson); border-color: var(--ak-crimson); color: #fff;
-  box-shadow: 0 8px 20px -8px rgba(220, 20, 60, 0.6);
+  box-shadow: 0 8px 20px -8px rgba(var(--ak-crimson-rgb), 0.45);
 }
 .ak-btn--primary:hover:not(:disabled) {
   background: var(--ak-crimson-deep); border-color: var(--ak-crimson-deep);
-  box-shadow: 0 12px 26px -8px rgba(160, 16, 40, 0.65);
+  box-shadow: 0 12px 26px -8px rgba(var(--ak-crimson-deep-rgb), 0.5);
 }
 .ak-btn--ghost  { background: transparent; }
 .ak-btn--danger { color: var(--ak-crimson); border-color: #f3c2ca; background: #fff6f7; }
@@ -191,7 +235,7 @@
 }
 .ak-input:focus, .ak-select:focus {
   outline: none; border-color: var(--ak-crimson);
-  box-shadow: 0 0 0 4px rgba(220, 20, 60, 0.1);
+  box-shadow: 0 0 0 4px rgba(var(--ak-crimson-rgb), 0.16);
 }
 .ak-input::placeholder { color: var(--ak-ink-faint); }
 /* search field with a leading magnifier (set the icon via background or wrap) */
@@ -214,7 +258,7 @@
   text-align: left; font-family: var(--ak-mono); font-size: 0.64rem; font-weight: 600;
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--ak-ink-faint);
   padding: 0.8rem 0.95rem; border-bottom: 1px solid var(--ak-line);
-  white-space: nowrap; background: #fbfbfe;
+  white-space: nowrap; background: var(--ak-band);
 }
 .ak-table tbody td {
   padding: 0.75rem 0.95rem; border-bottom: 1px solid var(--ak-line-soft);
@@ -257,6 +301,13 @@
 .ak-badge--blue   { background: #eef4ff; color: #1d4ed8; }
 .ak-badge--gray   { background: #eef1f6; color: #475569; }
 .ak-badge--violet { background: #f1edff; color: #5b21b6; }
+
+/* Which half of a split aircon a row is. Deliberately higher contrast than
+   the badges above: on a scanning screen this is the difference between the
+   right carton and the wrong one, so it has to survive a glance. Only ever
+   rendered for indoor/outdoor — a 'complete' unit is the ordinary case. */
+.ak-role-indoor  { background: #e0e7ff; color: #3730a3; margin-right: 6px; }
+.ak-role-outdoor { background: #ccfbf1; color: #115e59; margin-right: 6px; }
 
 .ak-pill {
   font-family: var(--ak-mono); font-size: 0.74rem; font-weight: 600;
@@ -308,7 +359,7 @@
 .ak-loader__ring {
   width: 34px; height: 34px; border-radius: 50%;
   background: conic-gradient(from 130deg,
-    rgba(220, 20, 60, 0) 0deg,
+    rgba(var(--ak-crimson-rgb), 0) 0deg,
     var(--ak-gold, #f5b301) 115deg,
     var(--ak-crimson, #dc143c) 290deg,
     var(--ak-crimson-deep, #a01028) 360deg);
@@ -415,3 +466,46 @@
   animation: ak-focus-pulse-kf 1s ease-out 2;
   border-radius: 8px;
 }
+
+/* ============================================================================
+   DARK CORRECTIONS
+   ----------------------------------------------------------------------------
+   Everything above resolves through --ak-* and flips on its own. What lands
+   here are the pieces that can't: pastel status fills. A #e7f8ef badge is a
+   light-mode object — on a dark table it reads as a lit sticker and is the
+   single worst glare source on a dense screen. In dark each one becomes a
+   translucent wash of its own hue with light text, so status stays legible at
+   a glance without punching a hole in the page.
+============================================================================ */
+html[data-theme='dark'] .ak-badge--green  { background: rgba(95, 191, 155, 0.17); color: #7fd3b4; }
+html[data-theme='dark'] .ak-badge--red    { background: rgba(225, 73, 95, 0.18);  color: #f09aa6; }
+html[data-theme='dark'] .ak-badge--amber  { background: rgba(221, 156, 75, 0.17);  color: #e8bd7c; }
+html[data-theme='dark'] .ak-badge--blue   { background: rgba(127, 181, 230, 0.20); color: #a8cdec; }
+/* Gray is the only badge with no hue of its own, so on a navy card it has to
+   borrow one or it vanishes into the surface. */
+html[data-theme='dark'] .ak-badge--gray   { background: rgba(151, 167, 186, 0.18); color: #b4c1d1; }
+html[data-theme='dark'] .ak-badge--violet { background: rgba(167, 139, 250, 0.20); color: #c4b2f7; }
+
+/* Indoor/outdoor keeps its extra contrast in dark too — it's the scanning cue
+   that decides which carton gets picked. The old indigo sat too close to the
+   navy card to survive a glance, so indoor moves to lavender: lavender against
+   teal separates on blue where indigo against teal does not. */
+html[data-theme='dark'] .ak-role-indoor  { background: rgba(150, 158, 240, 0.26); color: #c7cbfa; }
+html[data-theme='dark'] .ak-role-outdoor { background: rgba(94, 206, 190, 0.24);  color: #8fe0d3; }
+
+html[data-theme='dark'] .ak-pill {
+  background: rgba(221, 156, 75, 0.14);
+  border-color: rgba(221, 156, 75, 0.34);
+}
+
+/* Danger stays outlined rather than filled: a pale pink wash inverts to a
+   bright block, and this button is the one you least want the eye dragged to. */
+html[data-theme='dark'] .ak-btn--danger {
+  background: rgba(225, 73, 95, 0.12);
+  border-color: rgba(225, 73, 95, 0.42);
+}
+html[data-theme='dark'] .ak-btn--danger:hover:not(:disabled) {
+  background: rgba(225, 73, 95, 0.2);
+}
+
+html[data-theme='dark'] .ak-page .ak-eyebrow { color: #eb6b7d; }

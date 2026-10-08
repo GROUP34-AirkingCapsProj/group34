@@ -4,8 +4,16 @@ import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import { useLocation } from 'react-router-dom';
 import { inventoryAPI, locationsAPI, categoriesAPI, batchAPI, dashboardAPI, scanEventsAPI, transactionTypesAPI } from '../services/api';
+import MaterialTagSheet from '../components/tags/MaterialTagSheet';
+import BarcodeZoom from '../components/tags/BarcodeZoom';
+import SerialRecordsTable, { isPrintableTag } from '../components/inventory/SerialRecordsTable';
+import { useLabelPrinter } from '../hooks/useLabelPrinter';
 import '../styles/dashboard_air.css';
 import '../styles/inventory_management.css';
+// The tag sheet's own styles (.bsr-tag-*) live with the receiving screen it was
+// built for. Every selector in that file is page-prefixed, so importing it here
+// only brings the tag-card rules into play — nothing on this page is restyled.
+import '../styles/po_receiving.css';
 import { useFocusTarget } from '../hooks/useFocusTarget';
 import { useFocusPulse } from '../hooks/useFocusPulse';
 import { findById } from '../utils/findById';
@@ -47,7 +55,7 @@ const TrendChart = ({ data, loading }) => {
   return (
     <div className="sm-chart-wrap">
       {loading && (
-        <div style={{ height: H, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+        <div style={{ height: H, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-label)', fontSize: 13 }}>
           Loading chart data…
         </div>
       )}
@@ -92,6 +100,83 @@ const TrendChart = ({ data, loading }) => {
   );
 };
 
+/* ── Stock-in identifiers cell ────────────────────────────────────────────
+   One stock-in row's identifiers. A line that arrived with a supplier barcode
+   shows it; a line received by counting has none, and used to render blank —
+   which read as though nothing had been recorded. The tags carried by
+   `row.generated_tags` fill in the identity for that line instead.
+
+   That field name is a holdover from when every such tag was one this system
+   minted. Since a scanned material's item_serial row now holds the supplier's
+   own code rather than an `INT-` serial, the values it can carry are no
+   longer always "generated" — so the label below reads "tags", not
+   "generated tags": a scanned line's own code, echoed back under that
+   heading, would otherwise look like something invented that wasn't.
+
+   `tag_attribution === 'shared'` means the receipt holds several lines for the
+   same product that the data cannot tell apart (item_serial links a tag to a
+   receiving and a batch, never to one receiving_details row). The tags are
+   then listed once with that caveat spelled out, rather than repeated as if
+   each line owned them. */
+const StockInIdentifiers = ({ row }) => {
+  const tags = row.generated_tags || [];
+  const shared = row.tag_attribution === 'shared';
+
+  return (
+    <div className="invd-ident">
+      {row.scanned_barcode
+        ? <span className="invd-mono">{row.scanned_barcode}</span>
+        : <span className="invd-muted invd-small">No supplier barcode (counted)</span>}
+
+      {tags.length > 0 && (
+        tags.length <= 2 ? (
+          <div className="invd-ident-tags">
+            {tags.map((tag) => (
+              <span className="invd-mono invd-small invd-ident-tag" key={tag}>{tag}</span>
+            ))}
+          </div>
+        ) : (
+          <details className="invd-ident-tags">
+            <summary className="invd-ident-summary">{tags.length} tags</summary>
+            {tags.map((tag) => (
+              <span className="invd-mono invd-small invd-ident-tag" key={tag}>{tag}</span>
+            ))}
+          </details>
+        )
+      )}
+
+      {shared && tags.length > 0 && (
+        <span className="invd-sub">
+          Shared across {row.tag_line_count} lines of this receipt
+        </span>
+      )}
+    </div>
+  );
+};
+
+/* ── Package shortfall sub-line ───────────────────────────────────────────
+   quantity_amount is what actually posted; pieces_expected is packages ×
+   pieces-per-package, frozen at receipt. They only mean something for a
+   package-counted line, so pieces_expected is null for a piece-counted or
+   appliance line and nothing renders. When they match, the receipt was
+   clean and nothing renders either — only a mismatch is worth a clerk's
+   attention, and `· 0 short` would just be noise on every clean row. */
+const PackageShortfall = ({ row }) => {
+  if (row.pieces_expected === null || row.pieces_expected === undefined) return null;
+
+  const expected = Number(row.pieces_expected);
+  const actual   = Number(row.quantity_amount);
+  const diff     = expected - actual;
+
+  if (diff === 0) return null;
+
+  return (
+    <div className="invd-sub invd-shortfall">
+      {expected} expected · {diff > 0 ? `${diff} short` : `${Math.abs(diff)} over`}
+    </div>
+  );
+};
+
 /* ── Main component ──────────────────────────────────────────────────── */
 
 const InventoryManagement = () => {
@@ -112,10 +197,19 @@ const InventoryManagement = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [detailTab, setDetailTab] = useState('overview');
+  const [showTagSheet, setShowTagSheet] = useState(false);
   const focusInvId = useFocusTarget('inv');
   const focusHandledRef = useRef(false);
   const [invPulse, fireInvPulse] = useFocusPulse();
+  const [serialModalBatch, setSerialModalBatch] = useState(null);
+  /* The tag drawn in a table cell is a reference, not something a handheld can
+     read off the screen. Opening it at scanning size is what makes it one. */
+  const [zoomedSerial, setZoomedSerial] = useState(null);
+  const labelPrinter = useLabelPrinter();
   const [searchTerm, setSearchTerm] = useState('');
+  const [stockLocationFilter, setStockLocationFilter] = useState('');
+  const [stockCategoryFilter, setStockCategoryFilter] = useState('');
+  const [stockStatusFilter, setStockStatusFilter] = useState('');
   const [smSearch, setSmSearch] = useState('');
   const [trendData, setTrendData] = useState(null);
   const [trendLoading, setTrendLoading] = useState(false);
@@ -175,6 +269,9 @@ const InventoryManagement = () => {
       setLoading(true);
       const params = { page, per_page: rowsPerPage };
       if (searchTerm) params.search = searchTerm;
+      if (stockLocationFilter) params.location_id = stockLocationFilter;
+      if (stockCategoryFilter) params.category_id = stockCategoryFilter;
+      if (stockStatusFilter) params.stock_status = stockStatusFilter;
       const res = await inventoryAPI.getAll(params);
       setInventory(Array.isArray(res.data) ? res.data : []);
       setPagination(res.pagination || { total: 0, last_page: 1 });
@@ -184,7 +281,7 @@ const InventoryManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, rowsPerPage]);
+  }, [searchTerm, stockLocationFilter, stockCategoryFilter, stockStatusFilter, rowsPerPage]);
 
   const loadInventoryHistory = useCallback(async (inventoryId) => {
     setHistoryLoading(true);
@@ -203,20 +300,84 @@ const InventoryManagement = () => {
     }
   }, []);
 
+  const [poGroups, setPoGroups] = useState([]);
+  const [poGroupsLoading, setPoGroupsLoading] = useState(false);
+  const [poGroupsError, setPoGroupsError] = useState(null);
+  const [poSearch, setPoSearch] = useState('');
+  const [inventorySubTab, setInventorySubTab] = useState('po-console');
+  const [editingLocKey, setEditingLocKey] = useState(null);
+  const [editingLocValue, setEditingLocValue] = useState('');
+  const [savingLoc, setSavingLoc] = useState(false);
+  const [poGroupDetail, setPoGroupDetail] = useState(null);
+  const [poGroupDetailLoading, setPoGroupDetailLoading] = useState(false);
+  const [poDetailTab, setPoDetailTab] = useState('overview');
+
+  const fetchPoGroups = useCallback(async () => {
+    setPoGroupsLoading(true);
+    setPoGroupsError(null);
+    try {
+      const res = await inventoryAPI.getPoGroups();
+      setPoGroups(res?.data ?? []);
+    } catch (err) {
+      setPoGroupsError(err?.message || 'Failed to load PO inventory groups.');
+    } finally {
+      setPoGroupsLoading(false);
+    }
+  }, []);
+
+  const openPoGroupDetail = async (group) => {
+    setPoGroupDetail({ loading: true, group });
+    setPoDetailTab('overview');
+    setPoGroupDetailLoading(true);
+    try {
+      const res = await inventoryAPI.getPoGroupDetail(group.po_id, group.warehouse_id);
+      setPoGroupDetail({ group, data: res?.data ?? null });
+    } catch (err) {
+      setPoGroupDetail({ group, error: err?.message || 'Failed to load PO details.' });
+    } finally {
+      setPoGroupDetailLoading(false);
+    }
+  };
+
+  const startEditingLoc = (group) => {
+    setEditingLocKey(group.group_key);
+    setEditingLocValue(group.location_label || '');
+  };
+
+  const saveLoc = async (group) => {
+    setSavingLoc(true);
+    try {
+      await inventoryAPI.updatePoGroupLocation(group.po_id, group.warehouse_id, editingLocValue.trim() || null);
+      setEditingLocKey(null);
+      await fetchPoGroups();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update location.');
+    } finally {
+      setSavingLoc(false);
+    }
+  };
+
   useEffect(() => { fetchInventory(currentPage); }, [currentPage, fetchInventory]);
 
   // Re-fetch when a barcode scan transaction is confirmed anywhere in the app.
   useEffect(() => {
-    const onScanApplied = () => fetchInventory(currentPage);
+    const onScanApplied = () => {
+      fetchInventory(currentPage);
+      // The PO console's quantities come from a snapshot fetched only when the
+      // sub-tab becomes active, so re-fetch it too when it's the one on screen.
+      if (activeTab === 'inventory' && inventorySubTab === 'po-console') {
+        fetchPoGroups();
+      }
+    };
     window.addEventListener('inventory-scan-applied', onScanApplied);
     return () => window.removeEventListener('inventory-scan-applied', onScanApplied);
-  }, [fetchInventory, currentPage]);
+  }, [fetchInventory, currentPage, activeTab, inventorySubTab, fetchPoGroups]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setCurrentPage(1), 400);
     return () => clearTimeout(debounceRef.current);
-  }, [searchTerm]);
+  }, [searchTerm, stockLocationFilter, stockCategoryFilter, stockStatusFilter]);
 
   useEffect(() => {
     if (!focusInvId || focusHandledRef.current) return;
@@ -227,6 +388,7 @@ const InventoryManagement = () => {
       setViewingItem(item);
       setHistoryData(null);
       setDetailTab('overview');
+      setShowTagSheet(false);
       loadInventoryHistory(item.inventory_id);
       fireInvPulse();
     } else {
@@ -253,12 +415,22 @@ const InventoryManagement = () => {
     return () => { cancelled = true; };
   }, [activeTab]);
 
+  useEffect(() => {
+    if (!(activeTab === 'inventory' && inventorySubTab === 'po-console')) return;
+    fetchPoGroups();
+  }, [activeTab, inventorySubTab, fetchPoGroups]);
+
   /* ── helpers ─── */
   const getItemName    = (item) => item.product?.product_name || item.item?.name || item.item_name || 'N/A';
   const getItemCode    = (item) => item.product?.product_code || item.item?.code || item.sku || '';
-  // Appliance model code for display (consumables have none → '').
-  const getModelCode   = (item) => item.product?.applianceDetail?.model_code || item.product?.model_code || item.model_code || '';
+  // Appliance model code, falling back to barcode for installation materials/bulk items.
+  const getModelCode   = (item) => item.product?.applianceDetail?.model_code || item.product?.model_code || item.model_code || item.product?.barcode || '';
   const getItemQty     = (item) => Number(item.quantity_on_hand ?? item.quantity ?? 0);
+  // Pieces named by an unsettled incident. Physically present and still counted
+  // in quantity_on_hand — the picking engine excludes them, but until now this
+  // screen showed the same number either way, so a reader deciding whether they
+  // could promise stock was reading the figure a picker would then be refused.
+  const getItemHeld    = (item) => Number(item.quarantined_quantity ?? 0);
   const getItemReorder = (item) => Number(item.product?.recommended_stocks || item.reorder_level || 5);
   const getItemSafety  = (item) => Number(item.product?.safety_stock) || Math.round(getItemReorder(item) * 0.25) || 1;
   const getItemMax     = (item) => Number(item.product?.max_stock_level) || getItemReorder(item) * 4 || 100;
@@ -357,6 +529,41 @@ const InventoryManagement = () => {
     return qty > reorder * 0.5 && qty <= reorder;
   }).length;
   const overstockCount = inventory.filter((i) => getItemQty(i) >= getItemMax(i)).length;
+  const stockOutHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Stock Out');
+  const transferHistory = (historyData?.movement_history || []).filter((m) => m.type === 'Transfer');
+
+  /* Digital tags we minted ourselves (installation materials only). An
+     appliance's serial is the manufacturer's own — we never re-encode it as
+     one of our tags, so no barcode affordance is offered for those.
+
+     Retired tags (serial_type 'issued' — their batch is spent) are excluded
+     from the printable sheet. The sheet exists so a picker can reprint a label
+     for stock sitting on the shelf; handing them a label for stock that is
+     gone would put a scannable tag on nothing. They stay listed in the Serial
+     Numbers table below, marked Issued, so the receiving trail is not lost.
+
+     A scanned material (supplier_barcode populated) is excluded here too: the
+     supplier already printed that code, and putting a second, our-own-format
+     label on the same box would carry two identifiers of differing provenance. */
+  const materialTags = (historyData?.serial_records || [])
+    .filter((s) => isPrintableTag(s));
+
+  /* The row control prints one tag. Where it goes — the Zebra, or a PDF when
+     no printer is wired up — is useLabelPrinter's call, the same one the tag
+     sheet's bulk buttons make. */
+  const printTags = (tags) => (labelPrinter.printerReady
+    ? labelPrinter.sendToPrinter(tags)
+    : labelPrinter.savePdf(
+      tags,
+      historyData?.product?.product_name ?? (viewingItem ? getItemName(viewingItem) : null),
+    ));
+
+  /* The PO group modal lists tags for several products at once, so the PDF
+     fallback is titled with the row's own product rather than the one SKU the
+     per-SKU modal is scoped to. */
+  const printPoGroupTags = (tags) => (labelPrinter.printerReady
+    ? labelPrinter.sendToPrinter(tags)
+    : labelPrinter.savePdf(tags, tags[0]?.product_name ?? null));
 
   return (
     <AdminLayout>
@@ -401,6 +608,24 @@ const InventoryManagement = () => {
           </button>
         </div>
 
+        {/* ── Inventory sub-tabs ── */}
+        {activeTab === 'inventory' && (
+          <div className="ak-tabs inv-subtabs">
+            <button
+              className={`ak-tab ${inventorySubTab === 'po-console' ? 'is-active' : ''}`}
+              onClick={() => setInventorySubTab('po-console')}
+            >
+              Inventory Batch
+            </button>
+            <button
+              className={`ak-tab ${inventorySubTab === 'stock-level' ? 'is-active' : ''}`}
+              onClick={() => setInventorySubTab('stock-level')}
+            >
+              Stock-Level Monitoring
+            </button>
+          </div>
+        )}
+
         {/* ════════════════════════════════════════════════
             STOCK MOVEMENT & TURNOVER TAB
         ════════════════════════════════════════════════ */}
@@ -409,7 +634,7 @@ const InventoryManagement = () => {
             {/* Metric cards */}
             <div className="sm-stats-row">
               <div className="sm-stat-card">
-                <span className="sm-stat-label">TOTAL STOCK IN <span style={{fontSize:10,color:'#9ca3af',fontWeight:400}}>(30d)</span></span>
+                <span className="sm-stat-label">TOTAL STOCK IN <span style={{fontSize:10,color:'var(--text-label)',fontWeight:400}}>(30d)</span></span>
                 <div className="sm-stat-value-row">
                   <span className="sm-stat-value">{smTotalIn.toLocaleString()}</span>
                   {smInPct !== null && (
@@ -417,10 +642,48 @@ const InventoryManagement = () => {
                       {smInPct >= 0 ? '↑' : '↓'} {Math.abs(smInPct)}%
                     </span>
                   )}
+                  {false && historyData.movement_history?.length > 0 && (
+                    <>
+                      <div className="invd-section-title" style={{ marginTop: 24 }}>Movement Timeline</div>
+                      <div className="invd-table-wrap">
+                        <table className="invd-table">
+                          <thead>
+                            <tr>
+                              <th>Movement</th>
+                              <th>Quantity</th>
+                              <th>Date &amp; Time</th>
+                              <th>Reference</th>
+                              <th>Serial / Barcode</th>
+                              <th>From</th>
+                              <th>To</th>
+                              <th>Performed By</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {historyData.movement_history.map((movement, index) => (
+                              <tr key={`${movement.type}-${movement.reference || index}-${index}`}>
+                                <td>{movement.type}</td>
+                                <td className="invd-mono">{movement.quantity}</td>
+                                <td>{movement.date_time ? new Date(movement.date_time).toLocaleString('en-PH', {
+                                  year: 'numeric', month: 'short', day: 'numeric',
+                                  hour: '2-digit', minute: '2-digit', second: '2-digit',
+                                }) : '—'}</td>
+                                <td className="invd-mono">{movement.reference || '—'}</td>
+                                <td className="invd-mono">{movement.serial_number || '—'}</td>
+                                <td>{movement.from_location || '—'}</td>
+                                <td>{movement.to_location || '—'}</td>
+                                <td>{movement.performed_by || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="sm-stat-card">
-                <span className="sm-stat-label">TOTAL STOCK OUT <span style={{fontSize:10,color:'#9ca3af',fontWeight:400}}>(30d)</span></span>
+                <span className="sm-stat-label">TOTAL STOCK OUT <span style={{fontSize:10,color:'var(--text-label)',fontWeight:400}}>(30d)</span></span>
                 <div className="sm-stat-value-row">
                   <span className="sm-stat-value">{smTotalOut.toLocaleString()}</span>
                   {smOutPct !== null && (
@@ -492,7 +755,7 @@ const InventoryManagement = () => {
                         </div>
                       </div>
                     )) : (
-                      <p style={{ color: '#9ca3af', fontSize: 12, textAlign: 'center', padding: '12px 0' }}>
+                      <p style={{ color: 'var(--text-label)', fontSize: 12, textAlign: 'center', padding: '12px 0' }}>
                         No category data available
                       </p>
                     )}
@@ -543,7 +806,7 @@ const InventoryManagement = () => {
                   <tbody>
                     {top20.length === 0 ? (
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-label)', padding: '40px' }}>
                           {loading ? 'Loading...' : 'No products found'}
                         </td>
                       </tr>
@@ -577,7 +840,7 @@ const InventoryManagement = () => {
         {/* ════════════════════════════════════════════════
             INVENTORY TAB
         ════════════════════════════════════════════════ */}
-        {activeTab === 'inventory' && (
+        {activeTab === 'inventory' && inventorySubTab === 'stock-level' && (
           <>
             {/* Search + Export */}
             <div className="inv-search-row">
@@ -593,6 +856,37 @@ const InventoryManagement = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+              <select className="inv-filter-select" value={stockLocationFilter} onChange={(e) => setStockLocationFilter(e.target.value)}>
+                <option value="">All Locations</option>
+                {warehouses.map((location) => (
+                  <option key={location.location_id} value={location.location_id}>
+                    {location.location_name}
+                  </option>
+                ))}
+              </select>
+              <select className="inv-filter-select" value={stockCategoryFilter} onChange={(e) => setStockCategoryFilter(e.target.value)}>
+                <option value="">All Categories</option>
+                {categories.map((category) => (
+                  <option key={category.category_id} value={category.category_id}>
+                    {category.category_name}
+                  </option>
+                ))}
+              </select>
+              <select className="inv-filter-select" value={stockStatusFilter} onChange={(e) => setStockStatusFilter(e.target.value)}>
+                <option value="">All Statuses</option>
+                <option value="out">Out of Stock</option>
+                <option value="critical">Critical Low</option>
+                <option value="reorder">Reorder Point</option>
+                <option value="optimal">Optimal Level</option>
+                <option value="overstock">Overstock Risk</option>
+              </select>
+              {(stockLocationFilter || stockCategoryFilter || stockStatusFilter) && (
+                <button type="button" className="inv-filter-clear" onClick={() => {
+                  setStockLocationFilter('');
+                  setStockCategoryFilter('');
+                  setStockStatusFilter('');
+                }}>Clear</button>
+              )}
               <button className="inv-btn-export">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -662,7 +956,7 @@ const InventoryManagement = () => {
             <div className="inv-table-card">
               <div className="inv-table-top">
                 <div>
-                  <h3 className="inv-table-title">Inventory Monitoring Console</h3>
+                  <h3 className="inv-table-title">Stock-Level Monitoring</h3>
                   <p className="inv-table-subtitle">Monitoring {totalItems} SKUs across branches</p>
                 </div>
               </div>
@@ -684,7 +978,7 @@ const InventoryManagement = () => {
                   <tbody>
                     {inventory.length === 0 ? (
                       <tr>
-                        <td colSpan="8" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                        <td colSpan="8" style={{ textAlign: 'center', color: 'var(--text-label)', padding: '40px' }}>
                           {loading ? 'Loading...' : 'No items found'}
                         </td>
                       </tr>
@@ -692,7 +986,8 @@ const InventoryManagement = () => {
                       inventory.map((item) => {
                         const status = getItemStatus(item);
                         return (
-                          <tr key={item.inventory_id}>
+                          <React.Fragment key={item.inventory_id}>
+                          <tr>
                             <td>
                               <div className="inv-product-cell">
                                 <span className="inv-product-name">{getItemName(item)}</span>
@@ -702,7 +997,17 @@ const InventoryManagement = () => {
                                 </div>
                               </div>
                             </td>
-                            <td className="inv-cell-qty"><strong>{getItemQty(item)}</strong></td>
+                            <td className="inv-cell-qty">
+                              <strong>{getItemQty(item)}</strong>
+                              {getItemHeld(item) > 0 && (
+                                <div
+                                  className="inv-qty-held"
+                                  title={`${getItemHeld(item)} under an open incident report — not pickable, and not promised to anybody. ${item.unquarantined_quantity ?? (getItemQty(item) - getItemHeld(item))} free.`}
+                                >
+                                  {getItemHeld(item)} held
+                                </div>
+                              )}
+                            </td>
                             <td className="inv-cell-num">
                               {item.product?.product_type !== 'appliance' && item.product?.pieces_per_package > 1
                                 ? (item.packages_on_hand ?? Math.floor(getItemQty(item) / item.product.pieces_per_package))
@@ -718,10 +1023,11 @@ const InventoryManagement = () => {
                             </td>
                             <td>
                               <div className="inv-cell-actions">
-                                <button className="inv-action-link" onClick={() => { setViewingItem(item); setHistoryData(null); setDetailTab('overview'); loadInventoryHistory(item.inventory_id); }}>View</button>
+                                <button className="inv-action-link" onClick={() => { setViewingItem(item); setHistoryData(null); setDetailTab('overview'); setShowTagSheet(false); loadInventoryHistory(item.inventory_id); }}>View</button>
                               </div>
                             </td>
                           </tr>
+                          </React.Fragment>
                         );
                       })
                     )}
@@ -745,6 +1051,152 @@ const InventoryManagement = () => {
               })()}
             </div>
           </>
+        )}
+
+        {activeTab === 'inventory' && inventorySubTab === 'po-console' && (
+          <div className="po-map-wrap">
+            <div className="po-map-head">
+              <div>
+                <h3 className="inv-table-title">Inventory Batch</h3>
+                <p className="inv-table-subtitle">Deliveries laid out by warehouse and zone · oldest first</p>
+              </div>
+              <div className="sm-search po-search">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search PO, supplier, warehouse, zone…"
+                  value={poSearch}
+                  onChange={(e) => setPoSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {poGroupsLoading ? (
+              <div className="inv-batch-loading">Loading batches…</div>
+            ) : poGroupsError ? (
+              <div className="inv-batch-empty inv-batch-empty--error">{poGroupsError}</div>
+            ) : (() => {
+              const q = poSearch.trim().toLowerCase();
+              const filtered = q
+                ? poGroups.filter((g) => [g.po_number, g.supplier_name, g.warehouse_name, g.location_label]
+                    .some((v) => (v || '').toLowerCase().includes(q)))
+                : poGroups;
+
+              if (filtered.length === 0) {
+                return <div className="po-map-empty">No purchase orders match your search.</div>;
+              }
+
+              const byWh = new Map();
+              filtered.forEach((g) => {
+                if (!byWh.has(g.warehouse_id)) byWh.set(g.warehouse_id, []);
+                byWh.get(g.warehouse_id).push(g);
+              });
+              const sections = [...byWh.values()].sort(
+                (a, b) => (a[0].warehouse_name || '').localeCompare(b[0].warehouse_name || '')
+              );
+
+              return (
+                <div className="po-sections">
+                  {sections.map((groups) => {
+                    const wh = groups[0];
+                    const totalItems = groups.reduce((s, g) => s + (g.item_count || 0), 0);
+                    const totalRemaining = groups.reduce((s, g) => s + (g.total_remaining || 0), 0);
+                    const totalReceived = groups.reduce((s, g) => s + (g.total_received || 0), 0);
+                    const oldest = groups.reduce((min, g) =>
+                      (!min || (g.first_received_at || '') < (min.first_received_at || '')) ? g : min, null);
+                    const oldestKey = oldest?.group_key;
+                    const type = (wh.warehouse_type || '').toLowerCase();
+                    return (
+                      <section className="po-section" key={wh.warehouse_id}>
+                        <div className="po-section-head">
+                          <div className="po-section-id">
+                            <span className="po-section-name">{wh.warehouse_name || '—'}</span>
+                            <span className={`po-section-type po-section-type--${type || 'default'}`}>
+                              {wh.warehouse_type || 'Location'}
+                            </span>
+                          </div>
+                          <div className="po-section-totals">
+                            <span>{groups.length} deliver{groups.length === 1 ? 'y' : 'ies'}</span>
+                            <span>{totalItems} item{totalItems === 1 ? '' : 's'}</span>
+                            <span>{totalRemaining} / {totalReceived} in stock</span>
+                          </div>
+                        </div>
+                        <div className="po-map-grid">
+                          {groups.map((g) => {
+                            const pct = g.total_received > 0
+                              ? Math.round((g.total_remaining / g.total_received) * 100)
+                              : 0;
+                            const isOldest = g.group_key === oldestKey;
+                            return (
+                              <div key={g.group_key} className={`po-slot${isOldest ? ' po-slot--fifo' : ''}`}>
+                                {isOldest && <span className="po-slot-flag">Pick first</span>}
+                                <div className="po-slot-top">
+                                  {editingLocKey === g.group_key ? (
+                                    <div className="po-slot-tag po-slot-tag--edit">
+                                      <span className="po-slot-tag-eyebrow">Zone</span>
+                                      <input
+                                        type="text"
+                                        className="po-slot-tag-input"
+                                        value={editingLocValue}
+                                        onChange={(e) => setEditingLocValue(e.target.value)}
+                                        placeholder="e.g. Zone A"
+                                        autoFocus
+                                        onKeyDown={(e) => { if (e.key === 'Enter') saveLoc(g); if (e.key === 'Escape') setEditingLocKey(null); }}
+                                      />
+                                      <div className="po-slot-tag-actions">
+                                        <button type="button" className="po-slot-tag-save" disabled={savingLoc} onClick={() => saveLoc(g)}>Save</button>
+                                        <button type="button" className="po-slot-tag-cancel" disabled={savingLoc} onClick={() => setEditingLocKey(null)}>Cancel</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button type="button" className="po-slot-tag" onClick={() => startEditingLoc(g)} title="Edit zone">
+                                      <span className="po-slot-tag-eyebrow">Zone<span className="po-slot-tag-pencil" aria-hidden="true">✎</span></span>
+                                      <span className="po-slot-tag-code">{g.location_label || 'Unzoned'}</span>
+                                    </button>
+                                  )}
+                                  <div className="po-slot-ident">
+                                    <span className="po-slot-po">{g.po_number || '—'}</span>
+                                    <span className="po-slot-supplier">{g.supplier_name || 'No supplier'}</span>
+                                    <span className="po-slot-wh">{g.warehouse_name || '—'}</span>
+                                  </div>
+                                </div>
+
+                                <div className="po-slot-meta">
+                                  <div className="po-slot-meta-item">
+                                    <span className="po-slot-meta-label">Received</span>
+                                    <span className="po-slot-meta-value">{g.first_received_at || '—'}</span>
+                                  </div>
+                                  <div className="po-slot-meta-item">
+                                    <span className="po-slot-meta-label">Items</span>
+                                    <span className="po-slot-meta-value">{g.item_count}</span>
+                                  </div>
+                                </div>
+
+                                <div className="po-slot-capacity">
+                                  <div className="po-slot-bar">
+                                    <div className="po-slot-bar-fill" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="po-slot-bar-label">{g.total_remaining} / {g.total_received} in stock</span>
+                                </div>
+
+                                <div className="po-slot-foot">
+                                  <button type="button" className="po-slot-view" onClick={() => openPoGroupDetail(g)}>
+                                    View<span aria-hidden="true"> →</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
         )}
 
         {/* ════════════════════════════════════════════════
@@ -827,7 +1279,7 @@ const InventoryManagement = () => {
                     );
                   })}
                 </select>
-                <span style={{ fontSize: 12, color: '#9ca3af', alignSelf: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-label)', alignSelf: 'center' }}>
                   {activityLoading ? 'Loading…' : `${filtered.length} record${filtered.length !== 1 ? 's' : ''}`}
                 </span>
               </div>
@@ -859,7 +1311,7 @@ const InventoryManagement = () => {
                       <tbody>
                         {filtered.length === 0 ? (
                           <tr>
-                            <td colSpan="8" style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+                            <td colSpan="8" style={{ textAlign: 'center', color: 'var(--text-label)', padding: '40px' }}>
                               {activityLog.length === 0
                                 ? 'No scan events recorded yet. Events will appear here after the first barcode scan.'
                                 : 'No records match your filters.'}
@@ -874,7 +1326,7 @@ const InventoryManagement = () => {
                             : '#16a34a';
                           return (
                             <tr key={r.id}>
-                              <td className="inv-cell-num" style={{ color: '#9ca3af', fontSize: 11 }}>{idx + 1}</td>
+                              <td className="inv-cell-num" style={{ color: 'var(--text-label)', fontSize: 11 }}>{idx + 1}</td>
                               <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{formatDate(r.created_at)}</td>
                               <td>
                                 <span style={{
@@ -886,15 +1338,15 @@ const InventoryManagement = () => {
                                 </span>
                               </td>
                               <td>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{r.product?.product_name || '—'}</div>
-                                {r.product?.applianceDetail?.model_code && <div style={{ fontSize: 10, color: '#9ca3af' }}>{r.product.applianceDetail.model_code}</div>}
+                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dark)' }}>{r.product?.product_name || '—'}</div>
+                                {r.product?.applianceDetail?.model_code && <div style={{ fontSize: 10, color: 'var(--text-label)' }}>{r.product.applianceDetail.model_code}</div>}
                               </td>
                               <td><span className="invd-mono invd-small">{getRef(r)}</span></td>
-                              <td style={{ fontSize: 12, color: '#374151' }}>{getLoc(r)}</td>
+                              <td style={{ fontSize: 12, color: 'var(--text-body)' }}>{getLoc(r)}</td>
                               <td style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: qtyColor }}>
                                 {qtyDisplay(r)}
                               </td>
-                              <td style={{ fontSize: 12, color: '#6b7280' }}>{getBy(r)}</td>
+                              <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{getBy(r)}</td>
                             </tr>
                           );
                         })}
@@ -911,7 +1363,7 @@ const InventoryManagement = () => {
         {viewingItem && (
           <Modal
             isOpen={!!viewingItem}
-            onClose={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); }}
+            onClose={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); setShowTagSheet(false); }}
             title={getItemName(viewingItem)}
             maxWidth={920}
           >
@@ -926,7 +1378,15 @@ const InventoryManagement = () => {
                   Stock-In History
                   {historyData && <span className="invd-tab-count">{historyData.summary.total_receive_events}</span>}
                 </button>
-                {historyData?.product?.is_serialized && (
+                <button className={`invd-tab-btn${detailTab === 'stock-out' ? ' active' : ''}`} onClick={() => setDetailTab('stock-out')}>
+                  Stock-Out History
+                  {historyData && <span className="invd-tab-count">{stockOutHistory.length}</span>}
+                </button>
+                <button className={`invd-tab-btn${detailTab === 'transfers' ? ' active' : ''}`} onClick={() => setDetailTab('transfers')}>
+                  Transfer History
+                  {historyData && <span className="invd-tab-count">{transferHistory.length}</span>}
+                </button>
+                {historyData && (
                   <button className={`invd-tab-btn${detailTab === 'serials' ? ' active' : ''}`} onClick={() => setDetailTab('serials')}>
                     Serial Numbers
                     <span className="invd-tab-count">{historyData.summary.serial_count}</span>
@@ -957,8 +1417,8 @@ const InventoryManagement = () => {
                       </div>
                       <div className="invd-field">
                         <span className="invd-label">Type</span>
-                        <span className={`invd-type-badge ${historyData?.product?.product_type === 'appliance' ? 'invd-type-appliance' : 'invd-type-consumable'}`}>
-                          {historyData?.product?.product_type === 'appliance' ? 'Appliance' : 'Consumable'}
+                        <span className={`invd-type-badge ${historyData?.product?.product_type === 'appliance' ? 'invd-type-appliance' : 'invd-type-installation-material'}`}>
+                          {historyData?.product?.product_type === 'appliance' ? 'Appliance' : 'Installation Material'}
                         </span>
                       </div>
                       <div className="invd-field">
@@ -1058,11 +1518,21 @@ const InventoryManagement = () => {
                       <div className="invd-section-title">Cost Summary</div>
                       <div className="invd-grid">
                         <div className="invd-field">
-                          <span className="invd-label">Cost Price</span>
+                          <span className="invd-label">
+                            {historyData.product.pieces_per_package > 1 ? 'Package Cost' : 'Cost Price'}
+                          </span>
                           <span className="invd-value invd-currency">
                             ₱{parseFloat(historyData.product.cost_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
+                        {historyData.product.pieces_per_package > 1 && (
+                          <div className="invd-field">
+                            <span className="invd-label">Cost Per Piece</span>
+                            <span className="invd-value invd-currency">
+                              ₱{parseFloat(historyData.product.cost_per_piece || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                            </span>
+                          </div>
+                        )}
                         <div className="invd-field">
                           <span className="invd-label">Avg Received Cost</span>
                           <span className="invd-value invd-currency">
@@ -1072,7 +1542,7 @@ const InventoryManagement = () => {
                         <div className="invd-field">
                           <span className="invd-label">Total Stock Value</span>
                           <span className="invd-value invd-currency invd-bold">
-                            ₱{(parseFloat(historyData.product.cost_price || 0) * (historyData.inventory.quantity_on_hand || 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            ₱{parseFloat(historyData.summary.current_stock_value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                         {historyData.summary.last_stocked_at && (
@@ -1115,7 +1585,7 @@ const InventoryManagement = () => {
                           <tr>
                             <th>#</th>
                             <th>Date Received</th>
-                            <th>Barcode / Package</th>
+                            <th>Barcode / Tags</th>
                             <th>Qty</th>
                             <th>Cost Price</th>
                             <th>Received By</th>
@@ -1130,18 +1600,20 @@ const InventoryManagement = () => {
                               <td className="invd-cell-num">{index + 1}</td>
                               <td>
                                 <span className="invd-date">
-                                  {rd.receiving_date
-                                    ? new Date(rd.receiving_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+                                  {rd.received_at
+                                    ? new Date(rd.received_at).toLocaleString('en-PH', {
+                                        year: 'numeric', month: 'short', day: 'numeric',
+                                        hour: '2-digit', minute: '2-digit', second: '2-digit',
+                                      })
                                     : '—'}
                                 </span>
                                 {rd.receiving_number && <span className="invd-sub">{rd.receiving_number}</span>}
                               </td>
-                              <td>
-                                {rd.scanned_barcode
-                                  ? <span className="invd-mono">{rd.scanned_barcode}</span>
-                                  : <span className="invd-muted">—</span>}
+                              <td><StockInIdentifiers row={rd} /></td>
+                              <td className="invd-cell-num invd-bold">
+                                {rd.quantity_amount}
+                                <PackageShortfall row={rd} />
                               </td>
-                              <td className="invd-cell-num invd-bold">{rd.quantity_amount}</td>
                               <td className="invd-cell-currency">
                                 ₱{parseFloat(rd.prod_price).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                               </td>
@@ -1173,53 +1645,124 @@ const InventoryManagement = () => {
               {/* ══════════════════════════════
                   TAB: SERIAL NUMBERS
               ══════════════════════════════ */}
-              {detailTab === 'serials' && !historyLoading && historyData?.product?.is_serialized && (
+              {(detailTab === 'stock-out' || detailTab === 'transfers') && !historyLoading && historyData && (() => {
+                const rows = detailTab === 'stock-out' ? stockOutHistory : transferHistory;
+                const emptyLabel = detailTab === 'stock-out'
+                  ? 'No stock-out records found for this product at this location.'
+                  : 'No transfer records found for this product at this location.';
+                return (
+                  <div className="invd-panel">
+                    {rows.length === 0 ? <div className="invd-empty">{emptyLabel}</div> : (
+                      <div className="invd-table-wrap">
+                        <table className="invd-table">
+                          <thead><tr>
+                            <th>#</th><th>Date &amp; Time</th><th>Quantity</th>
+                            <th>Reference</th><th>Serial / Barcode</th>
+                            <th>From</th><th>To</th><th>Performed By</th>
+                          </tr></thead>
+                          <tbody>
+                            {rows.map((movement, index) => (
+                              <tr key={`${movement.type}-${movement.reference || index}-${index}`}>
+                                <td className="invd-cell-num">{index + 1}</td>
+                                <td>{movement.date_time ? new Date(movement.date_time).toLocaleString('en-PH', {
+                                  year: 'numeric', month: 'short', day: 'numeric',
+                                  hour: '2-digit', minute: '2-digit', second: '2-digit',
+                                }) : '—'}</td>
+                                <td className="invd-cell-num invd-bold">{movement.quantity}</td>
+                                <td className="invd-mono">{movement.reference || '—'}</td>
+                                <td className="invd-mono">{movement.serial_number || '—'}</td>
+                                <td>{movement.from_location || '—'}</td>
+                                <td>{movement.to_location || '—'}</td>
+                                <td>{movement.performed_by || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {detailTab === 'serials' && !historyLoading && historyData && (
                 <div className="invd-panel">
+                  <div className="invd-move-stats">
+                    <div className="invd-move-stat invd-move-in">
+                      <span className="invd-move-label">Stock In</span>
+                      <span className="invd-move-value">{historyData.summary.stock_in ?? 0}</span>
+                    </div>
+                    <div className="invd-move-stat invd-move-out">
+                      <span className="invd-move-label">Stock Out</span>
+                      <span className="invd-move-value">{historyData.summary.stock_out ?? 0}</span>
+                    </div>
+                    <div className="invd-move-stat invd-move-transfer">
+                      <span className="invd-move-label">Transfers</span>
+                      <span className="invd-move-value">{historyData.summary.transferred ?? 0}</span>
+                    </div>
+                    <div className="invd-move-stat">
+                      <span className="invd-move-label">Current On Hand</span>
+                      <span className="invd-move-value">{historyData.summary.current_on_hand ?? historyData.inventory?.quantity_on_hand ?? 0}</span>
+                    </div>
+                    <div className="invd-move-stat">
+                      <span className="invd-move-label">Available</span>
+                      <span className="invd-move-value">{historyData.summary.current_available ?? historyData.inventory?.available_quantity ?? 0}</span>
+                    </div>
+                  </div>
+                  {materialTags.length > 0 && (
+                    <div className="invd-tag-actions no-print">
+                      <button
+                        type="button"
+                        className="invd-tag-toggle-btn"
+                        onClick={() => setShowTagSheet((v) => !v)}
+                      >
+                        {showTagSheet ? 'Hide tags' : `View / print tags (${materialTags.length})`}
+                      </button>
+                      <span className="invd-tag-hint">
+                        Scan or reprint a tag when the physical label is missing or damaged.
+                      </span>
+                    </div>
+                  )}
+                  {showTagSheet && materialTags.length > 0 && (
+                    <div className="invd-tag-sheet-wrap">
+                      <MaterialTagSheet
+                        tags={materialTags}
+                        productName={historyData?.product?.product_name ?? getItemName(viewingItem)}
+                      />
+                    </div>
+                  )}
                   {!historyData.serial_records || historyData.serial_records.length === 0 ? (
                     <div className="invd-empty">No serial numbers recorded for this product at this location.</div>
                   ) : (
-                    <div className="invd-table-wrap">
+                    <SerialRecordsTable
+                      records={historyData.serial_records}
+                      showPo
+                      onZoom={setZoomedSerial}
+                      onPrint={printTags}
+                    />
+                  )}
+                  {historyData.movement_history?.length > 0 && (
+                    <div className="invd-table-wrap" style={{ marginTop: 24 }}>
+                      <div className="invd-section-title">Movement Timeline</div>
                       <table className="invd-table">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Serial Number</th>
-                            <th>Status</th>
-                            <th>Scanned By</th>
-                            <th>Date Scanned</th>
-                            <th>PO Number</th>
-                            <th>Supplier</th>
-                          </tr>
-                        </thead>
+                        <thead><tr>
+                          <th>Movement</th><th>Quantity</th><th>Date &amp; Time</th>
+                          <th>Reference</th><th>Serial / Barcode</th>
+                          <th>From</th><th>To</th><th>Performed By</th>
+                        </tr></thead>
                         <tbody>
-                          {historyData.serial_records.map((s, index) => (
-                            <tr key={s.serial_id ?? index}>
-                              <td className="invd-cell-num">{index + 1}</td>
-                              <td><span className="invd-mono invd-bold">{s.serial_number}</span></td>
-                              <td>
-                                <span className={`invd-status-pill${
-                                  s.serial_status === 'In Stock' ? ' invd-pill-green'
-                                  : s.serial_status === 'Issued' ? ' invd-pill-orange'
-                                  : ' invd-pill-gray'
-                                }`}>
-                                  {s.serial_status ?? 'Active'}
-                                </span>
-                              </td>
-                              <td>{s.scanned_by_name ?? '—'}</td>
-                              <td>
-                                {s.scanned_at
-                                  ? new Date(s.scanned_at).toLocaleString('en-PH', {
-                                      year: 'numeric', month: 'short', day: 'numeric',
-                                      hour: '2-digit', minute: '2-digit',
-                                    })
-                                  : '—'}
-                              </td>
-                              <td>
-                                {s.po_number
-                                  ? <span className="invd-mono invd-small">{s.po_number}</span>
-                                  : '—'}
-                              </td>
-                              <td>{s.supplier_name ?? '—'}</td>
+                          {historyData.movement_history.map((movement, index) => (
+                            <tr key={`${movement.type}-${movement.reference || index}-${index}`}>
+                              <td>{movement.type}</td>
+                              <td className="invd-mono">{movement.quantity}</td>
+                              <td>{movement.date_time ? new Date(movement.date_time).toLocaleString('en-PH', {
+                                year: 'numeric', month: 'short', day: 'numeric',
+                                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                              }) : '—'}</td>
+                              <td className="invd-mono">{movement.reference || '—'}</td>
+                              <td className="invd-mono">{movement.serial_number || '—'}</td>
+                              <td>{movement.from_location || '—'}</td>
+                              <td>{movement.to_location || '—'}</td>
+                              <td>{movement.performed_by || '—'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1230,10 +1773,174 @@ const InventoryManagement = () => {
               )}
 
               <div className="inv-modal-footer">
-                <button className="inv-modal-btn-cancel" onClick={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); }}>Close</button>
+                <button className="inv-modal-btn-cancel" onClick={() => { setViewingItem(null); setHistoryData(null); setDetailTab('overview'); setShowTagSheet(false); }}>Close</button>
               </div>
             </div>
           </Modal>
+        )}
+
+        {serialModalBatch && (
+          <Modal
+            isOpen={!!serialModalBatch}
+            onClose={() => setSerialModalBatch(null)}
+            title={`Serial Numbers — ${serialModalBatch.title}`}
+            maxWidth={560}
+          >
+            <div className="inv-serial-modal">
+              <div className="inv-serial-modal-count">
+                {serialModalBatch.serials.length} serial number{serialModalBatch.serials.length === 1 ? '' : 's'}
+              </div>
+              <div className="inv-serial-chips">
+                {serialModalBatch.serials.map((sn, i) => (
+                  <span className="inv-serial-chip" key={i}>{sn}</span>
+                ))}
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {poGroupDetail && (
+          <Modal
+            isOpen={!!poGroupDetail}
+            onClose={() => { setPoGroupDetail(null); setPoDetailTab('overview'); }}
+            title={`${poGroupDetail.group?.po_number || 'PO'} — ${poGroupDetail.group?.warehouse_name || ''}`}
+            maxWidth={920}
+          >
+            <div className="inv-view-details">
+              <div className="invd-tabs">
+                <button className={`invd-tab-btn${poDetailTab === 'overview' ? ' active' : ''}`} onClick={() => setPoDetailTab('overview')}>Overview</button>
+                <button className={`invd-tab-btn${poDetailTab === 'history' ? ' active' : ''}`} onClick={() => setPoDetailTab('history')}>Stock-In History</button>
+                <button className={`invd-tab-btn${poDetailTab === 'stock-out' ? ' active' : ''}`} onClick={() => setPoDetailTab('stock-out')}>Stock-Out History</button>
+                <button className={`invd-tab-btn${poDetailTab === 'transfers' ? ' active' : ''}`} onClick={() => setPoDetailTab('transfers')}>Transfer History</button>
+                <button className={`invd-tab-btn${poDetailTab === 'serials' ? ' active' : ''}`} onClick={() => setPoDetailTab('serials')}>Serial Numbers</button>
+              </div>
+
+              {poGroupDetailLoading && <Loader label="Loading PO details" />}
+              {poGroupDetail.error && <div className="invd-error-msg">{poGroupDetail.error}</div>}
+
+              {!poGroupDetailLoading && poGroupDetail.data && (
+                <>
+                  {poDetailTab === 'overview' && (
+                    <div className="invd-panel">
+                      <div className="invd-section">
+                        <div className="invd-section-title">PO Information</div>
+                        <div className="invd-grid">
+                          <div className="invd-field"><span className="invd-label">PO Number</span><span className="invd-value invd-mono">{poGroupDetail.data.overview.po_number || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Supplier</span><span className="invd-value">{poGroupDetail.data.overview.supplier_name || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Order Date</span><span className="invd-value">{poGroupDetail.data.overview.order_date || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Warehouse</span><span className="invd-value">{poGroupDetail.data.overview.warehouse_name || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Zone</span><span className="invd-value">{poGroupDetail.data.overview.location_label || '—'}</span></div>
+                          <div className="invd-field"><span className="invd-label">Items</span><span className="invd-value">{poGroupDetail.data.overview.totals.item_count}</span></div>
+                        </div>
+                      </div>
+                      <div className="invd-section">
+                        <div className="invd-section-title">Products ({poGroupDetail.data.overview.totals.total_remaining} / {poGroupDetail.data.overview.totals.total_received} remaining)</div>
+                        <div className="invd-table-wrap">
+                          <table className="invd-table">
+                            <thead><tr><th>Product</th><th>Qty Remaining</th><th>Qty Received</th></tr></thead>
+                            <tbody>
+                              {poGroupDetail.data.overview.products.map((p) => (
+                                <tr key={p.product_id}><td>{p.product_name}</td><td>{p.quantity_remaining}</td><td>{p.quantity_received}</td></tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {poDetailTab === 'history' && (
+                    <div className="invd-panel">
+                      {poGroupDetail.data.receiving_history.length === 0 ? (
+                        <div className="invd-empty">No receiving history.</div>
+                      ) : (
+                        <div className="invd-table-wrap">
+                          <table className="invd-table">
+                            <thead><tr><th>Receiving #</th><th>Date</th><th>Received By</th><th>Product</th><th>Qty</th><th>Barcode / Tags</th></tr></thead>
+                            <tbody>
+                              {poGroupDetail.data.receiving_history.map((r, i) => (
+                                <tr key={i}>
+                                  <td className="invd-mono invd-small">{r.receiving_number || '—'}</td>
+                                  <td>{r.received_at ? new Date(r.received_at).toLocaleDateString('en-PH') : '—'}</td>
+                                  <td>{r.received_by_name?.trim() || '—'}</td>
+                                  <td>{r.product_name}</td>
+                                  <td>
+                                    {r.quantity_amount}
+                                    <PackageShortfall row={r} />
+                                  </td>
+                                  <td><StockInIdentifiers row={r} /></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {poDetailTab === 'serials' && (
+                    <div className="invd-panel">
+                      {poGroupDetail.data.serials.length === 0 ? (
+                        <div className="invd-empty">No serial numbers recorded for this PO at this location.</div>
+                      ) : (
+                        <SerialRecordsTable
+                          records={poGroupDetail.data.serials}
+                          showProduct
+                          onZoom={setZoomedSerial}
+                          onPrint={printPoGroupTags}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {(poDetailTab === 'stock-out' || poDetailTab === 'transfers') && (() => {
+                    const rows = poDetailTab === 'stock-out'
+                      ? poGroupDetail.data.stock_out_history
+                      : poGroupDetail.data.transfer_history;
+                    return (
+                      <div className="invd-panel">
+                        {!rows?.length ? (
+                          <div className="invd-empty">No {poDetailTab === 'stock-out' ? 'stock-out' : 'transfer'} history for these batches.</div>
+                        ) : (
+                          <div className="invd-table-wrap">
+                            <table className="invd-table">
+                              <thead><tr><th>Batch</th><th>Date & Time</th><th>Reference</th><th>Product</th><th>Qty</th><th>Serial Number</th>{poDetailTab === 'transfers' && <th>Destination</th>}<th>Performed By</th></tr></thead>
+                              <tbody>
+                                {rows.map((r) => (
+                                  <tr key={r.movement_id}>
+                                    <td className="invd-mono">#{r.batch_id}</td>
+                                    <td>{r.moved_at ? new Date(r.moved_at).toLocaleString('en-PH') : '—'}</td>
+                                    <td className="invd-mono invd-small">{r.reference || '—'}</td>
+                                    <td>{r.product_name}</td>
+                                    <td>{r.quantity}</td>
+                                    <td className="invd-mono invd-small">{r.serial_number || '—'}</td>
+                                    {poDetailTab === 'transfers' && <td>{r.to_location || '—'}</td>}
+                                    <td>{r.performed_by || '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          </Modal>
+        )}
+
+        {zoomedSerial && (
+          <BarcodeZoom
+            value={zoomedSerial.serial_number}
+            /* The PO group modal zooms tags from several products, so the row's
+               own product name wins over the SKU the per-SKU modal is scoped to. */
+            label={zoomedSerial.product_name
+              ?? historyData?.product?.product_name
+              ?? (viewingItem ? getItemName(viewingItem) : null)}
+            onClose={() => setZoomedSerial(null)}
+          />
         )}
       </div>
     </AdminLayout>

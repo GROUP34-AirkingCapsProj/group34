@@ -23,6 +23,7 @@ class PurchaseOrderDetail extends Model
         'po_id',
         'location_id',
         'product_id',
+        'aircon_model_id',
         'quantity_ordered',
         'unit_price',
         'subtotal',
@@ -42,6 +43,15 @@ class PurchaseOrderDetail extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id');
+    }
+
+    /**
+     * The aircon model this line belongs to, or null for a standalone line.
+     * Lines sharing a model on the same PO render as one grouped header.
+     */
+    public function airconModel(): BelongsTo
+    {
+        return $this->belongsTo(AirconModel::class, 'aircon_model_id', 'aircon_model_id');
     }
 
     public function location(): BelongsTo

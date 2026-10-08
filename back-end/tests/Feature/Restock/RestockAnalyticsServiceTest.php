@@ -64,13 +64,54 @@ class RestockAnalyticsServiceTest extends TestCase
         ]);
     }
 
-    /** One issuance of $qty pieces per day for $days days ending at asOf. */
+    private function makeWarehouse(): int
+    {
+        return (int) DB::table('locations')->insertGetId([
+            'location_code' => 'TST-WH-' . uniqid(),
+            'location_name' => 'Extra Warehouse',
+            'location_type' => 'warehouse',
+            'is_active'     => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'location_id');
+    }
+
+    private function setStockAt(int $locationId, int $productId, int $qty): void
+    {
+        DB::table('inventory')->insert([
+            'location_id'        => $locationId,
+            'product_id'         => $productId,
+            'quantity_on_hand'   => $qty,
+            'available_quantity' => $qty,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+    }
+
+    private function findRecAt(array $result, int $productId, int $locationId): ?array
+    {
+        foreach ($result['recommendations'] as $rec) {
+            if ((int) $rec['product_id'] === $productId
+                && (int) $rec['location_id'] === $locationId) {
+                return $rec;
+            }
+        }
+        return null;
+    }
+
+    /** One issuance of $qty pieces per day for $days days ending at asOf, at the default warehouse. */
     private function issueDaily(int $productId, int $qty, int $days): void
+    {
+        $this->issueDailyAt($this->warehouseId, $productId, $qty, $days);
+    }
+
+    /** As issueDaily, but issued from a specific location. */
+    private function issueDailyAt(int $locationId, int $productId, int $qty, int $days): void
     {
         for ($i = 0; $i < $days; $i++) {
             $date = $this->asOf->copy()->subDays($i)->toDateString();
             $issuanceId = DB::table('issuances')->insertGetId([
-                'location_id'   => $this->warehouseId,
+                'location_id'   => $locationId,
                 'issuance_date' => $date,
                 'issuance_type' => 'Operations',
                 'created_at'    => now(),
@@ -87,14 +128,6 @@ class RestockAnalyticsServiceTest extends TestCase
                 'updated_at'         => now(),
             ]);
         }
-    }
-
-    private function findRec(array $result, int $productId): ?array
-    {
-        foreach ($result['recommendations'] as $rec) {
-            if ((int) $rec['product_id'] === $productId) return $rec;
-        }
-        return null;
     }
 
     private function findSug(array $result, int $productId): ?array
@@ -119,7 +152,7 @@ class RestockAnalyticsServiceTest extends TestCase
 
         $result = $this->service->analyze($this->asOf);
 
-        $rec = $this->findRec($result, $pid);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
         $this->assertNotNull($rec, 'fast mover must be recommended');
         $this->assertSame('CRITICAL', $rec['priority']);          // cover 2.0 < lead/2 = 3.5
         $this->assertSame(61, $rec['recommended_quantity']);      // 65 - 4 - 0
@@ -179,7 +212,7 @@ class RestockAnalyticsServiceTest extends TestCase
         ]);
 
         $result = $this->service->analyze($this->asOf);
-        $rec = $this->findRec($result, $pid);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
 
         $this->assertNotNull($rec);
         $this->assertEqualsWithDelta(6.0, (float) $rec['lead_time_days'], 0.001);
@@ -233,12 +266,13 @@ class RestockAnalyticsServiceTest extends TestCase
             'updated_at'  => now(),
         ], 'po_id');
         DB::table('purchase_order_details')->insert([
-            'po_id' => $poB, 'product_id' => $pidB, 'quantity_ordered' => 1,
+            'po_id' => $poB, 'product_id' => $pidB, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 1,
             'unit_price' => 80, 'subtotal' => 80, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         $result = $this->service->analyze($this->asOf);
-        $rec = $this->findRec($result, $pidB);
+        $rec = $this->findRecAt($result, $pidB, $this->warehouseId);
 
         $this->assertNotNull($rec);
         $this->assertEqualsWithDelta(6.0, (float) $rec['lead_time_days'], 0.001);
@@ -267,12 +301,13 @@ class RestockAnalyticsServiceTest extends TestCase
             'updated_at' => now(),
         ], 'po_id');
         DB::table('purchase_order_details')->insert([
-            'po_id' => $poId, 'product_id' => $pid, 'quantity_ordered' => 10,
+            'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 10,
             'unit_price' => 80, 'subtotal' => 800, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         $result = $this->service->analyze($this->asOf);
-        $rec = $this->findRec($result, $pid);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
 
         $this->assertNotNull($rec);
         $this->assertSame(10, $rec['on_order_quantity']);
@@ -290,6 +325,7 @@ class RestockAnalyticsServiceTest extends TestCase
         for ($i = 0; $i < 10; $i++) {
             $salesId = DB::table('sales')->insertGetId([
                 'invoice_number' => 'INV-TST-' . uniqid(),
+                'location_id'    => $this->warehouseId,
                 'sale_date'      => $this->asOf->copy()->subDays($i)->toDateString(),
                 'created_at'     => now(),
                 'updated_at'     => now(),
@@ -301,12 +337,218 @@ class RestockAnalyticsServiceTest extends TestCase
         }
 
         $result = $this->service->analyze($this->asOf);
-        $rec = $this->findRec($result, $pid);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
 
         $this->assertNotNull($rec);
         $this->assertEqualsWithDelta(1.0, (float) $rec['avg_daily_demand'], 0.001);
         $this->assertContains('OUT_OF_STOCK', $rec['reason_codes']);
         $this->assertSame('CRITICAL', $rec['priority']);
+    }
+
+    // ---------------------------------------------------------------
+    // (C2) Per-warehouse behavior
+    // ---------------------------------------------------------------
+    public function test_low_at_one_warehouse_only_recommends_that_warehouse(): void
+    {
+        $wh2 = $this->makeWarehouse();
+        // Demand 1/day at warehouse A only -> lead 7, reorder 10, target 33.
+        $pid = $this->makeProduct();
+        $this->issueDaily($pid, 1, 30);
+        $this->setStockAt($this->warehouseId, $pid, 3);   // low -> triggers
+        $this->setStockAt($wh2, $pid, 500);               // well stocked + no demand -> no row
+
+        $result = $this->service->analyze($this->asOf);
+
+        $recLow  = $this->findRecAt($result, $pid, $this->warehouseId);
+        $recHigh = $this->findRecAt($result, $pid, $wh2);
+        $this->assertNotNull($recLow, 'low warehouse must be recommended');
+        $this->assertNull($recHigh, 'well-stocked warehouse must not be recommended');
+        $this->assertSame(3, $recLow['current_stock']);
+    }
+
+    public function test_demand_differs_per_warehouse(): void
+    {
+        // Same product, different outflow at two warehouses: A quiet (1/day),
+        // B busy (5/day). Per-warehouse demand => B gets a higher target and a
+        // larger recommended order than A.
+        $wh2 = $this->makeWarehouse();
+        $pid = $this->makeProduct();
+        $this->issueDailyAt($this->warehouseId, $pid, 1, 30);  // A: v30 = 1.0
+        $this->issueDailyAt($wh2, $pid, 5, 30);                // B: v30 = 5.0
+        $this->setStockAt($this->warehouseId, $pid, 3);
+        $this->setStockAt($wh2, $pid, 3);
+
+        $result = $this->service->analyze($this->asOf);
+        $a = $this->findRecAt($result, $pid, $this->warehouseId);
+        $b = $this->findRecAt($result, $pid, $wh2);
+
+        $this->assertNotNull($a, 'quiet warehouse still low on stock -> recommended');
+        $this->assertNotNull($b, 'busy warehouse -> recommended');
+        $this->assertEqualsWithDelta(1.0, (float) $a['avg_daily_demand'], 0.001);
+        $this->assertEqualsWithDelta(5.0, (float) $b['avg_daily_demand'], 0.001);
+        // Busier warehouse recommends more.
+        $this->assertGreaterThan($a['recommended_quantity'], $b['recommended_quantity']);
+        // Lead time is per-product (supplier-based), identical across warehouses.
+        $this->assertEqualsWithDelta((float) $a['lead_time_days'], (float) $b['lead_time_days'], 0.0001);
+    }
+
+    public function test_open_po_is_scoped_to_its_destination_warehouse(): void
+    {
+        $wh2 = $this->makeWarehouse();
+        $pid = $this->makeProduct();
+        // Equal demand at both warehouses (1/day) -> each: reorder 10, target 33.
+        $this->issueDailyAt($this->warehouseId, $pid, 1, 30);
+        $this->issueDailyAt($wh2, $pid, 1, 30);
+        $this->setStockAt($this->warehouseId, $pid, 3);
+        $this->setStockAt($wh2, $pid, 3);
+
+        // Open PO delivering 10 units to warehouseId ONLY.
+        $poId = DB::table('purchase_orders')->insertGetId([
+            'po_number'  => 'PO-TST-' . uniqid(),
+            'order_date' => $this->asOf->copy()->subDays(2)->toDateString(),
+            'status_id'  => 7, // Pending -> open
+            'created_at' => now(), 'updated_at' => now(),
+        ], 'po_id');
+        DB::table('purchase_order_details')->insert([
+            'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 10, 'unit_price' => 80, 'subtotal' => 800,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $result = $this->service->analyze($this->asOf);
+        $a = $this->findRecAt($result, $pid, $this->warehouseId);
+        $b = $this->findRecAt($result, $pid, $wh2);
+
+        $this->assertNotNull($a);
+        $this->assertNotNull($b);
+        $this->assertSame(10, $a['on_order_quantity']);   // PO counted here
+        $this->assertSame(0,  $b['on_order_quantity']);    // not at the other warehouse
+        $this->assertSame(20, $a['recommended_quantity']); // 33 - 3 - 10
+        $this->assertSame(30, $b['recommended_quantity']); // 33 - 3 - 0
+    }
+
+    // ---------------------------------------------------------------
+    // (C3) Open-PO netting converts material packages -> pieces
+    // ---------------------------------------------------------------
+
+    /** Insert an installation_material_details row so the product is packaged. */
+    private function makeMaterialDetail(int $productId, int $piecesPerPackage, string $packageUnit = 'box'): void
+    {
+        DB::table('installation_material_details')->insert([
+            'product_id'         => $productId,
+            'pieces_per_package' => $piecesPerPackage,
+            'package_unit'       => $packageUnit,
+            'is_serialized'      => 0,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+    }
+
+    public function test_open_po_packages_convert_to_pieces_for_materials(): void
+    {
+        // Material packaged 5 pieces/package. Same demand math as test (C):
+        // demand 1/day for 30 days, stock 3, lead 7 -> safety 3, reorder 10, target 33.
+        // Open PO of 2 PACKAGES = 10 pieces -> qty = 33 - 3 - 10 = 20.
+        // (Before the fix the engine saw 2, recommending 28.)
+        $pid = $this->makeProduct();
+        $this->makeMaterialDetail($pid, 5);
+        $this->setStock($pid, 3);
+        $this->issueDaily($pid, 1, 30);
+
+        $poId = DB::table('purchase_orders')->insertGetId([
+            'po_number'  => 'PO-TST-' . uniqid(),
+            'order_date' => $this->asOf->copy()->subDays(2)->toDateString(),
+            'status_id'  => 7, // Pending -> open
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'po_id');
+        DB::table('purchase_order_details')->insert([
+            'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 2, // PACKAGES
+            'unit_price' => 80, 'subtotal' => 160, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $result = $this->service->analyze($this->asOf);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
+
+        $this->assertNotNull($rec);
+        $this->assertSame(10, $rec['on_order_quantity']);   // 2 packages x 5 pieces
+        $this->assertSame(20, $rec['recommended_quantity']); // 33 - 3 - 10
+    }
+
+    public function test_partially_received_material_po_nets_in_pieces(): void
+    {
+        // Ordered 2 packages x 5 = 10 pieces; 4 pieces already received.
+        // Open = 10 - 4 = 6 pieces -> qty = 33 - 3 - 6 = 24.
+        // Note: order_date/receiving_date are 7 days apart so the measured
+        // lead time (fed by this same PO's partial receipt) comes out to
+        // exactly the DEFAULT_LEAD_TIME (7), keeping the safety/reorder/target
+        // math (3 / 10 / 33) identical to the other open-PO tests above.
+        $pid = $this->makeProduct();
+        $this->makeMaterialDetail($pid, 5);
+        $this->setStock($pid, 3);
+        $this->issueDaily($pid, 1, 30);
+
+        $poId = DB::table('purchase_orders')->insertGetId([
+            'po_number'  => 'PO-TST-' . uniqid(),
+            'order_date' => $this->asOf->copy()->subDays(9)->toDateString(),
+            'status_id'  => 7, // Pending -> open
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'po_id');
+        DB::table('purchase_order_details')->insert([
+            'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 2, // PACKAGES
+            'unit_price' => 80, 'subtotal' => 160, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $receivingId = DB::table('receivings')->insertGetId([
+            'po_id' => $poId, 'location_id' => $this->warehouseId,
+            'receiving_number' => 'RCV-TST-' . uniqid(),
+            'receiving_date'   => $this->asOf->copy()->subDays(2)->toDateString(),
+            'created_at' => now(), 'updated_at' => now(),
+        ], 'receiving_id');
+        DB::table('receiving_details')->insert([
+            'receiving_id' => $receivingId, 'product_id' => $pid,
+            'quantity_amount' => 4, // PIECES (always)
+            'prod_price' => 80, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $result = $this->service->analyze($this->asOf);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
+
+        $this->assertNotNull($rec);
+        $this->assertSame(6, $rec['on_order_quantity']);     // 10 pieces ordered - 4 received
+        $this->assertSame(24, $rec['recommended_quantity']); // 33 - 3 - 6
+    }
+
+    public function test_open_po_quantity_is_not_converted_for_appliances(): void
+    {
+        // Appliance quantity_ordered is already units (pieces) -> no conversion,
+        // even if an installation_material_details row somehow exists for it.
+        // Same demand math as (C): lead 7 -> safety 3, reorder 10, target 33.
+        $pid = $this->makeProduct(['product_type' => 'appliance']);
+        $this->setStock($pid, 3);
+        $this->issueDaily($pid, 1, 30);
+
+        $poId = DB::table('purchase_orders')->insertGetId([
+            'po_number'  => 'PO-TST-' . uniqid(),
+            'order_date' => $this->asOf->copy()->subDays(2)->toDateString(),
+            'status_id'  => 7, // Pending -> open
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'po_id');
+        DB::table('purchase_order_details')->insert([
+            'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
+            'quantity_ordered' => 10, // UNITS, not packages
+            'unit_price' => 80, 'subtotal' => 800, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $result = $this->service->analyze($this->asOf);
+        $rec = $this->findRecAt($result, $pid, $this->warehouseId);
+
+        $this->assertNotNull($rec);
+        $this->assertSame(10, $rec['on_order_quantity']);   // unconverted
+        $this->assertSame(20, $rec['recommended_quantity']); // 33 - 3 - 10
     }
 
     // ---------------------------------------------------------------
@@ -319,7 +561,7 @@ class RestockAnalyticsServiceTest extends TestCase
 
         $result = $this->service->analyze($this->asOf);
 
-        $this->assertNull($this->findRec($result, $pid), 'well-stocked product must not be recommended');
+        $this->assertNull($this->findRecAt($result, $pid, $this->warehouseId), 'well-stocked product must not be recommended');
         $sug = $this->findSug($result, $pid);
         $this->assertNotNull($sug);
         $this->assertSame(['NO_MOVEMENT'], $sug['reason_codes']);
@@ -332,7 +574,7 @@ class RestockAnalyticsServiceTest extends TestCase
     {
         $pid = $this->makeProduct(); // params all 0/null, no stock row, no movement
         $result = $this->service->analyze($this->asOf);
-        $this->assertNull($this->findRec($result, $pid));
+        $this->assertNull($this->findRecAt($result, $pid, $this->warehouseId));
         $this->assertNull($this->findSug($result, $pid));
     }
 
@@ -341,7 +583,7 @@ class RestockAnalyticsServiceTest extends TestCase
         $pid = $this->makeProduct(['status_id' => 4, 'recommended_stocks' => 10]);
         $this->setStock($pid, 0);
         $result = $this->service->analyze($this->asOf);
-        $this->assertNull($this->findRec($result, $pid));
+        $this->assertNull($this->findRecAt($result, $pid, $this->warehouseId));
         $this->assertNull($this->findSug($result, $pid));
     }
 
@@ -359,8 +601,7 @@ class RestockAnalyticsServiceTest extends TestCase
         $this->assertDatabaseHas('restock_recommendations', ['product_id' => $pid]);
         $first = DB::table('restock_recommendations')->where('product_id', $pid)->first();
         $this->assertNotNull($first->run_at);
-        $this->assertSame($result['warehouse_location_id'], (int) $first->location_id);
-        $this->assertNotNull($result['warehouse_location_id']);
+        $this->assertSame($this->warehouseId, (int) $first->location_id);
 
         // Second run replaces the batch (no duplicate rows)
         $this->service->run($this->asOf);

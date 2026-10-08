@@ -7,7 +7,9 @@ use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
+use App\Services\AirconLineGrouper;
 use App\Services\BudgetService;
+use App\Services\History\RecordHistoryService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -28,20 +30,26 @@ class PurchaseOrderController extends Controller
         'status',
         'purchaseRequest',
         'details.product.applianceDetail.brand',
-        'details.product.consumableDetail.unit',
+        'details.product.installationMaterialDetail.unit',
         'details.approvedBy',
         'details.location',
     ];
+
+    public function __construct(private readonly AirconLineGrouper $airconLineGrouper)
+    {
+    }
 
     public function index(Request $request)
     {
         try {
             $query = PurchaseOrder::with(self::WITH_RELATIONS);
 
-            // Location visibility: admin sees everything; all others see POs for their
-            // assigned location OR POs they personally created.
+            // Location visibility: centralized roles (admin, inventory_analyst,
+            // auditor) see everything — the auditor must see every PO to verify it.
+            // Location-scoped roles (branch_manager, warehouse_personnel) see POs for
+            // their assigned location OR POs they personally created.
             $authUser = $request->user();
-            if ($authUser && (int) $authUser->role_id !== 1) {
+            if ($authUser && ! $authUser->isCentralized()) {
                 $userId     = (int) $authUser->user_id;
                 $locationId = $authUser->location_id ? (int) $authUser->location_id : null;
                 $query->where(function ($q) use ($userId, $locationId) {
@@ -189,12 +197,88 @@ class PurchaseOrderController extends Controller
                 array_merge(self::WITH_RELATIONS, ['receivings', 'purchaseReturns'])
             )->findOrFail($id);
 
+            // Built from the Eloquent lines, BEFORE transform() replaces them
+            // with flat arrays.
+            $airconGroups = $this->airconGroups($po->details);
+
             $po->details->transform(fn ($d) => $this->transformPoDetail($d));
 
-            return $this->success($po, 'Purchase order retrieved successfully');
+            // array_merge over toArray() rather than setting an attribute on
+            // the model: the existing payload is reproduced byte for byte
+            // (response()->json() on a model calls the same toArray()), and
+            // nothing is bolted onto an instance that could later be saved.
+            return $this->success(
+                array_merge($po->toArray(), ['aircon_groups' => $airconGroups]),
+                'Purchase order retrieved successfully'
+            );
         } catch (\Exception $e) {
             return $this->error('Purchase order not found', 404);
         }
+    }
+
+    /**
+     * Aircon groups for this purchase order's lines, or [] when no line is
+     * tagged.
+     *
+     * The early return is the common path, not an optimisation for a rare one:
+     * every purchase order written before aircon_model_id existed is untagged,
+     * and those must not start paying for the grouper's three queries. The
+     * grouper is called ONCE with every line — calling it per line would make
+     * a detail view N+1 in the document's line count.
+     *
+     * Extra keys in a line array pass through the grouper untouched into the
+     * group's `lines`, so po_detail_id rides along and the UI can match a group
+     * back to the rows it already rendered.
+     *
+     * @param  \Illuminate\Support\Collection<int,PurchaseOrderDetail>  $details
+     * @return array<int,array<string,mixed>>
+     */
+    private function airconGroups($details): array
+    {
+        $lines  = [];
+        $tagged = false;
+
+        foreach ($details as $detail) {
+            $modelId = $detail->aircon_model_id === null ? null : (int) $detail->aircon_model_id;
+            $tagged  = $tagged || $modelId !== null;
+
+            $lines[] = [
+                'po_detail_id'    => (int) $detail->po_detail_id,
+                'product_id'      => (int) $detail->product_id,
+                'quantity'        => (int) $detail->quantity_ordered,
+                'aircon_model_id' => $modelId,
+            ];
+        }
+
+        return $tagged ? $this->airconLineGrouper->group($lines) : [];
+    }
+
+    /** Curated lifecycle timeline for one PO: audit milestones + receiving sessions. */
+    public function history($id, RecordHistoryService $history)
+    {
+        $po = PurchaseOrder::with(['receivings.receivedBy'])->find($id);
+        if (! $po) {
+            return $this->error('Purchase order not found', 404);
+        }
+
+        $milestones = $history->forRecord('purchase_orders', (int) $po->po_id);
+
+        foreach ($po->receivings as $r) {
+            $receiver = $r->receivedBy
+                ? trim(($r->receivedBy->first_name ?? '') . ' ' . ($r->receivedBy->last_name ?? ''))
+                : 'System';
+            $milestones[] = [
+                'type'       => 'received',
+                'label'      => 'Received (' . (int) $r->total_quantity_received . ' pcs) · ' . $r->receiving_number,
+                'actor_name' => $receiver !== '' ? $receiver : 'System',
+                'timestamp'  => ($r->receiving_date ?? $r->created_at)?->toIso8601String(),
+                'changes'    => [],
+            ];
+        }
+
+        usort($milestones, fn ($a, $b) => strcmp((string) $a['timestamp'], (string) $b['timestamp']));
+
+        return $this->success(array_values($milestones), 'Purchase order history retrieved');
     }
 
     public function update(Request $request, $id)
@@ -253,17 +337,30 @@ class PurchaseOrderController extends Controller
 
             $header = Arr::except($validated, ['details']);
             if (!empty($header)) {
-                $wasCompleted = $po->status_id !== 11
-                    && isset($validated['status_id'])
-                    && (int) $validated['status_id'] === 11;
+                $prevStatus  = (int) $po->status_id;
+                $nextStatus  = isset($validated['status_id']) ? (int) $validated['status_id'] : $prevStatus;
+                $wasReserved = in_array($prevStatus, [8, 10, 11, 12], true);
+                $entersReserve   = !$wasReserved && in_array($nextStatus, [8, 10, 11, 12], true);
+                $entersComplete  = $prevStatus !== 11 && $nextStatus === 11;
+                $entersRejected  = $prevStatus !== 9 && $nextStatus === 9;
 
                 $po->update($header);
 
-                if ($wasCompleted && $po->pr_id) {
-                    app(BudgetService::class)->spend(
-                        $po->fresh()->load('purchaseRequest'),
-                        $request->user()?->user_id
-                    );
+                $budgetService = app(BudgetService::class);
+
+                // Reserve on the transition into a committed state (Approved/Authorized),
+                // or defensively just before spend if the PO jumped straight to Completed
+                // without ever reserving. commitPo is idempotent per (budget, po).
+                if ($entersReserve || ($entersComplete && !$wasReserved)) {
+                    $budgetService->commitPo($po->fresh()->load('details'), $request->user()?->user_id);
+                }
+
+                if ($entersComplete) {
+                    $budgetService->spend($po->fresh()->load('details'), $request->user()?->user_id);
+                }
+
+                if ($entersRejected && $wasReserved) {
+                    $budgetService->releaseCommitment($po->fresh(), 'PO ' . $po->po_number . ' rejected', $request->user()?->user_id);
                 }
             }
 
@@ -295,6 +392,12 @@ class PurchaseOrderController extends Controller
         } catch (ValidationException $e) {
             DB::rollBack();
             return $this->validationError($e->errors());
+        } catch (\App\Exceptions\NoActiveBudgetException $e) {
+            DB::rollBack();
+            return $this->error($e->getMessage(), 422);
+        } catch (\App\Exceptions\InsufficientBudgetException $e) {
+            DB::rollBack();
+            return $this->error($e->getMessage(), 422);
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->error('Failed to update purchase order: ' . $e->getMessage(), 500);
@@ -415,7 +518,7 @@ class PurchaseOrderController extends Controller
             ->where('supplier_product.supplier_id', $supplierId)
             ->with([
                 'applianceDetail.brand',
-                'consumableDetail.unit',
+                'installationMaterialDetail.unit',
             ])
             ->select('products.*')
             ->get()
@@ -430,10 +533,10 @@ class PurchaseOrderController extends Controller
                 'brand_name'         => $p->applianceDetail?->brand?->brand_name,
                 'capacity_rating'    => $p->applianceDetail?->capacity_rating,
                 'variant'            => $p->applianceDetail?->variant,
-                'unit_name'          => $p->consumableDetail?->unit?->unit_name,
-                'unit_abbreviation'  => $p->consumableDetail?->unit?->unit_abbreviation,
-                'pieces_per_package' => $p->consumableDetail?->pieces_per_package,
-                'package_unit'       => $p->consumableDetail?->package_unit,
+                'unit_name'          => $p->installationMaterialDetail?->unit?->unit_name,
+                'unit_abbreviation'  => $p->installationMaterialDetail?->unit?->unit_abbreviation,
+                'pieces_per_package' => $p->installationMaterialDetail?->pieces_per_package,
+                'package_unit'       => $p->installationMaterialDetail?->package_unit,
             ]);
 
         return response()->json(['success' => true, 'data' => $products]);
@@ -447,7 +550,7 @@ class PurchaseOrderController extends Controller
     {
         $pos = PurchaseOrder::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'details.location',
             'supplier', 'location', 'status',
             'purchaseRequest',
@@ -512,7 +615,7 @@ class PurchaseOrderController extends Controller
                 foreach ($po->details as $i => $d) {
                     $p  = $d->product;
                     $ad = $p?->applianceDetail;
-                    $cd = $p?->consumableDetail;
+                    $cd = $p?->installationMaterialDetail;
 
                     fputcsv($handle, [
                         $po->po_number,
@@ -525,7 +628,7 @@ class PurchaseOrderController extends Controller
                         $createdBy, $verifiedBy, $po->verification_status, $verifiedAt, $approvedBy, $receivedBy,
                         $i + 1,
                         $d->location?->location_name ?? $po->location?->location_name ?? '',
-                        $p?->product_code ?? '',
+                        $ad?->model_code ?? $p?->product_code ?? $p?->barcode ?? '',
                         $p?->product_name ?? '',
                         $p ? ucfirst($p->product_type) : '',
                         $ad?->brand?->brand_name ?? $cd?->unit?->unit_name ?? '',
@@ -534,8 +637,8 @@ class PurchaseOrderController extends Controller
                         $d->quantity_ordered,
                         number_format((float) $d->unit_price, 2),
                         number_format((float) $d->subtotal,   2),
-                        $i === 0 ? number_format((float) $po->total_amount, 2) : '',
-                        $i === 0 ? number_format((float) $po->grand_total,  2) : '',
+                        number_format((float) $po->total_amount, 2),
+                        number_format((float) $po->grand_total,  2),
                     ]);
                 }
             }
@@ -543,6 +646,28 @@ class PurchaseOrderController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /** Download the same formal document shown by the PO document preview. */
+    public function pdf(Request $request, $id)
+    {
+        $po = PurchaseOrder::with(self::WITH_RELATIONS)->findOrFail($id);
+        $paperSize = strtolower((string) $request->query('paper_size', \App\Models\SystemSetting::pdfPaperSize()));
+        if (! in_array($paperSize, ['a4', 'letter', 'legal', 'a5'], true)) {
+            $paperSize = \App\Models\SystemSetting::pdfPaperSize();
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('purchase_orders.document', [
+            'po' => $po,
+            'company' => [
+                'name' => \App\Models\SystemSetting::companyName(),
+                'address' => \App\Models\SystemSetting::companyAddress(),
+                'email' => \App\Models\SystemSetting::companyEmail(),
+            ],
+            'paper_size' => $paperSize,
+        ])->setPaper($paperSize);
+
+        return $pdf->download($po->po_number . '.pdf');
     }
 
     // -----------------------------------------------------------------------
@@ -553,7 +678,7 @@ class PurchaseOrderController extends Controller
     {
         $p  = $detail->product;
         $ad = $p?->applianceDetail;
-        $cd = $p?->consumableDetail;
+        $cd = $p?->installationMaterialDetail;
 
         return [
             'po_detail_id'       => $detail->po_detail_id,
@@ -565,8 +690,22 @@ class PurchaseOrderController extends Controller
             // Destination warehouse for this line (per-line warehouse PO shape)
             'location_id'        => $detail->location_id,
             'location_name'      => $detail->location?->location_name,
+            // Full destination-warehouse location so the UI can show each line's
+            // real delivery address (multi-warehouse POs show one block/page each).
+            'location'           => $detail->location ? [
+                'location_id'    => $detail->location->location_id,
+                'location_name'  => $detail->location->location_name,
+                'address'        => $detail->location->address,
+                'city'           => $detail->location->city,
+                'province'       => $detail->location->province,
+                'region'         => $detail->location->region,
+                'contact_number' => $detail->location->contact_number,
+                'email'          => $detail->location->email,
+                'manager_name'   => $detail->location->manager_name,
+            ] : null,
             // Flat product fields (legacy — kept for backward compat)
-            'product_code'       => $p?->product_code,
+            'product_code'       => $ad?->model_code ?? $p?->product_code,
+            'model_code'         => $ad?->model_code,
             'product_name'       => $p?->product_name,
             'product_type'       => $p?->product_type,
             'is_serialized'      => $p?->isSerialized() ?? false,
@@ -577,15 +716,22 @@ class PurchaseOrderController extends Controller
             'unit_abbreviation'  => $cd?->unit?->unit_abbreviation,
             'pieces_per_package' => $cd?->pieces_per_package,
             'package_unit'       => $cd?->package_unit,
+            // Whether this line is counted by the package or by the piece.
+            // The receiving screen's count-entry panel prompts and converts on
+            // this; defaulted here so the payload is self-describing rather
+            // than relying on a client-side fallback.
+            'count_unit'         => $cd?->count_unit ?? 'package',
             // Nested product object — required by BSR scan page (bsrActiveLine.product.X)
             'product'            => $p ? [
                 'product_id'         => $p->product_id,
-                'product_code'       => $p->product_code,
+                'product_code'       => $ad?->model_code ?? $p->product_code,
+                'model_code'         => $ad?->model_code,
                 'product_name'       => $p->product_name,
                 'product_type'       => $p->product_type,
                 'is_serialized'      => $p->isSerialized(),
                 'pieces_per_package' => $cd?->pieces_per_package ?? 1,
                 'package_unit'       => $cd?->package_unit,
+                'count_unit'         => $cd?->count_unit ?? 'package',
                 'brand_name'         => $ad?->brand?->brand_name,
                 'capacity_rating'    => $ad?->capacity_rating,
                 'variant'            => $ad?->variant,

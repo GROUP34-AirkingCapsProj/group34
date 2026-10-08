@@ -12,8 +12,16 @@ const Modal = ({
   hideHeader = false,
 }) => {
   useEffect(() => {
+    // A confirm dialog opened from inside this modal renders in its own portal,
+    // so Escape would otherwise reach both and dismiss the modal underneath the
+    // confirm the user was still answering. SweetAlert2 marks the body while a
+    // blocking popup is up; toasts set swal2-toast-shown and must not count.
+    const blockingPopupOpen = () =>
+      document.body.classList.contains('swal2-shown') &&
+      !document.body.classList.contains('swal2-toast-shown');
+
     const handleEscape = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !blockingPopupOpen()) {
         onClose();
       }
     };
@@ -59,7 +67,7 @@ const Modal = ({
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: '#fff',
+          background: 'var(--bg-card)',
           width: '100%',
           maxWidth,
           maxHeight: '90vh',
@@ -78,11 +86,11 @@ const Modal = ({
               justifyContent: 'space-between',
               alignItems: 'center',
               padding: '18px 24px',
-              borderBottom: '1px solid #e5e7eb',
+              borderBottom: '1px solid var(--border-color)',
               flexShrink: 0,
             }}
           >
-            <h2 id="modal-title" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>
+            <h2 id="modal-title" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-dark)' }}>
               {title}
             </h2>
             <button
@@ -93,7 +101,7 @@ const Modal = ({
               style={{
                 fontSize: 28,
                 fontWeight: 300,
-                color: '#6b7280',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 lineHeight: 1,
                 padding: '0 4px',
@@ -111,7 +119,10 @@ const Modal = ({
             flex: 1,
             minHeight: 0,
             overflowY: 'auto',
-            overflowX: 'hidden',
+            // 'hidden' silently clipped wide tables rendered straight into a
+            // modal, leaving no way to reach the right-hand columns. 'auto'
+            // only shows a scrollbar when something actually overflows.
+            overflowX: 'auto',
             WebkitOverflowScrolling: 'touch',
             padding: hideHeader ? '24px' : '0 24px 24px',
           }}

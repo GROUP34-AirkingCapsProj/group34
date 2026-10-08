@@ -6,7 +6,7 @@ export const ROLE_COLUMNS = [
   { id: 5, slug: 'auditor', label: 'AU', name: 'Auditor', accent: '#d97706' },
 ];
 
-export const ACTIONS = ['create', 'read', 'update', 'archive', 'approve'];
+export const ACTIONS = ['create', 'read', 'update', 'archive', 'approve', 'verify'];
 
 export const ACTION_META = {
   create:  { label: 'Create',  desc: 'Add new records.' },
@@ -14,25 +14,34 @@ export const ACTION_META = {
   update:  { label: 'Update',  desc: 'Edit existing records.' },
   archive: { label: 'Archive', desc: 'Soft-delete / move to archive.' },
   approve: { label: 'Approve', desc: 'Approve or finalize records.' },
+  verify:  { label: 'Verify',  desc: 'Verify or reject records.' },
 };
 
 export const keyOf = (feature, action) => `${feature}.${action}`;
 
 // Groups cover the real features that exist in the catalog.
 export const FEATURE_GROUPS = [
-  { label: 'I. Users & Security',               features: ['user_account_management', 'role_assignment'] },
+  { label: 'I. Users & Security',               features: ['user_account_management', 'role_assignment', 'permission_audit', 'system_configuration'] },
   { label: 'II. Item & Classification',          features: ['item_master_management', 'category_management', 'brand_management', 'barcode_assignment'] },
-  { label: 'III. Suppliers & Procurement',       features: ['supplier_management', 'item_supplier_mapping', 'purchase_order_creation', 'purchase_request_creation', 'purchase_request_approval'] },
-  { label: 'IV. Inventory Operations',           features: ['barcode_inventory_processing', 'delivery_receiving', 'inventory_issuance', 'inventory_transfers', 'inventory_adjustments'] },
-  { label: 'V. Sales & Delivery',                features: ['sales_recording', 'delivery_receipt_generation'] },
+  { label: 'III. Suppliers & Procurement',       features: ['supplier_management', 'item_supplier_mapping', 'purchase_order_creation', 'purchase_order_verification', 'purchase_request_creation', 'purchase_request_approval', 'budget_verification', 'po_recommendations'] },
+  { label: 'IV. Inventory Operations',           features: ['barcode_inventory_processing', 'delivery_receiving', 'inventory_issuance', 'inventory_transfers', 'stock_transfers', 'inventory_adjustments', 'inventory_monitoring'] },
+  { label: 'V. Sales & Delivery',                features: ['sales_recording', 'delivery_receipt_generation', 'customer_management'] },
   { label: 'VI. Location',                       features: ['location_based_inventory'] },
   { label: 'VII. Warranty & After-Sales',        features: ['warranty_records', 'warranty_claims'] },
   { label: 'VIII. Audit, Compliance & Archive',  features: ['audit_trail_viewing', 'exception_detection', 'archive_viewing', 'data_archiving'] },
-  { label: 'IX. Reporting & Notifications',      features: ['report_viewing', 'notification_panel'] },
+  { label: 'IX. Dashboards, Reporting & Notifications', features: ['dashboard_access', 'analytics_dashboard', 'report_viewing', 'notification_panel'] },
 ];
 
 const prettyFeature = (f) =>
   f.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+/** Human-readable title for a feature key (e.g. "item_master_management" → "Item Master Management"). */
+export const featureTitle = prettyFeature;
+
+/** Every feature key known to the app, flattened from FEATURE_GROUPS. */
+export function allFeatures() {
+  return FEATURE_GROUPS.flatMap((g) => g.features);
+}
 
 /**
  * Group a flat catalog into
@@ -65,7 +74,7 @@ export function groupByFeatureGroup(permissions) {
 }
 
 // Display order for action columns/rows (read first so "access" reads naturally).
-const ACTION_DISPLAY_ORDER = ['read', 'create', 'update', 'archive', 'approve'];
+const ACTION_DISPLAY_ORDER = ['read', 'create', 'update', 'archive', 'approve', 'verify'];
 
 /**
  * The catalog actions that exist for a feature, as [{ action, permission_id }],

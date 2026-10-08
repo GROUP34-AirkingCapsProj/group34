@@ -16,6 +16,9 @@ class RestockEndpointsTest extends TestCase
 {
     use DatabaseTransactions;
 
+    /** Second warehouse created in setUp(), for cross-warehouse filter tests. */
+    private int $secondWarehouseId;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -32,7 +35,7 @@ class RestockEndpointsTest extends TestCase
         $this->seed(PermissionSeeder::class);
         $this->seed(RolePermissionsSeeder::class);
 
-        $whId = (int) DB::table('locations')->insertGetId([
+        $this->secondWarehouseId = (int) DB::table('locations')->insertGetId([
             'location_code' => 'TST-WH-' . uniqid(),
             'location_name' => 'Test Warehouse',
             'location_type' => 'warehouse',
@@ -40,23 +43,6 @@ class RestockEndpointsTest extends TestCase
             'created_at'    => now(),
             'updated_at'    => now(),
         ], 'location_id');
-
-        // create-pr now requires an active budget for the resolved warehouse
-        // (first warehouse by location_id — may be an older seeded one, not $whId).
-        $firstWarehouseId = (int) DB::table('locations')->where('location_type', 'warehouse')
-            ->orderBy('location_id')->value('location_id');
-        DB::table('budget_allocations')->insert([
-            'location_id'         => $firstWarehouseId,
-            'period_label'        => 'TEST-' . uniqid(),
-            'period_start'        => today()->subDays(10)->toDateString(),
-            'period_end'          => today()->addDays(10)->toDateString(),
-            'total_budget'        => 1000000,
-            'committed'           => 0,
-            'spent'               => 0,
-            'verification_status' => 'verified',
-            'created_at'          => now(),
-            'updated_at'          => now(),
-        ]);
     }
 
     private function makeUser(string $roleSlug): User
@@ -76,8 +62,11 @@ class RestockEndpointsTest extends TestCase
         ]);
     }
 
-    private function makeProductWithDemand(): int
+    private function makeProductWithDemand(?int $locationId = null): int
     {
+        $locationId ??= (int) DB::table('locations')->where('location_type', 'warehouse')
+            ->orderBy('location_id')->value('location_id');
+
         $pid = (int) DB::table('products')->insertGetId([
             'product_code'       => 'TST-' . uniqid(),
             'product_name'       => 'Endpoint Test Product',
@@ -91,7 +80,7 @@ class RestockEndpointsTest extends TestCase
         ], 'product_id');
 
         DB::table('inventory')->insert([
-            'location_id'        => (int) DB::table('locations')->where('location_type', 'warehouse')->value('location_id'),
+            'location_id'        => $locationId,
             'product_id'         => $pid,
             'quantity_on_hand'   => 1,
             'available_quantity' => 1,
@@ -156,46 +145,136 @@ class RestockEndpointsTest extends TestCase
         $this->assertContains($pid, $ids);
     }
 
-    public function test_create_pr_builds_draft_purchase_request_with_details(): void
+    /** Insert a stored recommendation row directly (read-time fields are computed by the API). */
+    private function insertRecommendation(int $productId, int $locationId, int $qty): void
     {
-        $pid = $this->makeProductWithDemand(); // cost_price 80
-        $ia  = $this->makeUser('inventory_analyst');
-
-        $resp = $this->actingAs($ia, 'sanctum')->postJson('/api/restock/create-pr', [
-            'items' => [
-                ['product_id' => $pid, 'quantity' => 12],
-            ],
-        ]);
-
-        $resp->assertCreated();
-        $prId = $resp->json('data.pr_id');
-        $this->assertNotNull($prId);
-
-        $this->assertDatabaseHas('purchase_requests', [
-            'pr_id'        => $prId,
-            'status_id'    => 13, // Pending
-            'requested_by' => $ia->user_id,
-        ]);
-        $this->assertDatabaseHas('purchase_request_details', [
-            'pr_id'           => $prId,
-            'product_id'      => $pid,
-            'quantity'        => 12,
-            'estimated_price' => 80,
-            'subtotal'        => 960,
+        DB::table('restock_recommendations')->insert([
+            'product_id'           => $productId,
+            'location_id'          => $locationId,
+            'current_stock'        => 20,
+            'reorder_level'        => 100,
+            'recommended_quantity' => $qty,
+            'reason'               => 'test row',
+            'priority'             => 'HIGH',
+            'reason_codes'         => json_encode(['LOW_STOCK']),
+            'avg_daily_demand'     => 9.3,
+            'lead_time_days'       => 7.0,
+            'on_order_quantity'    => 0,
+            'run_at'               => now(),
+            'created_at'           => now(),
+            'updated_at'           => now(),
         ]);
     }
 
-    public function test_create_pr_rejects_empty_items(): void
+    public function test_recommendations_include_package_fields_for_materials(): void
     {
-        $this->actingAs($this->makeUser('inventory_analyst'), 'sanctum')
-            ->postJson('/api/restock/create-pr', ['items' => []])
-            ->assertStatus(422);
+        // Material packaged 50 pieces/roll, stored need 280 pieces
+        // -> order_packages = ceil(280/50) = 6.
+        $pid = (int) DB::table('products')->insertGetId([
+            'product_code'       => 'TST-' . uniqid(),
+            'product_name'       => 'Packaged Tube',
+            'product_type'       => 'installation_material',
+            'unit_price'         => 100,
+            'cost_price'         => 80,
+            'recommended_stocks' => 0,
+            'status_id'          => 3,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'product_id');
+        DB::table('installation_material_details')->insert([
+            'product_id'         => $pid,
+            'pieces_per_package' => 50,
+            'package_unit'       => 'roll',
+            'is_serialized'      => 0,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+        $this->insertRecommendation($pid, $this->secondWarehouseId, 280);
+
+        $resp = $this->actingAs($this->makeUser('admin'), 'sanctum')
+            ->getJson('/api/restock/recommendations');
+        $resp->assertOk();
+
+        $row = collect($resp->json('data.recommendations'))->firstWhere('product_id', $pid);
+        $this->assertNotNull($row, 'stored recommendation must be returned');
+        $this->assertSame(50, $row['pieces_per_package']);
+        $this->assertSame('roll', $row['package_unit']);
+        $this->assertSame(6, $row['order_packages']); // ceil(280/50), not 5.6 rounded down
     }
 
-    public function test_auditor_cannot_create_pr(): void
+    public function test_package_fields_are_identity_or_null_for_edge_cases(): void
     {
-        $this->actingAs($this->makeUser('auditor'), 'sanctum')
-            ->postJson('/api/restock/create-pr', ['items' => [['product_id' => 1, 'quantity' => 1]]])
-            ->assertForbidden();
+        // (a) Material WITHOUT a details row (ppp null) -> order_packages == recommended_quantity.
+        $bare = (int) DB::table('products')->insertGetId([
+            'product_code' => 'TST-' . uniqid(),
+            'product_name' => 'Bare Material',
+            'product_type' => 'installation_material',
+            'unit_price'   => 100, 'cost_price' => 80,
+            'recommended_stocks' => 0, 'status_id' => 3,
+            'created_at' => now(), 'updated_at' => now(),
+        ], 'product_id');
+        $this->insertRecommendation($bare, $this->secondWarehouseId, 300);
+
+        // (b) Appliance -> all three package fields null.
+        $appliance = (int) DB::table('products')->insertGetId([
+            'product_code' => 'TST-' . uniqid(),
+            'product_name' => 'Test Aircon',
+            'product_type' => 'appliance',
+            'unit_price'   => 100, 'cost_price' => 80,
+            'recommended_stocks' => 0, 'status_id' => 3,
+            'created_at' => now(), 'updated_at' => now(),
+        ], 'product_id');
+        $this->insertRecommendation($appliance, $this->secondWarehouseId, 4);
+
+        $resp = $this->actingAs($this->makeUser('admin'), 'sanctum')
+            ->getJson('/api/restock/recommendations');
+        $resp->assertOk();
+        $rows = collect($resp->json('data.recommendations'));
+
+        $bareRow = $rows->firstWhere('product_id', $bare);
+        $this->assertNotNull($bareRow);
+        $this->assertSame(1, $bareRow['pieces_per_package']);
+        $this->assertSame(300, $bareRow['order_packages']); // identity: 300/1
+
+        $appRow = $rows->firstWhere('product_id', $appliance);
+        $this->assertNotNull($appRow);
+        $this->assertNull($appRow['pieces_per_package']);
+        $this->assertNull($appRow['package_unit']);
+        $this->assertNull($appRow['order_packages']);
+    }
+
+    public function test_recommendations_can_be_filtered_by_location(): void
+    {
+        $wh1 = (int) DB::table('locations')->where('location_type', 'warehouse')
+            ->orderBy('location_id')->value('location_id');
+        $wh2 = $this->secondWarehouseId;
+
+        $pid1 = $this->makeProductWithDemand($wh1); // stock 1 at wh1 -> low
+        $pid2 = $this->makeProductWithDemand($wh2); // stock 1 at wh2 -> low
+
+        $ia = $this->makeUser('inventory_analyst');
+
+        // Populate the batch.
+        $this->actingAs($ia, 'sanctum')->postJson('/api/restock/recalculate')->assertOk();
+
+        $resp1 = $this->actingAs($ia, 'sanctum')
+            ->getJson('/api/restock/recommendations?location_id=' . $wh1);
+        $resp1->assertOk();
+        foreach ($resp1->json('data.recommendations') as $row) {
+            $this->assertSame($wh1, (int) $row['location_id']);
+        }
+        $ids1 = array_map(fn ($r) => (int) $r['product_id'], $resp1->json('data.recommendations'));
+        $this->assertContains($pid1, $ids1);
+        $this->assertNotContains($pid2, $ids1);
+
+        $resp2 = $this->actingAs($ia, 'sanctum')
+            ->getJson('/api/restock/recommendations?location_id=' . $wh2);
+        $resp2->assertOk();
+        foreach ($resp2->json('data.recommendations') as $row) {
+            $this->assertSame($wh2, (int) $row['location_id']);
+        }
+        $ids2 = array_map(fn ($r) => (int) $r['product_id'], $resp2->json('data.recommendations'));
+        $this->assertContains($pid2, $ids2);
+        $this->assertNotContains($pid1, $ids2);
     }
 }

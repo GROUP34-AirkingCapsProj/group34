@@ -15,7 +15,11 @@ class PurchaseReturnDetails extends Model
 {
     use Auditable;
     protected $table = 'purchase_return_details';
-    protected $primaryKey = 'pr_detail_id';
+    // pr_return_detail_id, not pr_detail_id — the latter is
+    // purchase_request_details' key and does not exist on this table at all.
+    // The wrong name went unnoticed because MySQL's lastInsertId() ignores it on
+    // insert; PostgreSQL asks for `returning "pr_detail_id"` and fails outright.
+    protected $primaryKey = 'pr_return_detail_id';
 
     protected $fillable = [
         'purchase_return_id',

@@ -26,7 +26,7 @@ class RbacInfraTest extends TestCase
             'description' => 'Test role ' . $suffix,
             'created_at'  => now(),
             'updated_at'  => now(),
-        ]);
+        ], 'role_id');
 
         $statusId = DB::table('status_lookup')->insertGetId([
             'status_name'     => 'active_' . $suffix,
@@ -34,7 +34,7 @@ class RbacInfraTest extends TestCase
             'is_active'       => 1,
             'created_at'      => now(),
             'updated_at'      => now(),
-        ]);
+        ], 'status_id');
 
         $userId = DB::table('users')->insertGetId([
             'first_name'    => 'Test',
@@ -46,7 +46,7 @@ class RbacInfraTest extends TestCase
             'status_id'     => $statusId,
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ], 'user_id');
 
         return ['user_id' => $userId, 'role_id' => $roleId];
     }
@@ -146,6 +146,104 @@ class RbacInfraTest extends TestCase
 
         $resolver = new PermissionResolver();
         $this->assertFalse($resolver->canUser($userId, 'nonexistent', 'action'));
+    }
+
+    // =========================================================================
+    // (b2) Admin bypass — System Administrator always has full access
+    // =========================================================================
+
+    /** Create a user whose role is the canonical 'admin' slug (reusing it if seeded). */
+    private function createAdminUser(string $suffix): array
+    {
+        $roleId = DB::table('roles')->where('role_name', 'admin')->value('role_id');
+        if ($roleId === null) {
+            $roleId = DB::table('roles')->insertGetId([
+                'role_name'   => 'admin',
+                'description' => 'System Administrator',
+                'created_at'  => now(),
+                'updated_at'  => now(),
+            ], 'role_id');
+        }
+
+        $statusId = DB::table('status_lookup')->insertGetId([
+            'status_name'     => 'active_' . $suffix,
+            'status_category' => 'user',
+            'is_active'       => 1,
+            'created_at'      => now(),
+            'updated_at'      => now(),
+        ], 'status_id');
+
+        $userId = DB::table('users')->insertGetId([
+            'first_name'    => 'Admin',
+            'last_name'     => 'User',
+            'username'      => 'admin_' . $suffix,
+            'email'         => 'admin_' . $suffix . '@example.test',
+            'password_hash' => bcrypt('secret'),
+            'role_id'       => $roleId,
+            'status_id'     => $statusId,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], 'user_id');
+
+        return ['user_id' => $userId, 'role_id' => $roleId];
+    }
+
+    public function test_admin_bypass_grants_even_when_role_permission_is_denied(): void
+    {
+        $uid = uniqid();
+        ['user_id' => $userId, 'role_id' => $roleId] = $this->createAdminUser($uid);
+
+        $permission = Permission::create(['feature' => 'roles', 'action' => 'read']);
+
+        // Explicitly deny at the role level — admin bypass must still grant.
+        RolePermission::create([
+            'role_id'       => $roleId,
+            'permission_id' => $permission->permission_id,
+            'is_granted'    => false,
+        ]);
+
+        $resolver = new PermissionResolver();
+        $this->assertTrue($resolver->canUser($userId, 'roles', 'read'));
+    }
+
+    public function test_admin_bypass_grants_even_when_active_override_denies(): void
+    {
+        $uid = uniqid();
+        ['user_id' => $userId] = $this->createAdminUser($uid);
+
+        // Feature name is a fictional stand-in for infra testing, deliberately not
+        // one of PermissionSeeder::matrix()'s real feature/action pairs — using a
+        // real one (e.g. 'system_configuration') collides with the persistently
+        // seeded permissions row and fails with a unique-constraint violation.
+        $permission = Permission::create(['feature' => 'sysconf_infra_test', 'action' => 'update']);
+
+        UserPermissionOverride::create([
+            'user_id'       => $userId,
+            'permission_id' => $permission->permission_id,
+            'is_granted'    => false,
+            'revoked_at'    => null,
+        ]);
+
+        $resolver = new PermissionResolver();
+        $this->assertTrue($resolver->canUser($userId, 'sysconf_infra_test', 'update'));
+    }
+
+    public function test_non_admin_is_not_bypassed(): void
+    {
+        $uid = uniqid();
+        ['user_id' => $userId, 'role_id' => $roleId] = $this->createUserWithRole('analyst', $uid);
+
+        // See note above: a fictional feature name to avoid colliding with the
+        // persistently seeded permissions row for a real matrix feature.
+        $permission = Permission::create(['feature' => 'sysconf_infra_test', 'action' => 'read']);
+        RolePermission::create([
+            'role_id'       => $roleId,
+            'permission_id' => $permission->permission_id,
+            'is_granted'    => false,
+        ]);
+
+        $resolver = new PermissionResolver();
+        $this->assertFalse($resolver->canUser($userId, 'sysconf_infra_test', 'read'));
     }
 
     // =========================================================================

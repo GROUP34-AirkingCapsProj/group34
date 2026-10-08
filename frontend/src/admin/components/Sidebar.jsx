@@ -19,18 +19,16 @@ const routePrefetchMap = {
   '/admin/locations': () => import('../pages/LocationManagement'),
   '/admin/branches': () => import('../pages/LocationManagement'),
   '/admin/warehouses': () => import('../pages/LocationManagement'),
-  '/admin/categories': () => import('../pages/CategoryBrandManagement'),
-  '/admin/brands': () => import('../pages/CategoryBrandManagement'),
+  '/admin/categories': () => import('../pages/LookupManagement'),
+  '/admin/brands': () => import('../pages/LookupManagement'),
   '/admin/items': () => import('../pages/ItemManagement'),
   '/admin/suppliers': () => import('../pages/SupplierNetwork'),
   '/admin/budget-management': () => import('../pages/BudgetManagementPage'),
   '/admin/purchase-requests': () => import('../pages/PurchaseRequestPage'),
-  '/admin/po-recommendations': () => import('../pages/PORecommendation'),
   '/admin/draft-po-creator': () => import('../pages/PurchaseOrderPage'),
   '/admin/inventory': () => import('../pages/InventoryManagement'),
-  '/admin/transfer-requests': () => import('../pages/TransferRequestPage'),
-  '/admin/transfers': () => import('../pages/StockTransferManagement'),
-  '/admin/ist': () => import('../pages/ISTManagementPage'),
+  '/admin/barcode-printing': () => import('../pages/BarcodePrintingPage'),
+  '/admin/transfers': () => import('../pages/TransfersPage'),
   '/admin/issuances': () => import('../pages/IssuanceManagement'),
   '/admin/adjustments': () => import('../pages/AdjustmentManagement'),
   '/admin/inventory-operation': () => import('../pages/BarcodeScan'),
@@ -40,6 +38,7 @@ const routePrefetchMap = {
   '/admin/purchase-returns': () => import('../pages/PurchaseReturnManagement'),
   '/admin/reports': () => import('../pages/SystemReports'),
   '/admin/audit': () => import('../pages/AuditTrail'),
+  '/admin/audit-evidence': () => import('../pages/AuditEvidenceExplorer'),
   '/admin/profit-loss': () => import('../pages/ProfitLossManagement'),
   '/admin/issuance-scan': () => import('../pages/IssuanceScanPage'),
   '/admin/warranties': () => import('../pages/WarrantyManagement'),
@@ -65,6 +64,7 @@ const adminMenuSections = [
       { name: 'Location Management', path: '/admin/branches', icon: 'location' },
       { name: 'System Configuration', path: '/admin/config', icon: 'config' },
       { name: 'Archive Management', path: '/admin/archive', icon: 'archive' },
+      { name: 'Backup', path: '/admin/backup', icon: 'backup', adminOnly: true },
     ],
   },
   {
@@ -73,19 +73,22 @@ const adminMenuSections = [
       { name: 'Budget Management', path: '/admin/budget-management', icon: 'budget' },
       { name: 'Purchase Requests', path: '/admin/purchase-requests', icon: 'approval' },
       { name: 'Purchase Orders', path: '/admin/draft-po-creator', icon: 'procurement' },
-      { name: 'PO Recommendation', path: '/admin/po-recommendations', icon: 'po' },
       { name: 'Supplier Network', path: '/admin/suppliers', icon: 'supplier' },
       { name: 'Item Master', path: '/admin/items', icon: 'items' },
-      { name: 'Categories and Brands', path: '/admin/categories', icon: 'category' },
+      { name: 'Item Lookups', path: '/admin/categories', icon: 'category' },
+      { name: 'Set Management', path: '/admin/sets', icon: 'sets' },
+      { name: 'Aircon Models', path: '/admin/aircon-models', icon: 'sets' },
     ],
   },
   {
     label: 'INVENTORY INTELLIGENCE',
     items: [
       { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
-      { name: 'Transfer Requests', path: '/admin/transfer-requests', icon: 'transfer' },
-      { name: 'Stock Transfers', path: '/admin/transfers', icon: 'transfer', adminOnly: true },
-      { name: 'Interbranch Transfers', path: '/admin/ist', icon: 'transfer' },
+      { name: 'Barcode Printing', path: '/admin/barcode-printing', icon: 'scan' },
+      { name: 'Transfers', path: '/admin/transfers', icon: 'transfer' },
+      { name: 'Incident Reports', path: '/admin/incidents', icon: 'incident' },
+      { name: 'Inspections', path: '/admin/inspections', icon: 'incident' },
+      { name: 'Incident Items', path: '/admin/incident-items', icon: 'incident' },
     ],
   },
   {
@@ -105,6 +108,7 @@ const adminMenuSections = [
       { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
       { name: 'Warranty Records', path: '/admin/warranties', icon: 'warranty' },
       { name: 'Alerts & Notices', path: '/admin/alerts', icon: 'notifications' },
+      { name: 'Audit & Evidence', path: '/admin/audit-evidence', icon: 'audit' },
       { name: 'Audit Trail', path: '/admin/audit', icon: 'audit' },
     ],
   },
@@ -289,6 +293,14 @@ const renderIcon = (iconType) => {
           <line x1="10" y1="12" x2="14" y2="12"></line>
         </svg>
       );
+    case 'backup':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+          <path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3"></path>
+          <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"></path>
+        </svg>
+      );
     case 'archive-settings':
       return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -382,6 +394,22 @@ const renderIcon = (iconType) => {
           <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
         </svg>
       );
+    case 'sets':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+      );
+    case 'incident':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      );
     default:
       return null;
   }
@@ -422,7 +450,7 @@ const Sidebar = ({
   onToggleSection,
   navMenuRef,
   onLogout,
-  pendingApprovalCount = 0,
+  pendingPrCount = 0,
   awaitingIstCount = 0,
   navLoading = false,
 }) => {
@@ -467,12 +495,12 @@ const Sidebar = ({
             >
               <span className="nav-icon">{renderIcon(item.icon)}</span>
               <span className="nav-text">{item.name}</span>
-              {item.path === '/admin/draft-po-creator' && pendingApprovalCount > 0 && (
+              {item.path === '/admin/purchase-requests' && pendingPrCount > 0 && (
                 <span className="nav-item-badge">
-                  {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
+                  {pendingPrCount > 99 ? '99+' : pendingPrCount}
                 </span>
               )}
-              {item.path === '/admin/ist' && awaitingIstCount > 0 && (
+              {item.path === '/admin/transfers' && awaitingIstCount > 0 && (
                 <span className="nav-item-badge">
                   {awaitingIstCount > 99 ? '99+' : awaitingIstCount}
                 </span>

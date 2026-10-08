@@ -11,10 +11,19 @@ const RoleRoute = ({ children }) => {
 
   if (!user) return <Navigate to="/admin/login" replace />;
 
+  // Temporary password still in place — every other API route returns 403, so
+  // send the user to the one screen that can clear it. The middleware is the
+  // real enforcement; this just avoids rendering pages that cannot load data.
+  if (user.must_change_password) return <Navigate to="/admin/change-password" replace />;
+
   const bundle = NAV_BUNDLES.find((b) => b.routePath === location.pathname);
   if (bundle) {
+    // Dashboard is the post-login landing page — render immediately while
+    // permissions hydrate so we don't sit on "Checking access…". Widgets already
+    // gate themselves with can().
     if (permissions == null) {
-      return <div style={{ padding: '1.5rem', color: '#6b7280' }}>Checking access…</div>;
+      if (location.pathname === '/admin/dashboard') return children;
+      return <div style={{ padding: '1.5rem', color: 'var(--text-muted)' }}>Checking access…</div>;
     }
     if (!bundleVisible(bundle, permissions)) return <Navigate to="/admin/dashboard" replace />;
     return children;
@@ -25,7 +34,7 @@ const RoleRoute = ({ children }) => {
   const requiredPerm = PERMISSION_GATED_ROUTES[location.pathname];
   if (requiredPerm) {
     if (permissions == null) {
-      return <div style={{ padding: '1.5rem', color: '#6b7280' }}>Checking access…</div>;
+      return <div style={{ padding: '1.5rem', color: 'var(--text-muted)' }}>Checking access…</div>;
     }
     if (permissions[requiredPerm] !== true) return <Navigate to="/admin/dashboard" replace />;
     return children;

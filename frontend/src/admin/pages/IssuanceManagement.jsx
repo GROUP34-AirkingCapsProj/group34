@@ -3,9 +3,11 @@ import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
+import UnitRoleBadge from '../components/UnitRoleBadge';
 import { issuancesAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { getIssuanceDisplay, issuanceLineQty } from '../utils/moduleFeedStatus';
+import { layoutAirconGroups, airconGroupLabel, airconUnpairedLabel } from '../utils/airconGroups';
 import '../../admin/styles/dashboard_air.css';
 import '../styles/transaction_management.css';
 import '../styles/archive_management.css';
@@ -43,15 +45,31 @@ const IssuanceManagement = () => {
   const [statuses, setStatuses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewingIssuance, setViewingIssuance] = useState(null);
+  // Split-aircon grouping for the open view modal. The feed rows come from the
+  // list endpoint, which has no aircon_groups — only the detail endpoint does.
+  const [viewingAirconGroups, setViewingAirconGroups] = useState([]);
   const [editingIssuance, setEditingIssuance] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState(emptyForm());
+
+  useEffect(() => {
+    const id = viewingIssuance?.issuance_id;
+    if (!id) { setViewingAirconGroups([]); return undefined; }
+    let mounted = true;
+    setViewingAirconGroups([]);
+    issuancesAPI.getById(id)
+      .then((res) => { if (mounted) setViewingAirconGroups(Array.isArray(res?.data?.aircon_groups) ? res.data.aircon_groups : []); })
+      .catch(() => { if (mounted) setViewingAirconGroups([]); });
+    return () => { mounted = false; };
+  }, [viewingIssuance?.issuance_id]);
 
   const fetchDropdowns = useCallback(async () => {
     try {
       const [locRes, prodRes, statRes] = await Promise.all([
         locationsAPI.getAll(),
-        productsAPI.getAll({ per_page: 500 }),
+        // Every page: this feeds the "Items to Issue" product dropdown, and a
+        // product the cap left out cannot be issued at all.
+        productsAPI.getAllPages(),
         statusAPI.getAll(),
       ]);
       setLocations(Array.isArray(locRes?.data) ? locRes.data : []);
@@ -284,11 +302,40 @@ const IssuanceManagement = () => {
           </div>
           {viewingIssuance.details?.length > 0 && (
             <div style={{ marginTop: 16 }}>
-              <h4 style={{ marginBottom: 8, color: '#374151' }}>Items Issued</h4>
+              <h4 style={{ marginBottom: 8, color: 'var(--text-body)' }}>Items Issued</h4>
               <table className="data-table">
                 <thead><tr><th>Product</th><th>Qty</th><th>Condition</th></tr></thead>
-                <tbody>{viewingIssuance.details.map((d, i) => (
-                  <tr key={i}><td>{d.product?.product_name || '—'}</td><td>{d.quantity_issued}</td><td>{d.condition_issued || '—'}</td></tr>
+                <tbody>{layoutAirconGroups(viewingIssuance.details, viewingAirconGroups, 'issuance_detail_id').map((seg) => (
+                  <React.Fragment key={seg.key}>
+                    {seg.group && (
+                      <tr>
+                        <td colSpan={3} style={{ background: 'var(--bg-hover)', fontWeight: 700, fontSize: 12, color: 'var(--text-body)' }}>
+                          {airconGroupLabel(seg.group)}
+                          {seg.group.is_unbalanced && airconUnpairedLabel(seg.group.unpaired) && (
+                            <span style={{ marginLeft: 8, fontWeight: 600, color: 'var(--ink-amber)' }}>
+                              ⚠ {airconUnpairedLabel(seg.group.unpaired)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    {seg.rows.map((d, i) => (
+                      <tr key={d.issuance_detail_id ?? `${seg.key}-${i}`}>
+                        <td style={seg.group ? { paddingLeft: 18 } : undefined}>
+                          {/* The group header above names the model; this
+                              names which half each nested row is. Without it
+                              the two rows under a header read identically. */}
+                          <UnitRoleBadge role={d.product?.unit_role} />
+                          {d.product?.product_name || '—'}
+                          {d.product?.ac_type_name && (
+                            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}> · {d.product.ac_type_name}</span>
+                          )}
+                        </td>
+                        <td>{d.quantity_issued}</td>
+                        <td>{d.condition_issued || '—'}</td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
                 ))}</tbody>
               </table>
             </div>
@@ -337,7 +384,7 @@ const IssuanceManagement = () => {
 
             <div style={{ marginTop: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <h4 style={{ margin: 0, color: '#374151' }}>Items to Issue</h4>
+                <h4 style={{ margin: 0, color: 'var(--text-body)' }}>Items to Issue</h4>
                 <button type="button" className="btn-secondary" style={{ padding: '4px 12px', fontSize: 13 }} onClick={addDetailRow}>+ Add Item</button>
               </div>
               <table className="data-table">

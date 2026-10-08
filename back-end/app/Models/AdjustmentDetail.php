@@ -34,6 +34,6 @@ class AdjustmentDetail extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id', 'product_id')
-                    ->with(['applianceDetail.brand', 'consumableDetail.unit']);
+                    ->with(['applianceDetail.brand', 'installationMaterialDetail.unit']);
     }
 }

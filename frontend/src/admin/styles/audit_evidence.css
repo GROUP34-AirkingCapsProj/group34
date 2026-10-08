@@ -1,0 +1,147 @@
+/* Audit & Evidence Explorer.
+   Built entirely on the --ak-* design tokens so the existing
+   html[data-theme='dark'] overrides carry this page without a second palette. */
+
+.ae-summary { display: grid; gap: 1rem; }
+
+.ae-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.ae-tile {
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius-sm);
+  background: var(--ak-card);
+}
+.ae-tile-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  color: var(--ak-ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ae-tile-value {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--ak-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.ae-basis {
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius-sm);
+  background: var(--ak-card);
+}
+.ae-basis-title { margin: 0 0 0.5rem; font-size: 0.8rem; font-weight: 600; color: var(--ak-ink); }
+.ae-basis-list {
+  margin: 0; padding: 0; list-style: none;
+  display: grid; gap: 0.3rem; font-size: 0.85rem; color: var(--ak-ink);
+}
+.ae-basis-dot {
+  display: inline-block; width: 0.6rem; height: 0.6rem;
+  border-radius: 50%; margin-right: 0.45rem; background: var(--ak-ink-faint);
+}
+.ae-basis-dot--actual { background: #2f9e6f; }
+.ae-basis-dot--product_default { background: var(--ak-gold); }
+.ae-basis-dot--derived_weighted_avg { background: var(--ak-amber); }
+.ae-basis-dot--unavailable { background: var(--ak-crimson); }
+
+.ae-warn { margin: 0.6rem 0 0; font-size: 0.8rem; color: var(--ak-amber); }
+.ae-muted { margin: 0.4rem 0 0; font-size: 0.8rem; color: var(--ak-ink-faint); }
+.ae-empty, .ae-state { padding: 1.5rem; text-align: center; color: var(--ak-ink-faint); }
+
+.ae-card {
+  border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius);
+  background: var(--ak-card);
+  margin-top: 1rem;
+}
+.ae-card-head {
+  display: flex; flex-wrap: wrap; gap: 0.75rem;
+  align-items: flex-end; justify-content: space-between;
+  padding: 1rem; border-bottom: 1px solid var(--ak-line);
+}
+.ae-card-title { margin: 0; font-size: 1rem; color: var(--ak-ink); }
+.ae-card-meta { margin: 0.2rem 0 0; font-size: 0.8rem; color: var(--ak-ink-faint); }
+
+.ae-field { display: grid; gap: 0.25rem; font-size: 0.72rem; color: var(--ak-ink-faint); }
+.ae-field select, .ae-field input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius-sm);
+  background: var(--ak-card);
+  color: var(--ak-ink);
+}
+
+/* Wide tables scroll inside their own container; the page body never does. */
+.ae-table-wrap { overflow-x: auto; }
+.ae-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.ae-table th, .ae-table td {
+  padding: 0.55rem 0.75rem; text-align: left;
+  border-bottom: 1px solid var(--ak-line-soft);
+  color: var(--ak-ink); white-space: nowrap;
+}
+.ae-table th {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--ak-ink-faint);
+}
+.ae-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* A reversal and the row it reversed both stay visible, struck through: an
+   auditor needs to see that something was undone, not find it missing. */
+.ae-row--reversed td { text-decoration: line-through; opacity: 0.6; }
+
+.ae-flag {
+  display: inline-block; margin-left: 0.35rem; padding: 0.05rem 0.4rem;
+  border-radius: 999px; font-size: 0.66rem;
+  border: 1px solid var(--ak-line); color: var(--ak-ink-faint);
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+
+.ae-btn {
+  padding: 0.35rem 0.7rem; border-radius: var(--ak-radius-sm);
+  border: 1px solid var(--ak-line); background: transparent;
+  color: var(--ak-ink); cursor: pointer; font-size: 0.8rem;
+}
+.ae-btn:hover { border-color: var(--ak-crimson); }
+
+.ae-scope { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; padding: 1rem; }
+
+.ae-tabs {
+  display: inline-flex; border: 1px solid var(--ak-line);
+  border-radius: var(--ak-radius-sm); overflow: hidden;
+}
+.ae-tabs button {
+  padding: 0.4rem 0.9rem; border: 0; background: transparent;
+  color: var(--ak-ink-faint); cursor: pointer; font-size: 0.82rem;
+}
+.ae-tabs button[aria-pressed='true'] { background: var(--ak-crimson); color: #fff; }
+
+.ae-timeline {
+  margin: 0; padding: 1rem 1rem 1rem 2rem;
+  display: grid; gap: 0.5rem; font-size: 0.85rem; color: var(--ak-ink);
+}
+
+.ae-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(920px, 100%); overflow-y: auto; z-index: 60; padding: 1rem;
+  background: var(--ak-card); border-left: 1px solid var(--ak-line);
+  box-shadow: var(--ak-shadow-lg);
+}
+.ae-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; margin-bottom: 1rem;
+}
+.ae-drawer-body { display: grid; gap: 1.5rem; }
+
+.ae-kv {
+  display: grid; grid-template-columns: minmax(140px, auto) 1fr;
+  gap: 0.3rem 1rem; margin: 0; font-size: 0.85rem;
+}
+.ae-kv dt { color: var(--ak-ink-faint); text-transform: capitalize; }
+.ae-kv dd { margin: 0; color: var(--ak-ink); }

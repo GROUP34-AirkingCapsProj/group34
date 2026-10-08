@@ -73,14 +73,21 @@ export const ROUTE_ACCESS = {
   '/admin/config': [ROLES.ADMIN],
   '/admin/archive': [ROLES.ADMIN, ROLES.AUDITOR],
   '/admin/archive-settings': [ROLES.ADMIN],
+  '/admin/backup': [ROLES.ADMIN],
 
   // Item/barcode/classification
   '/admin/items': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
-  '/admin/pending-consumables': [ROLES.ADMIN, ROLES.BRANCH_MANAGER],
+  '/admin/pending-installation-materials': [ROLES.ADMIN, ROLES.BRANCH_MANAGER],
   '/admin/categories': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
   '/admin/brands': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
   '/admin/inventory-operation': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
   '/admin/scan': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
+  /* Reprinting a damaged label is warehouse work, so it matches the scan
+     pages rather than the read-only reports. The queue endpoints behind it
+     are auth-only and already scoped to the user's location; an unlisted
+     path here would fall back to admin-only and hide the page from exactly
+     the people who print. */
+  '/admin/barcode-printing': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
 
   // Inventory operations
   '/admin/inventory': Object.values(ROLES),
@@ -104,7 +111,6 @@ export const ROUTE_ACCESS = {
   // while that bundle exists.
   '/admin/budget-management': [ROLES.ADMIN, ROLES.AUDITOR],
   '/admin/purchase-requests': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST],
-  '/admin/po-recommendations': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
   '/admin/draft-po-creator': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
   '/admin/purchase-returns': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
 

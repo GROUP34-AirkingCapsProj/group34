@@ -25,7 +25,7 @@ class InventoryScopeTest extends TestCase
             'is_active'     => 1,
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ], 'location_id');
         $locBId = (int) DB::table('locations')->insertGetId([
             'location_name' => 'LocB_' . $uid,
             'location_code' => 'TST-B-' . $uid,
@@ -33,7 +33,7 @@ class InventoryScopeTest extends TestCase
             'is_active'     => 1,
             'created_at'    => now(),
             'updated_at'    => now(),
-        ]);
+        ], 'location_id');
 
         // Use an existing product (avoids needing to satisfy all NOT NULL columns)
         $product = Product::first();

@@ -12,6 +12,7 @@
 ================================ */
 .login-page {
   min-height: 100vh;
+  min-height: 100dvh; /* accounts for mobile browser toolbars so content/buttons stay reachable */
   background: var(--login-page-bg);
   display: flex;
   justify-content: center;
@@ -19,6 +20,15 @@
   padding: 20px;
   position: relative;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', Arial, sans-serif;
+}
+
+/* Mobile Safari/Chrome can delay tap response by ~300ms or swallow the first
+   tap on elements without an explicit touch-action; this makes every
+   interactive control on the login page respond immediately to a single tap. */
+.login-page button,
+.login-page input[type='checkbox'],
+.login-page a {
+  touch-action: manipulation;
 }
 
 /* ===============================
@@ -165,6 +175,7 @@
   background: var(--login-input-bg);
   color: var(--text-dark);
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 
 .form-group input:focus {
@@ -233,6 +244,8 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
+  touch-action: manipulation;
+  min-height: 44px;
 }
 
 .login-btn:hover:not(:disabled) {
@@ -280,11 +293,18 @@
   font-weight: 500;
 }
 
+.pwd-rules {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 .login-attempts-hint {
   margin-top: 10px;
   font-size: 14px;
   text-align: center;
-  color: #b45309;
+  color: var(--warning-text);
   font-weight: 600;
 }
 
@@ -333,11 +353,11 @@
 .login-challenge-loading,
 .login-challenge-error {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0 0 8px;
 }
 .login-challenge-error {
-  color: #b91c1c;
+  color: var(--ink-red);
 }
 .login-refresh-captcha {
   margin-top: 8px;
@@ -373,7 +393,7 @@
 }
 
 .login-captcha-row--wrong {
-  border-color: #ef4444;
+  border-color: var(--line-red-400);
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
 }
 
@@ -421,14 +441,14 @@
 
 .form-group input.login-captcha-answer--correct {
   border-color: #22c55e !important;
-  background: #f0fdf4 !important;
-  color: #166534;
+  background: var(--success-soft-bg) !important;
+  color: var(--ink-green-800);
 }
 
 .form-group input.login-captcha-answer--wrong {
-  border-color: #ef4444 !important;
-  background: #fef2f2 !important;
-  color: #991b1b;
+  border-color: var(--line-red-400) !important;
+  background: var(--danger-soft-bg) !important;
+  color: var(--ink-red-600);
 }
 
 .login-captcha-refresh {
@@ -448,7 +468,7 @@
 }
 
 .login-captcha-refresh:hover {
-  background: #fff5f5;
+  background: var(--danger-soft-bg);
   border-color: var(--primary);
   color: var(--primary-dark);
 }
@@ -470,16 +490,31 @@
   }
 }
 
+@media (max-width: 768px) {
+  /* Apple/Google HIG recommend >=44px touch targets; widen the small icon
+     button so a finger tap lands reliably instead of missing next to it. */
+  .login-captcha-refresh {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+.login-challenge-error + .login-refresh-captcha {
+  margin-top: 4px;
+  padding: 8px 0;
+  font-size: 13px;
+}
+
 /* OTP step */
 .login-otp-hint {
   font-size: 14px;
   line-height: 1.5;
-  color: var(--text-muted, #71717a);
+  color: var(--text-muted);
   margin-bottom: 16px;
 }
 
 .login-otp-hint strong {
-  color: var(--text-primary, #18181b);
+  color: var(--ink-slate-900-2);
   word-break: break-all;
 }
 
@@ -509,7 +544,7 @@ input.login-otp-input {
 }
 
 .login-otp-back:hover:not(:disabled) {
-  color: var(--primary-dark, #b91c1c);
+  color: var(--primary-dark);
 }
 
 .login-otp-back:disabled {
@@ -814,4 +849,32 @@ input.login-otp-input {
   .login-form h2 {
     font-size: 22px;
   }
+}
+/* Forgot-password delivery channel toggle */
+.login-channel-toggle {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-muted);
+}
+.login-channel-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.login-channel-btn.is-active {
+  background: var(--primary, #dc2626);
+  color: #fff;
+}
+.login-channel-btn:hover:not(.is-active) {
+  color: var(--text-dark);
+  background: rgba(0, 0, 0, 0.04);
 }

@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# Shell scripts copied into the Linux image must keep LF endings; a CRLF
+# shebang line makes the container fail with "no such file or directory".
+*.sh text eol=lf
+docker/entrypoint.sh text eol=lf
+Dockerfile text eol=lf

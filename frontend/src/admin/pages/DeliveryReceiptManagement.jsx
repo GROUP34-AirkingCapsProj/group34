@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
+import UnitRoleBadge from '../components/UnitRoleBadge';
 import { deliveryReceiptsAPI, salesAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
@@ -113,7 +114,14 @@ const DeliveryReceiptManagement = () => {
       <tr>
         <td class="tc">${d.quantity || ''}</td>
         <td class="tc">${d.unit || 'pcs'}</td>
-        <td>${d.product?.product_name || d.description || ''}</td>
+        <td>${[
+          // On paper there is no badge to lean on, so the half goes into the
+          // text. A delivery receipt naming only "TCL 2HP Aircon" cannot tell
+          // the person signing for it which carton actually arrived.
+          d.product?.unit_role === 'indoor' ? '[INDOOR]'
+            : d.product?.unit_role === 'outdoor' ? '[OUTDOOR]' : '',
+          d.product?.product_name || d.description || '',
+        ].filter(Boolean).join(' ')}</td>
         <td></td>
       </tr>`).join('') + Array(blankCount).fill(`<tr><td>&nbsp;</td><td></td><td></td><td></td></tr>`).join('');
 
@@ -249,9 +257,9 @@ const DeliveryReceiptManagement = () => {
         <div className="stats-row">
           {[
             { label: 'Total DRs', value: pagination.total || receipts.length, color: '#6366f1' },
-            { label: 'Pending', value: receipts.filter(r => r.status?.status_name === 'Pending').length, color: '#f59e0b' },
-            { label: 'Delivered', value: receipts.filter(r => r.status?.status_name === 'Delivered' || r.status?.status_name === 'Completed').length, color: '#10b981' },
-            { label: 'This Month', value: thisMonth.length, color: '#3b82f6' },
+            { label: 'Pending', value: receipts.filter(r => r.status?.status_name === 'Pending').length, color: 'var(--ink-orange-500-2)' },
+            { label: 'Delivered', value: receipts.filter(r => r.status?.status_name === 'Delivered' || r.status?.status_name === 'Completed').length, color: 'var(--ink-teal-600)' },
+            { label: 'This Month', value: thisMonth.length, color: 'var(--ink-blue-400)' },
           ].map((s, i) => (
             <div key={i} className="stat-card">
               <div className="stat-icon" style={{ background: s.color + '20', color: s.color }}>
@@ -278,7 +286,7 @@ const DeliveryReceiptManagement = () => {
             </thead>
             <tbody>
               {loading ? <tr><td colSpan="6"><Loader /></td></tr>
-                : error ? <tr><td colSpan="6" className="table-empty"><span style={{ color: '#ef4444' }}>{error}</span><button className="btn-link" onClick={() => fetchReceipts(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
+                : error ? <tr><td colSpan="6" className="table-empty"><span style={{ color: 'var(--ink-red-400)' }}>{error}</span><button className="btn-link" onClick={() => fetchReceipts(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
                   : receipts.length === 0 ? <tr><td colSpan="6" className="table-empty">No delivery receipts found.</td></tr>
                     : receipts.map(r => (
                       <tr key={r.dr_id}>
@@ -290,7 +298,7 @@ const DeliveryReceiptManagement = () => {
                         <td>
                           <div className="action-btns">
                             <button className="btn-action btn-view" onClick={() => setViewingReceipt(r)}>View</button>
-                            <button className="btn-action" style={{ background: '#f0fdf4', color: '#059669', border: '1px solid #bbf7d0' }} onClick={() => printReceipt(r)}>Print</button>
+                            <button className="btn-action" style={{ background: 'var(--success-soft-bg)', color: 'var(--ink-teal-700)', border: '1px solid var(--line-green)' }} onClick={() => printReceipt(r)}>Print</button>
                             <button className="btn-action btn-edit" onClick={() => openEditModal(r)}>Edit</button>
                             <button className="btn-action btn-delete" onClick={() => handleDelete(r.dr_id)}>Delete</button>
                           </div>
@@ -321,12 +329,18 @@ const DeliveryReceiptManagement = () => {
           </div>
           {viewingReceipt.sale?.details?.length > 0 && (
             <div style={{ marginTop: 16 }}>
-              <h4 style={{ marginBottom: 8, color: '#374151' }}>Sale Items</h4>
+              <h4 style={{ marginBottom: 8, color: 'var(--text-body)' }}>Sale Items</h4>
               <table className="data-table">
                 <thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr></thead>
                 <tbody>{viewingReceipt.sale.details.map((d, i) => (
                   <tr key={i}>
-                    <td>{d.product?.product_name || '—'}</td>
+                    <td>
+                      <UnitRoleBadge role={d.product?.unit_role} />
+                      {d.product?.product_name || '—'}
+                      {d.product?.ac_type_name && (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}> · {d.product.ac_type_name}</span>
+                      )}
+                    </td>
                     <td>{d.quantity}</td>
                     <td>₱{parseFloat(d.unit_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                     <td>₱{parseFloat(d.subtotal || (d.quantity * d.unit_price) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>

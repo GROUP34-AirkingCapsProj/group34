@@ -24,6 +24,7 @@ class LayoutSummaryTest extends TestCase
                     'badge_count',
                     'unread_count',
                     'total_pending',
+                    'pending_pr_count',
                     'awaiting_fulfillment',
                     'awaiting_receipt',
                 ],

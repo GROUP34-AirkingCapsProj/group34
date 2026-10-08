@@ -23,6 +23,7 @@ class Transfer extends Model
         'transfer_request_id',
         'from_location_id',
         'to_location_id',
+        'intent',
         'transfer_number',
         'transfer_date',
         'date',

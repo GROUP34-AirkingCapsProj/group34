@@ -16,7 +16,7 @@ class ArchiveController extends Controller
             'label'    => 'Product',
             'name_col' => 'product_name',
             'code_col' => 'product_code',
-            'with'     => ['category', 'applianceDetail.brand', 'consumableDetail.unit'],
+            'with'     => ['category', 'applianceDetail.brand', 'installationMaterialDetail.unit'],
         ],
         'locations' => [
             'model'    => \App\Models\Location::class,

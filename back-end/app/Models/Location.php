@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Concerns\ScopesToUserLocation;
 use App\Traits\Auditable;
 
 /**
@@ -16,7 +17,11 @@ use App\Traits\Auditable;
  */
 class Location extends Model
 {
-    use SoftDeletes, Auditable;
+    /* forUser() reads location_id, which on this model is the row's own key:
+       a scoped user sees the one location they are at, a centralized one sees
+       all of them. Same rule, same spelling, as the thirteen models that hold
+       stock at a location. */
+    use SoftDeletes, Auditable, ScopesToUserLocation;
     protected $table = 'locations';
     protected $primaryKey = 'location_id';
 

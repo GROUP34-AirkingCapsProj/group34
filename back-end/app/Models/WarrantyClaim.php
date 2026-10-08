@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Auditable;
+use App\Models\Concerns\ScopesToUserLocation;
 
 class WarrantyClaim extends Model
 {
-    use Auditable, SoftDeletes;
+    use Auditable, SoftDeletes, ScopesToUserLocation;
 
     protected $table = 'warranty_claims';
     protected $primaryKey = 'claim_id';
@@ -28,6 +29,11 @@ class WarrantyClaim extends Model
     public function details()
     {
         return $this->hasMany(WarrantyClaimDetail::class, 'claim_id', 'claim_id');
+    }
+
+    public function returnedUnit()
+    {
+        return $this->hasOne(WarrantyClaimReturn::class, 'claim_id', 'claim_id');
     }
 
     public function warranty()

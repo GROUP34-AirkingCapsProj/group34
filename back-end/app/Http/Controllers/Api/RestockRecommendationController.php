@@ -2,22 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Exceptions\InsufficientBudgetException;
 use App\Http\Controllers\Controller;
 use App\Models\Location;
 use App\Models\Product;
-use App\Models\PurchaseRequest;
-use App\Models\PurchaseRequestDetail;
 use App\Models\RestockRecommendation;
 use App\Models\StockParameterSuggestion;
 use App\Services\Analytics\RestockAnalyticsService;
 use App\Services\BudgetService;
-use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 class RestockRecommendationController extends Controller
 {
@@ -30,8 +24,19 @@ class RestockRecommendationController extends Controller
     /** GET /api/restock/recommendations — latest stored batch. */
     public function index(Request $request)
     {
-        $query = RestockRecommendation::with('product')
-            ->orderByRaw("FIELD(priority, 'CRITICAL', 'HIGH', 'MEDIUM')")
+        $query = RestockRecommendation::with('product.installationMaterialDetail')
+            ->forUser($request->user())
+            // CASE rather than MySQL's FIELD(), which PostgreSQL does not have.
+            // The ELSE 0 mirrors FIELD()'s no-match return, so an unexpected
+            // priority sorts first exactly as it did before. In practice
+            // RestockAnalyticsService only ever writes these three values.
+            ->orderByRaw(
+                "CASE priority"
+                . " WHEN 'CRITICAL' THEN 1"
+                . " WHEN 'HIGH' THEN 2"
+                . " WHEN 'MEDIUM' THEN 3"
+                . ' ELSE 0 END'
+            )
             ->orderByDesc('avg_daily_demand');
 
         if ($request->filled('priority') && $request->priority !== 'all') {
@@ -47,9 +52,30 @@ class RestockRecommendationController extends Controller
             });
         }
 
-        $rows = $query->get();
+        $locationId = $request->filled('location_id') ? (int) $request->location_id : null;
+        if ($locationId) {
+            $query->where('location_id', $locationId);
+        }
 
-        $warehouseId = Location::where('location_type', 'warehouse')
+        // Package fields are computed at read time so they always reflect the
+        // CURRENT pieces_per_package, even if packaging changed after the run.
+        // recommended_quantity stays the true pieces need (spec: analyze in
+        // pieces, order in packages).
+        $rows = $query->get()->map(function ($r) {
+            $arr        = $r->toArray();
+            $isMaterial = $r->product?->product_type === 'installation_material';
+            $cd         = $r->product?->installationMaterialDetail;
+            $ppp        = max(1, (int) ($cd?->pieces_per_package ?? 1));
+
+            $arr['pieces_per_package'] = $isMaterial ? $ppp : null;
+            $arr['package_unit']       = $isMaterial ? ($cd?->package_unit ?: null) : null;
+            $arr['order_packages']     = $isMaterial
+                ? (int) ceil((float) $r->recommended_quantity / $ppp)
+                : null;
+            return $arr;
+        });
+
+        $warehouseId = $locationId ?? Location::where('location_type', 'warehouse')
             ->orderBy('location_id')
             ->value('location_id');
         $budget = $warehouseId
@@ -59,7 +85,7 @@ class RestockRecommendationController extends Controller
         return $this->success([
             // Fall back to the suggestions table so a run that produced zero
             // recommendations still reports when it happened.
-            'run_at'          => optional($rows->first())->run_at
+            'run_at'          => ($rows->first()['run_at'] ?? null)
                 ?? StockParameterSuggestion::max('run_at'),
             'recommendations' => $rows,
             'budget'          => $budget ? [
@@ -85,98 +111,6 @@ class RestockRecommendationController extends Controller
         return $this->index($request);
     }
 
-    /**
-     * POST /api/restock/create-pr
-     * Turn selected recommendations into a draft Purchase Request that then
-     * follows the normal PR -> approval -> PO flow.
-     */
-    public function createPr(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'needed_by_date'     => 'nullable|date|after:today',
-                'items'              => 'required|array|min:1',
-                'items.*.product_id' => 'required|exists:products,product_id',
-                'items.*.quantity'   => 'required|integer|min:1',
-            ]);
-        } catch (ValidationException $e) {
-            return $this->validationError($e->errors());
-        }
-
-        $warehouseId = Location::where('location_type', 'warehouse')
-            ->orderBy('location_id')
-            ->value('location_id');
-        if (!$warehouseId) {
-            return $this->error('No warehouse location is configured', 422);
-        }
-
-        $budget = app(BudgetService::class)->resolveActiveBudget((int) $warehouseId);
-        if (!$budget) {
-            return $this->error(
-                'No active budget covers today for the warehouse. Create one in Budget Management first.',
-                422
-            );
-        }
-
-        try {
-            $pr = DB::transaction(function () use ($validated, $request, $warehouseId, $budget) {
-                $products = Product::whereIn(
-                    'product_id',
-                    collect($validated['items'])->pluck('product_id')
-                )->get()->keyBy('product_id');
-
-                $lines = collect($validated['items'])->map(function ($item) use ($products) {
-                    $cost = (float) ($products[$item['product_id']]->cost_price ?? 0);
-                    return [
-                        'product_id'      => $item['product_id'],
-                        'quantity'        => $item['quantity'],
-                        'estimated_price' => $cost,
-                        'subtotal'        => $cost * $item['quantity'],
-                    ];
-                });
-
-                $estimatedTotal = $lines->sum('subtotal');
-                if (!app(BudgetService::class)->hasAvailable($budget, (float) $estimatedTotal)) {
-                    throw new InsufficientBudgetException(
-                        $budget->period_label,
-                        (float) $estimatedTotal,
-                        (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent
-                    );
-                }
-
-                $pr = PurchaseRequest::create([
-                    'location_id'     => $warehouseId,
-                    'budget_id'       => $budget->budget_id,
-                    'pr_number'       => 'PR-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
-                    'request_date'    => today(),
-                    'needed_by_date'  => $validated['needed_by_date']
-                        ?? today()->addDays(7)->toDateString(),
-                    'purpose'         => 'Generated from PO Recommendation analytics',
-                    'estimated_total' => $estimatedTotal,
-                    'status_id'       => 13, // Pending
-                    'requested_by'    => $request->user()->user_id,
-                ]);
-
-                foreach ($lines as $line) {
-                    PurchaseRequestDetail::create(['pr_id' => $pr->pr_id] + $line);
-                }
-
-                return $pr;
-            });
-        } catch (InsufficientBudgetException $e) {
-            return $this->error($e->getMessage(), 422);
-        } catch (\Throwable $e) {
-            return $this->error('Failed to create purchase request: ' . $e->getMessage(), 500);
-        }
-
-        RealtimeBroadcaster::approvalQueueChanged((int) $pr->location_id, 'pr_changed');
-
-        return $this->success([
-            'pr_id'     => $pr->pr_id,
-            'pr_number' => $pr->pr_number,
-        ], 'Draft purchase request created', 201);
-    }
-
     /** GET /api/restock/suggestions?status=pending|applied|dismissed|all */
     public function suggestions(Request $request)
     {
@@ -187,8 +121,45 @@ class RestockRecommendationController extends Controller
         if ($status !== 'all') {
             $query->where('status', $status);
         }
+        $suggestions = $query->get();
 
-        return $this->success($query->get(), 'Stock parameter suggestions retrieved');
+        // Attach the warehouse(s) each product is stocked at (inventory rows at
+        // warehouse-type locations) so the UI can show and filter by warehouse.
+        $productIds = $suggestions->pluck('product_id')->filter()->unique()->values()->all();
+        $whByProduct = collect();
+        if ($productIds) {
+            // po_recommendations.read is granted to branch_manager, a scoped
+            // role, so this list is limited to the warehouses that user may
+            // see — otherwise it names every warehouse holding the product.
+            $user      = $request->user();
+            $scopedLoc = ($user && ! $user->isCentralized()) ? $user->scopedLocationId() : null;
+
+            $whByProduct = DB::table('inventory as inv')
+                ->join('locations as l', 'l.location_id', '=', 'inv.location_id')
+                ->where('l.location_type', 'warehouse')
+                ->whereIn('inv.product_id', $productIds)
+                ->when(
+                    $user && ! $user->isCentralized(),
+                    fn ($q) => $scopedLoc === null
+                        ? $q->whereRaw('1 = 0')
+                        : $q->where('inv.location_id', $scopedLoc)
+                )
+                ->select('inv.product_id', 'l.location_id', 'l.location_name')
+                ->distinct()
+                ->get()
+                ->groupBy('product_id');
+        }
+
+        $data = $suggestions->map(function ($s) use ($whByProduct) {
+            $arr = $s->toArray();
+            $arr['warehouses'] = ($whByProduct[$s->product_id] ?? collect())
+                ->map(fn ($r) => ['location_id' => (int) $r->location_id, 'location_name' => $r->location_name])
+                ->values()
+                ->all();
+            return $arr;
+        });
+
+        return $this->success($data, 'Stock parameter suggestions retrieved');
     }
 
     /**

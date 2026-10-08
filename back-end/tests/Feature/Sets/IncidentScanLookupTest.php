@@ -1,0 +1,342 @@
+<?php
+
+namespace Tests\Feature\Sets;
+
+use App\Models\ItemSerial;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * The incident lookup must find a serial in ANY state. A filer reporting theft
+ * or damage is usually reporting a unit that is precisely NOT in stock, so the
+ * strict issuableAt() matching used by the pickers would report "not found"
+ * for the exact cases incidents exist to capture.
+ */
+class IncidentScanLookupTest extends SetTestCase
+{
+    /** Exposes the protected trait methods for testing. */
+    private function resolver(): object
+    {
+        return new class {
+            use \App\Traits\NormalizesBarcode;
+
+            public function callAnyState(string $barcode, int $locationId): array
+            {
+                return $this->resolveScanAnyState($barcode, $locationId);
+            }
+
+            public function callStrict(string $barcode, int $locationId): array
+            {
+                return $this->resolveScan($barcode, $locationId);
+            }
+        };
+    }
+
+    public function test_it_finds_a_serial_that_is_not_in_stock(): void
+    {
+        $loc = $this->makeLocation();
+        $p   = $this->makeAppliance();
+        $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 1, 'received_at' => now()]);
+
+        $serial = $this->makeSerial($p, $loc, 'SN-GONE-001', $b->receiving_id);
+        // 28 = "Out of Stock" — a unit issuableAt() will refuse to match.
+        $serial->update(['status_id' => 28]);
+
+        $r = $this->resolver();
+
+        // The strict resolver misses it — that is correct and must stay so.
+        $this->assertNull($r->callStrict('SN-GONE-001', (int) $loc->location_id)['serial']);
+
+        // The incident resolver finds it.
+        $hit = $r->callAnyState('SN-GONE-001', (int) $loc->location_id);
+        $this->assertNotNull($hit['serial']);
+        $this->assertSame('SN-GONE-001', $hit['serial']->serial_number);
+        $this->assertSame((int) $p->product_id, (int) $hit['product']->product_id);
+        $this->assertSame('serial_any_state', $hit['matched_by']);
+    }
+
+    /**
+     * Production shape: InventoryScanTransactionController writes the SAME scanned
+     * string to receiving_details.scanned_barcode and to item_serial.serial_number
+     * in one transaction, so every serialised unit's serial is also a receiving
+     * barcode. resolveScan()'s third pass therefore HITS for a not-in-stock unit,
+     * returning the product with serial => null. If the any-state wrapper
+     * short-circuits on any non-null product, that receiving_barcode match shadows
+     * the serial lookup for precisely the units incidents exist to capture.
+     *
+     * makeSerial() alone creates no receiving_details row, so the other tests in
+     * this file structurally cannot catch this.
+     */
+    public function test_a_receiving_barcode_twin_does_not_shadow_the_serial(): void
+    {
+        $loc = $this->makeLocation();
+        $p   = $this->makeAppliance();
+        $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 1, 'received_at' => now()]);
+
+        $barcode = 'SN-TWIN-001';
+
+        $serial = $this->makeSerial($p, $loc, $barcode, $b->receiving_id);
+        $serial->update(['status_id' => 28]);   // stolen/damaged — no longer in stock
+
+        // The twin row the receiving scan would have written alongside the serial.
+        DB::table('receiving_details')->insert([
+            'receiving_id'    => $b->receiving_id,
+            'product_id'      => $p->product_id,
+            'quantity_amount' => 1,
+            'prod_price'      => $p->cost_price ?? 0,
+            'condition'       => 'Good',
+            'scanned_barcode' => $barcode,
+            'created_at'      => now(),
+            'updated_at'      => now(),
+        ]);
+
+        $r = $this->resolver();
+
+        // The strict resolver falls through to its receiving_barcode pass and
+        // loses the unit identity — that is the trap.
+        $strict = $r->callStrict($barcode, (int) $loc->location_id);
+        $this->assertSame('receiving_barcode', $strict['matched_by']);
+        $this->assertNull($strict['serial']);
+
+        // The incident resolver must still reach the serial.
+        $hit = $r->callAnyState($barcode, (int) $loc->location_id);
+        $this->assertNotNull($hit['serial'], 'receiving_barcode match shadowed the serial lookup');
+        $this->assertSame($barcode, $hit['serial']->serial_number);
+        $this->assertSame('serial_any_state', $hit['matched_by']);
+        $this->assertSame((int) $p->product_id, (int) $hit['product']->product_id);
+    }
+
+    /**
+     * A receiving barcode with no serial row behind it must still resolve to the
+     * product — the fallback keeps working, it just no longer wins early.
+     */
+    public function test_a_receiving_barcode_without_a_serial_still_resolves_to_the_product(): void
+    {
+        $loc = $this->makeLocation();
+        $p   = $this->makeAppliance();
+        $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 1, 'received_at' => now()]);
+
+        DB::table('receiving_details')->insert([
+            'receiving_id'    => $b->receiving_id,
+            'product_id'      => $p->product_id,
+            'quantity_amount' => 1,
+            'prod_price'      => $p->cost_price ?? 0,
+            'condition'       => 'Good',
+            'scanned_barcode' => 'RCV-ONLY-001',
+            'created_at'      => now(),
+            'updated_at'      => now(),
+        ]);
+
+        $hit = $this->resolver()->callAnyState('RCV-ONLY-001', (int) $loc->location_id);
+        $this->assertSame('receiving_barcode', $hit['matched_by']);
+        $this->assertSame((int) $p->product_id, (int) $hit['product']->product_id);
+        $this->assertNull($hit['serial']);
+    }
+
+    public function test_an_in_stock_serial_still_resolves_through_the_strict_path(): void
+    {
+        $loc = $this->makeLocation();
+        $p   = $this->makeAppliance();
+        $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 1, 'received_at' => now()]);
+
+        $serial = $this->makeSerial($p, $loc, 'SN-HERE-001', $b->receiving_id);
+        $serial->update(['status_id' => ItemSerial::IN_STOCK_STATUS_ID]);
+
+        $hit = $this->resolver()->callAnyState('SN-HERE-001', (int) $loc->location_id);
+        $this->assertSame('serial', $hit['matched_by']);
+        $this->assertSame('SN-HERE-001', $hit['serial']->serial_number);
+    }
+
+    public function test_a_product_barcode_still_resolves(): void
+    {
+        $loc = $this->makeLocation();
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-LOOKUP-01');
+
+        $hit = $this->resolver()->callAnyState('BC-LOOKUP-01', (int) $loc->location_id);
+        $this->assertSame('product_barcode', $hit['matched_by']);
+        $this->assertSame((int) $p->product_id, (int) $hit['product']->product_id);
+        $this->assertNull($hit['serial']);
+    }
+
+    public function test_an_unknown_barcode_returns_a_clean_miss(): void
+    {
+        $loc = $this->makeLocation();
+
+        $hit = $this->resolver()->callAnyState('NOPE-NOTHING', (int) $loc->location_id);
+        $this->assertNull($hit['product']);
+        $this->assertNull($hit['serial']);
+        $this->assertNull($hit['matched_by']);
+    }
+
+    public function test_a_serial_at_another_location_does_not_resolve(): void
+    {
+        $a = $this->makeLocation('A');
+        $b = $this->makeLocation('B');
+        $p = $this->makeAppliance();
+        $batch = $this->makeBatch($p, $a, ['quantity_remaining' => 1, 'received_at' => now()]);
+
+        $this->makeSerial($p, $a, 'SN-ELSEWHERE', $batch->receiving_id);
+
+        // Location scoping must survive the loosened status matching.
+        $hit = $this->resolver()->callAnyState('SN-ELSEWHERE', (int) $b->location_id);
+        $this->assertNull($hit['serial']);
+    }
+
+    public function test_the_endpoint_resolves_a_product_barcode(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-EP-001');
+        $this->setStock($loc->location_id, $p->product_id, 8);
+        $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
+
+        $res = $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=BC-EP-001&location_id={$loc->location_id}");
+
+        $res->assertOk()
+            ->assertJsonPath('data.matched_by', 'product_barcode')
+            ->assertJsonPath('data.product.product_id', (int) $p->product_id)
+            ->assertJsonPath('data.serial', null)
+            ->assertJsonPath('data.location_quantity', 8);
+
+        $this->assertNotEmpty($res->json('data.batches'));
+    }
+
+    public function test_the_endpoint_reports_a_serials_state(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeAppliance();
+        $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 1, 'received_at' => now()]);
+
+        $serial = $this->makeSerial($p, $loc, 'SN-EP-STATE', $b->receiving_id);
+        $serial->update(['status_id' => 28]);   // Out of Stock
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=SN-EP-STATE&location_id={$loc->location_id}")
+            ->assertOk()
+            ->assertJsonPath('data.matched_by', 'serial_any_state')
+            ->assertJsonPath('data.serial.serial_number', 'SN-EP-STATE')
+            ->assertJsonPath('data.serial.status_label', 'Out of Stock')
+            ->assertJsonPath('data.serial.in_stock', false);
+    }
+
+    public function test_an_unknown_barcode_404s_with_a_usable_message(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=NOTHING-HERE&location_id={$loc->location_id}")
+            ->assertStatus(404)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_the_lookup_requires_the_create_permission(): void
+    {
+        $loc = $this->makeLocation();
+        $au  = $this->makeUserAt($loc, 'auditor');   // read-only role
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-EP-DENY');
+
+        $this->actingAs($au, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=BC-EP-DENY&location_id={$loc->location_id}")
+            ->assertForbidden();
+    }
+
+    /**
+     * warehouse_personnel is role_id 4, and isCentralized() is roles [1,2,5], so
+     * this user is genuinely location-scoped — the 403 comes from the scope check
+     * and not from the role being unrestricted for some other reason.
+     */
+    public function test_the_lookup_refuses_a_location_outside_the_users_scope(): void
+    {
+        $a = $this->makeLocation('A');
+        $b = $this->makeLocation('B');
+        $wp = $this->makeUserAt($a, 'warehouse_personnel');   // scoped to A
+        $p  = $this->makeInstallationMaterial(barcode: 'BC-SCOPE-01');
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=BC-SCOPE-01&location_id={$b->location_id}")
+            ->assertStatus(403)
+            ->assertJsonPath('success', false);
+    }
+
+    /**
+     * A receiving-label match is a legitimate SUCCESS — an installation material, or a unit
+     * whose serial row was purged. This is the path Task 1's shadowing fix
+     * protects, so a refactor that turned it back into a 404 must fail loudly.
+     */
+    public function test_the_endpoint_returns_a_receiving_barcode_match_as_a_product_hit(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeAppliance();
+        $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 3, 'received_at' => now()]);
+
+        // Production writes the scanned value to BOTH receiving_details and
+        // item_serial; a receiving-barcode-only case is that row without a serial.
+        DB::table('receiving_details')->insert([
+            'receiving_id'    => $b->receiving_id,
+            'product_id'      => $p->product_id,
+            'quantity_amount' => 1,
+            'prod_price'      => $p->cost_price ?? 0,
+            'condition'       => 'Good',
+            'scanned_barcode' => 'RCV-EP-001',
+            'created_at'      => now(),
+            'updated_at'      => now(),
+        ]);
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=RCV-EP-001&location_id={$loc->location_id}")
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.matched_by', 'receiving_barcode')
+            ->assertJsonPath('data.product.product_id', (int) $p->product_id)
+            ->assertJsonPath('data.serial', null);
+    }
+
+    public function test_the_lookup_requires_a_barcode_and_location(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson('/api/incident-reports/lookup')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['barcode', 'location_id']);
+    }
+
+    public function test_the_lookup_returns_pack_size_for_an_installation_material(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeInstallationMaterial(barcode: 'BC-PACK-01');
+
+        // An installation material's pack size lives on installation_material_details;
+        // Product appends pieces_per_package as an accessor over it.
+        \App\Models\InstallationMaterialDetail::updateOrCreate(
+            ['product_id' => $p->product_id],
+            ['pieces_per_package' => 10, 'package_unit' => 'Box']
+        );
+
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=BC-PACK-01&location_id={$loc->location_id}")
+            ->assertOk()
+            ->assertJsonPath('data.product.pieces_per_package', 10)
+            ->assertJsonPath('data.product.package_unit', 'Box');
+    }
+
+    public function test_the_lookup_reports_no_pack_size_for_an_appliance(): void
+    {
+        $loc = $this->makeLocation();
+        $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
+        $p   = $this->makeAppliance(barcode: 'BC-PACK-APP');
+
+        // An appliance has no installation_material_details row, so the accessor
+        // falls back to 1 — the client's signal to show a single pieces input.
+        $this->actingAs($wp, 'sanctum')
+            ->getJson("/api/incident-reports/lookup?barcode=BC-PACK-APP&location_id={$loc->location_id}")
+            ->assertOk()
+            ->assertJsonPath('data.product.pieces_per_package', 1)
+            ->assertJsonPath('data.product.package_unit', null);
+    }
+}

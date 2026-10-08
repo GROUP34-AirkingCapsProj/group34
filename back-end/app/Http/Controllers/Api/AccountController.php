@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Traits\ApiResponse;
+use App\Services\PasswordAuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -165,7 +166,19 @@ class AccountController extends Controller
                 return $this->error('Current password is incorrect', 422);
             }
 
-            $user->update(['password_hash' => Hash::make($validated['new_password'])]);
+            $wasForced = (bool) $user->must_change_password;
+
+            $user->update([
+                'password_hash' => Hash::make($validated['new_password']),
+                // This endpoint is also what the forced-change screen posts to.
+                'must_change_password' => false,
+            ]);
+
+            app(PasswordAuditLogger::class)->log(
+                PasswordAuditLogger::SELF_CHANGE,
+                $user,
+                ['method' => $wasForced ? 'forced_change_at_login' : 'self_service'],
+            );
 
             return $this->success(null, 'Password changed successfully');
         } catch (ValidationException $e) {

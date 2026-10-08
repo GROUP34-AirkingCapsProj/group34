@@ -15,10 +15,13 @@ class IssuanceDetail extends Model
     protected $primaryKey = 'issuance_detail_id';
 
     protected $fillable = [
-        'issuance_id', 'product_id', 'serial_number',
+        'issuance_id', 'product_id', 'aircon_model_id', 'serial_number', 'receiving_id',
         'unit_price', 'quantity_issued', 'quantity_unit',
         'quantity_in_pieces', 'unit_price_per_piece', 'subtotal',
         'quantity_returned', 'condition_issued', 'condition_returned',
+        'issuance_set_id', 'batch_id', 'zone_label',
+        'stock_before', 'quantity_deducted', 'stock_after', 'fifo_override_reason',
+        'cost_price_at_issue', 'quantity_requested', 'quantity_short',
     ];
 
     protected $casts = [
@@ -28,6 +31,12 @@ class IssuanceDetail extends Model
         'unit_price'            => 'decimal:2',
         'unit_price_per_piece'  => 'decimal:4',
         'subtotal'              => 'decimal:2',
+        'quantity_requested'    => 'integer',
+        'quantity_short'        => 'integer',
+        'cost_price_at_issue'   => 'decimal:2',
+        'stock_before'          => 'integer',
+        'quantity_deducted'     => 'integer',
+        'stock_after'           => 'integer',
     ];
 
     public function issuance(): BelongsTo
@@ -37,12 +46,37 @@ class IssuanceDetail extends Model
 
     public function product(): BelongsTo
     {
+        // withTrashed(): an issuance line is a historical record and must always
+        // resolve its product, even after that product is archived. Without it,
+        // an archived product mid-draft makes the relation null — the quote then
+        // prices the line's cost at zero and renders no name. Same reasoning as
+        // ProductSetLine::product().
         return $this->belongsTo(Product::class, 'product_id', 'product_id')
-                    ->with(['applianceDetail.brand', 'consumableDetail.unit']);
+                    ->withTrashed()
+                    ->with(['applianceDetail.brand', 'installationMaterialDetail.unit']);
+    }
+
+    /**
+     * The aircon model this line belongs to, or null for a standalone line.
+     * Lines sharing a model on the same issuance render as one grouped header.
+     */
+    public function airconModel(): BelongsTo
+    {
+        return $this->belongsTo(AirconModel::class, 'aircon_model_id', 'aircon_model_id');
     }
 
     public function warrantyRecord(): HasOne
     {
         return $this->hasOne(WarrantyRecord::class, 'issuance_detail_id', 'issuance_detail_id');
+    }
+
+    public function issuanceSet(): BelongsTo
+    {
+        return $this->belongsTo(IssuanceSet::class, 'issuance_set_id', 'issuance_set_id');
+    }
+
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(InventoryBatch::class, 'batch_id', 'batch_id');
     }
 }

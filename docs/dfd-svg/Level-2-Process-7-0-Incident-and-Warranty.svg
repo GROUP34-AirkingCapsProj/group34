@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1265" height="942" viewBox="0 0 1265 942" role="img" aria-label="Gane and Sarson data flow diagram: Level 2 - Process 7.0 Incident and Warranty">
+  <style>
+    svg { background:#ffffff; }
+    .ext  { fill:#eef1f4; stroke:#000; stroke-width:1.7; }
+    .proc { fill:#ffffff; stroke:#000; stroke-width:1.7; }
+    .store{ fill:#ffffff; stroke:#000; stroke-width:1.7; }
+    .ln   { fill:none; stroke:#000; stroke-width:1.25; }
+    .en   { font-family:Arial,Helvetica,sans-serif; font-size:11.5px; fill:#000; }
+    .pn   { font-family:Arial,Helvetica,sans-serif; font-size:11.5px; font-weight:700; fill:#000; }
+    .pnum { font-family:Arial,Helvetica,sans-serif; font-size:11px; font-weight:700; fill:#000; }
+    .sn   { font-family:Arial,Helvetica,sans-serif; font-size:11.5px; fill:#000; }
+    .snum { font-family:Arial,Helvetica,sans-serif; font-size:11px; font-weight:700; fill:#000; }
+    .fl   { font-family:Arial,Helvetica,sans-serif; font-size:8.8px; fill:#33404a;
+            paint-order:stroke; stroke:#ffffff; stroke-width:3px; stroke-linejoin:round; }
+    .cap  { font-family:Arial,Helvetica,sans-serif; font-size:10px; letter-spacing:.12em; fill:#6b7681; }
+  </style>
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7"
+    orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#000"/></marker></defs>
+
+<text class="cap" x="40" y="34">EXTERNAL ENTITIES</text>
+<text class="cap" x="437" y="34">PROCESSES</text>
+<text class="cap" x="905" y="34">DATA STORES</text>
+<path class="ln" d="M240,98 L306,98 L306,118 L437,118" marker-end="url(#ar)"/>
+<path class="ln" d="M727,103 L763,103 L763,90 L905,90" marker-end="url(#ar)"/>
+<path class="ln" d="M727,133 L834,133 L834,361 L905,361" marker-end="url(#ar)"/>
+<path class="ln" d="M582,162 L582,222" marker-end="url(#ar)"/>
+<path class="ln" d="M240,122 L371,122 L371,251 L437,251" marker-end="url(#ar)"/>
+<path class="ln" d="M727,266 L798,266 L798,106 L905,106" marker-end="url(#ar)"/>
+<path class="ln" d="M582,310 L582,370" marker-end="url(#ar)"/>
+<path class="ln" d="M240,362 L371,362 L371,429 L437,429" marker-end="url(#ar)"/>
+<path class="ln" d="M437,399 L306,399 L306,281 L437,281" marker-end="url(#ar)"/>
+<path class="ln" d="M582,458 L582,518" marker-end="url(#ar)"/>
+<path class="ln" d="M727,562 L798,562 L798,377 L905,377" marker-end="url(#ar)"/>
+<path class="ln" d="M727,540 L763,540 L763,122 L905,122" marker-end="url(#ar)"/>
+<path class="ln" d="M437,562 L306,562 L306,614 L240,614" marker-end="url(#ar)"/>
+<path class="ln" d="M727,584 L763,584 L763,627 L905,627" marker-end="url(#ar)"/>
+<path class="ln" d="M240,854 L306,854 L306,710 L437,710" marker-end="url(#ar)"/>
+<path class="ln" d="M905,874 L763,874 L763,725 L727,725" marker-end="url(#ar)"/>
+<path class="ln" d="M582,606 L582,666" marker-end="url(#ar)"/>
+<path class="ln" d="M727,695 L870,695 L870,138 L905,138" marker-end="url(#ar)"/>
+<path class="ln" d="M582,754 L582,814" marker-end="url(#ar)"/>
+<path class="ln" d="M727,858 L834,858 L834,393 L905,393" marker-end="url(#ar)"/>
+<path class="ln" d="M437,858 L371,858 L371,878 L240,878" marker-end="url(#ar)"/>
+<rect class="ext" x="40" y="74" width="200" height="72"/>
+<text class="en" x="140" y="114" text-anchor="middle">Warehouse Personnel</text>
+<rect class="ext" x="40" y="326" width="200" height="72"/>
+<text class="en" x="140" y="366" text-anchor="middle">Administrator</text>
+<rect class="ext" x="40" y="578" width="200" height="72"/>
+<text class="en" x="140" y="618" text-anchor="middle">Supplier</text>
+<rect class="ext" x="40" y="830" width="200" height="72"/>
+<text class="en" x="140" y="870" text-anchor="middle">Customer</text>
+<rect class="proc" x="437" y="74" width="290" height="88" rx="9"/>
+<line class="ln" x1="437" y1="99" x2="727" y2="99"/>
+<text class="pnum" x="582" y="92" text-anchor="middle">7.1</text>
+<text class="pn" x="582" y="134" text-anchor="middle">File Incident and Quarantine</text>
+<rect class="proc" x="437" y="222" width="290" height="88" rx="9"/>
+<line class="ln" x1="437" y1="247" x2="727" y2="247"/>
+<text class="pnum" x="582" y="240" text-anchor="middle">7.2</text>
+<text class="pn" x="582" y="282" text-anchor="middle">Inspect and Record Outcome</text>
+<rect class="proc" x="437" y="370" width="290" height="88" rx="9"/>
+<line class="ln" x1="437" y1="395" x2="727" y2="395"/>
+<text class="pnum" x="582" y="388" text-anchor="middle">7.3</text>
+<text class="pn" x="582" y="430" text-anchor="middle">Approve, Reject or Dismiss</text>
+<rect class="proc" x="437" y="518" width="290" height="88" rx="9"/>
+<line class="ln" x1="437" y1="543" x2="727" y2="543"/>
+<text class="pnum" x="582" y="536" text-anchor="middle">7.4</text>
+<text class="pn" x="582" y="578" text-anchor="middle">Apply Outcome to Stock</text>
+<rect class="proc" x="437" y="666" width="290" height="88" rx="9"/>
+<line class="ln" x1="437" y1="691" x2="727" y2="691"/>
+<text class="pnum" x="582" y="684" text-anchor="middle">7.5</text>
+<text class="pn" x="582" y="726" text-anchor="middle">Raise Warranty Claim</text>
+<rect class="proc" x="437" y="814" width="290" height="88" rx="9"/>
+<line class="ln" x1="437" y1="839" x2="727" y2="839"/>
+<text class="pnum" x="582" y="832" text-anchor="middle">7.6</text>
+<text class="pn" x="582" y="874" text-anchor="middle">Complete Claim and Return Unit</text>
+<path class="store" d="M905,74 H1225 M905,154 H1225 M905,74 V154"/>
+<line class="ln" x1="941" y1="74" x2="941" y2="154"/>
+<text class="snum" x="923" y="118" text-anchor="middle">D9</text>
+<text class="sn" x="951" y="118">Incidents and Warranty</text>
+<path class="store" d="M905,345 H1225 M905,409 H1225 M905,345 V409"/>
+<line class="ln" x1="941" y1="345" x2="941" y2="409"/>
+<text class="snum" x="923" y="381" text-anchor="middle">D6</text>
+<text class="sn" x="951" y="381">Inventory and Batches</text>
+<path class="store" d="M905,599 H1225 M905,655 H1225 M905,599 V655"/>
+<line class="ln" x1="941" y1="599" x2="941" y2="655"/>
+<text class="snum" x="923" y="631" text-anchor="middle">D10</text>
+<text class="sn" x="951" y="631">Audit and Activity Log</text>
+<path class="store" d="M905,846 H1225 M905,902 H1225 M905,846 V902"/>
+<line class="ln" x1="941" y1="846" x2="941" y2="902"/>
+<text class="snum" x="923" y="878" text-anchor="middle">D7</text>
+<text class="sn" x="951" y="878">Issuances and Sales</text>
+<text class="fl" x="246" y="92" text-anchor="start">damage, shortfall, FIFO override</text>
+<text class="fl" x="769" y="84" text-anchor="start">incident report</text>
+<text class="fl" x="733" y="127" text-anchor="start">quarantine flag</text>
+<text class="fl" x="590" y="192" text-anchor="start">open incident</text>
+<text class="fl" x="246" y="116" text-anchor="start">evidence photo, per-item outcome</text>
+<text class="fl" x="804" y="100" text-anchor="start">inspection findings</text>
+<text class="fl" x="590" y="340" text-anchor="start">submitted inspection</text>
+<text class="fl" x="246" y="356" text-anchor="start">confirm, reject or dismiss</text>
+<text class="fl" x="431" y="393" text-anchor="end">sent back for re-inspection</text>
+<text class="fl" x="590" y="488" text-anchor="start">confirmed outcomes</text>
+<text class="fl" x="804" y="371" text-anchor="start">deduction or release</text>
+<text class="fl" x="769" y="116" text-anchor="start">item status</text>
+<text class="fl" x="431" y="556" text-anchor="end">return to supplier</text>
+<text class="fl" x="769" y="621" text-anchor="start">audit entry</text>
+<text class="fl" x="312" y="704" text-anchor="start">warranty claim</text>
+<text class="fl" x="899" y="868" text-anchor="end">issuance and warranty record</text>
+<text class="fl" x="590" y="636" text-anchor="start">claim_warranty outcome</text>
+<text class="fl" x="733" y="689" text-anchor="start">claim record</text>
+<text class="fl" x="590" y="784" text-anchor="start">approved claim</text>
+<text class="fl" x="733" y="852" text-anchor="start">replacement unit</text>
+<text class="fl" x="365" y="872" text-anchor="end">repaired or replaced unit</text>
+</svg>

@@ -1,0 +1,242 @@
+/* ============================================================================
+   GLOBAL DARK THEME + RESPONSIVE HARDENING
+   Overrides shell / common page surfaces when [data-theme="dark"] is set.
+   Token flips live in index.css + airking_ds.css; this file covers
+   hardcoded whites and layout polish for all admin roles.
+============================================================================ */
+
+/* ---- Theme toggle control ---------------------------------------------- */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  color: var(--text-sidebar);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--primary);
+  border-color: var(--border-strong);
+}
+
+.theme-toggle:active {
+  transform: scale(0.96);
+}
+
+.theme-toggle--login {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-dropdown);
+}
+
+.theme-toggle--pwa {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.theme-toggle--pwa:hover {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.pwa-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- Dark: SweetAlert / overlays --------------------------------------- */
+[data-theme='dark'] .swal2-popup {
+  background: var(--bg-card) !important;
+  color: var(--text-dark) !important;
+}
+
+[data-theme='dark'] .swal2-title,
+[data-theme='dark'] .swal2-html-container {
+  color: var(--text-dark) !important;
+}
+
+/* ---- Dark: common hardcoded page surfaces ------------------------------ */
+[data-theme='dark'] .admin-shell input:not([type='checkbox']):not([type='radio']):not([type='range']),
+[data-theme='dark'] .admin-shell select,
+[data-theme='dark'] .admin-shell textarea {
+  background-color: var(--bg-elevated);
+  color: var(--text-dark);
+  border-color: var(--border-color);
+}
+
+[data-theme='dark'] .admin-shell input::placeholder,
+[data-theme='dark'] .admin-shell textarea::placeholder {
+  color: var(--text-label);
+}
+
+[data-theme='dark'] .admin-shell table thead th {
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  border-color: var(--border-color);
+}
+
+[data-theme='dark'] .admin-shell table tbody td {
+  border-color: var(--border-color);
+  color: var(--text-dark);
+}
+
+[data-theme='dark'] .admin-shell table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+/* Soften bright alert banners in dark mode */
+[data-theme='dark'] .admin-shell [style*='background: #fef3c7'],
+[data-theme='dark'] .admin-shell [style*='background:#fef3c7'],
+[data-theme='dark'] .admin-shell [style*='background: #fffbeb'],
+[data-theme='dark'] .admin-shell [style*='background:#fffbeb'] {
+  background: rgba(224, 174, 74, 0.16) !important;
+  color: #e8c179 !important;
+}
+
+/* Low-stock / warning panels often use yellow fills */
+[data-theme='dark'] .dash-low-stock,
+[data-theme='dark'] .low-stock-alert,
+[data-theme='dark'] .low-stock-section,
+[data-theme='dark'] [class*='low-stock'] {
+  background: rgba(224, 174, 74, 0.12) !important;
+  border-color: rgba(224, 174, 74, 0.32) !important;
+  color: var(--text-dark);
+}
+
+[data-theme='dark'] .dash-pending-banner,
+[data-theme='dark'] .pending-approvals-banner,
+[data-theme='dark'] [class*='pending-approv'] {
+  filter: brightness(0.92);
+}
+
+/* Modals / drawers that use white cards */
+[data-theme='dark'] .modal-overlay .modal,
+[data-theme='dark'] .modal-content,
+[data-theme='dark'] .drawer-panel,
+[data-theme='dark'] .panel-card,
+[data-theme='dark'] .settings-card,
+[data-theme='dark'] .backup-card,
+[data-theme='dark'] .stat-card,
+[data-theme='dark'] .kpi-card,
+[data-theme='dark'] .content-card {
+  background: var(--bg-card);
+  color: var(--text-dark);
+  border-color: var(--border-color);
+}
+
+/* Charts / Recharts tooltips */
+[data-theme='dark'] .recharts-default-tooltip {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-dark) !important;
+}
+
+/* ---- Responsive: page content & tables --------------------------------- */
+@media (max-width: 1024px) {
+  .page-content {
+    padding: 24px 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-content {
+    padding: 16px 14px;
+  }
+
+  .top-header {
+    padding-left: 12px;
+    padding-right: 12px;
+    gap: 8px;
+  }
+
+  .header-actions {
+    gap: 8px;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .header-location-badge {
+    max-width: 120px;
+  }
+
+  .header-user-info {
+    display: none;
+  }
+
+  /* Horizontal scroll for wide data tables on phones */
+  .admin-shell .table-responsive,
+  .admin-shell .ak-table-wrap,
+  .admin-shell .data-table-wrap,
+  .admin-shell [class*='table-wrap'],
+  .admin-shell [class*='table-scroll'] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-shell table {
+    min-width: 560px;
+  }
+
+  /* Stack common filter/tool rows */
+  .admin-shell .toolbar,
+  .admin-shell .page-toolbar,
+  .admin-shell .filter-bar,
+  .admin-shell .filters-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-content {
+    padding: 12px 10px;
+  }
+
+  .theme-toggle--login {
+    top: 12px;
+    right: 12px;
+  }
+
+  .header-location-badge span {
+    display: none;
+  }
+}
+
+/* Prefer stacked KPI grids on narrow screens when pages use flex rows */
+@media (max-width: 640px) {
+  .admin-shell .stats-grid,
+  .admin-shell .kpi-grid,
+  .admin-shell .summary-cards,
+  .admin-shell .dash-stat-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .admin-shell .stats-grid,
+  .admin-shell .kpi-grid,
+  .admin-shell .summary-cards,
+  .admin-shell .dash-stat-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

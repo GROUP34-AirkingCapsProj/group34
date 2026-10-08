@@ -1,0 +1,339 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Inventory;
+use App\Models\InventoryBatch;
+use App\Models\ItemSerial;
+use App\Models\Product;
+use App\Support\ScanResult;
+use App\Traits\NormalizesBarcode;
+use Illuminate\Support\Carbon;
+
+/**
+ * The single source of truth for FIFO order across every picking flow.
+ * Stateless: it reads inventory and returns verdicts, and writes nothing.
+ * Issuance picking and transfer dispatch both go through here so the rule
+ * cannot drift between them.
+ */
+class FifoPickingService
+{
+    use NormalizesBarcode;
+
+    /**
+     * Oldest-first pick steps for a set of lines at one location.
+     *
+     * @param  array<int,array{product_id:int,quantity:int}>  $lines
+     * @return array<int,array{product_id:int,product_name:?string,needed:int,suggestions:array}>
+     */
+    public function suggest(int $locationId, array $lines, array $excludedBatchIds = []): array
+    {
+        $out = [];
+
+        foreach ($lines as $line) {
+            $productId = (int) $line['product_id'];
+            $needed    = max(0, (int) $line['quantity']);
+            $product   = Product::with('installationMaterialDetail')->find($productId);
+
+            $out[] = [
+                'product_id'   => $productId,
+                'product_name' => $product?->product_name,
+                'needed'       => $needed,
+                // Picking quantities are always expressed in pieces. These two
+                // fields let every picker offer package + loose-piece entry
+                // without changing the inventory unit used by the server.
+                'pieces_per_package' => (int) ($product?->getPiecesPerPackage() ?? 0),
+                'package_unit' => $product?->installationMaterialDetail?->package_unit,
+                'suggestions'  => $this->isSerialized($product)
+                    ? $this->serialSteps($locationId, $productId, $needed, $excludedBatchIds)
+                    : $this->batchSteps($locationId, $productId, $needed, $excludedBatchIds),
+            ];
+        }
+
+        return $out;
+    }
+
+    /** Batches with stock left, oldest first, excluding anything under an open incident. */
+    public function orderedBatches(int $locationId, int $productId, array $excludedBatchIds = [])
+    {
+        return InventoryBatch::where('product_id', $productId)
+            ->where('location_id', $locationId)
+            ->where('quantity_remaining', '>', 0)
+            ->when($excludedBatchIds !== [], fn ($q) => $q->whereNotIn('batch_id', $excludedBatchIds))
+            // MySQL sorts NULL before real timestamps in ascending order. An
+            // adjustment/legacy batch without a receiving date must not jump
+            // ahead of traceable received stock and split an otherwise single-
+            // zone pick. Use dated batches FIFO, then undated legacy stock last.
+            ->orderByRaw('received_at IS NULL')
+            ->orderBy('received_at', 'asc')
+            ->orderBy('batch_id', 'asc')
+            ->get();
+    }
+
+    protected function isSerialized(?Product $product): bool
+    {
+        if ($product === null) {
+            return false;
+        }
+
+        if ($product->product_type === 'appliance') {
+            return true;
+        }
+
+        return (bool) ($product->applianceDetail?->is_serialized ?? false);
+    }
+
+    protected function batchSteps(int $locationId, int $productId, int $needed, array $excluded): array
+    {
+        $steps     = [];
+        $remaining = $needed;
+
+        foreach ($this->orderedBatches($locationId, $productId, $excluded) as $batch) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $take = min($remaining, (int) $batch->quantity_remaining);
+
+            $steps[] = [
+                'serial_number' => null,
+                'serial_id'     => null,
+                'batch_id'      => (int) $batch->batch_id,
+                'zone_label'    => $batch->zone_label,
+                'received_at'   => optional($batch->received_at)->toDateTimeString(),
+                'quantity'      => $take,
+            ];
+
+            $remaining -= $take;
+        }
+
+        return $steps;
+    }
+
+    protected function serialSteps(int $locationId, int $productId, int $needed, array $excluded): array
+    {
+        if ($needed <= 0) {
+            return [];
+        }
+
+        // item_serial has no batch_id; the batch is reached through receiving_id,
+        // scoped to this location — the same join TransferService::pickList() used.
+        $rows = ItemSerial::where('item_serial.product_id', $productId)
+            ->where('item_serial.location_id', $locationId)
+            ->where('item_serial.serial_type', 'received')
+            ->whereNull('item_serial.transfer_id')
+            ->leftJoin('inventory_batches as b', function ($join) use ($locationId) {
+                $join->on('b.receiving_id', '=', 'item_serial.receiving_id')
+                     ->where('b.location_id', '=', $locationId);
+            })
+            ->when($excluded !== [], fn ($q) => $q->where(function ($w) use ($excluded) {
+                $w->whereNull('b.batch_id')->orWhereNotIn('b.batch_id', $excluded);
+            }))
+            ->orderByRaw('b.received_at IS NULL, b.received_at ASC')
+            ->orderBy('item_serial.serial_id')
+            ->limit($needed)
+            ->get([
+                'item_serial.serial_id',
+                'item_serial.serial_number',
+                'b.batch_id',
+                'b.zone_label',
+                'b.received_at',
+            ]);
+
+        return $rows->map(fn ($row) => [
+            'serial_number' => $row->serial_number,
+            'serial_id'     => (int) $row->serial_id,
+            'batch_id'      => $row->batch_id !== null ? (int) $row->batch_id : null,
+            'zone_label'    => $row->zone_label,
+            // b.received_at comes back as a raw string from the joined table, not
+            // through the InventoryBatch cast. Normalise it to the same
+            // 'Y-m-d H:i:s' shape batchSteps() emits so a consumer can compare
+            // received_at across serial and installation material steps without surprises.
+            'received_at'   => $row->received_at !== null
+                ? Carbon::parse($row->received_at)->toDateTimeString()
+                : null,
+            'quantity'      => 1,
+        ])->all();
+    }
+
+    /**
+     * Judge one scan against a document's line list.
+     *
+     * @param  array<int,array{product_id:int,quantity:int,picked:int}>  $lines
+     * @param  string|null  $confirmedZone  zone the picker confirmed (installation materials)
+     * @param  string|null  $unitHint       reserved for unit-aware picking; unused today
+     * @param  array<int,int>  $excludedBatchIds  batches under an open incident
+     */
+    public function validateScan(
+        int $locationId,
+        array $lines,
+        string $barcode,
+        ?string $confirmedZone = null,
+        ?string $unitHint = null,
+        array $excludedBatchIds = []
+    ): ScanResult {
+        $resolved = $this->resolveScan($barcode, $locationId);
+        $product  = $resolved['product'];
+        $serial   = $resolved['serial'];
+
+        if ($product === null) {
+            return new ScanResult(
+                status:  ScanResult::UNKNOWN_BARCODE,
+                message: 'Barcode not recognised. Check the label, or that the item is stocked at this location.'
+            );
+        }
+
+        $productId = (int) $product->product_id;
+        $line      = collect($lines)->firstWhere('product_id', $productId);
+
+        if ($line === null) {
+            return new ScanResult(
+                status:      ScanResult::WRONG_PRODUCT,
+                message:     "{$product->product_name} is not on this order. Remove it and scan a listed item.",
+                productId:   $productId,
+                productName: $product->product_name
+            );
+        }
+
+        if ((int) ($line['picked'] ?? 0) >= (int) $line['quantity']) {
+            return new ScanResult(
+                status:      ScanResult::OVER_PICK,
+                message:     "{$product->product_name} is already fully picked for this order.",
+                productId:   $productId,
+                productName: $product->product_name
+            );
+        }
+
+        $oldest = $this->orderedBatches($locationId, $productId, $excludedBatchIds)->first();
+
+        if ($oldest === null) {
+            // orderedBatches() is empty for two very different reasons, and only
+            // the first may be waved through:
+            //   (a) the product has NO inventory_batches rows at all — legacy
+            //       stock predating batch tracking, with nothing to order against.
+            //   (b) batches exist but none are pickable: all depleted, or all
+            //       under an open incident (excludedBatchIds). Accepting here
+            //       would silently pick quarantined or phantom stock — the exact
+            //       hole this engine exists to close — so it must be blocked.
+            $hasAnyBatch = InventoryBatch::where('product_id', $productId)
+                ->where('location_id', $locationId)
+                ->exists();
+
+            if (! $hasAnyBatch) {
+                // Case (a), with one exception. Batch exclusion cannot speak for
+                // a product that has no batches, so a report filed against
+                // legacy stock would wave straight through here and let a picker
+                // walk off with the very goods under review. Compare the
+                // quantities instead: when the incident holds everything on the
+                // shelf, there is nothing left to accept.
+                //
+                // A PARTIAL hold still passes — this path has no per-scan ledger
+                // to charge against, and the availability pool upstream is what
+                // stops an order being raised for more than the free quantity.
+                $onHand = (int) (Inventory::where('product_id', $productId)
+                    ->where('location_id', $locationId)
+                    ->value('quantity_on_hand') ?? 0);
+
+                $quarantined = (int) (app(IncidentService::class)
+                    ->quarantinedQuantities($locationId)[$productId] ?? 0);
+
+                if ($quarantined > 0 && $onHand - $quarantined <= 0) {
+                    return new ScanResult(
+                        status:       ScanResult::FIFO_VIOLATION,
+                        message:      "All stock of {$product->product_name} here is under an open incident report. "
+                                      . 'It cannot be picked until that report is settled.',
+                        productId:    $productId,
+                        productName:  $product->product_name,
+                        serialId:     $serial !== null ? (int) $serial->serial_id : null,
+                        serialNumber: $serial?->serial_number
+                    );
+                }
+
+                return new ScanResult(
+                    status:       ScanResult::ACCEPTED,
+                    message:      'Accepted.',
+                    productId:    $productId,
+                    productName:  $product->product_name,
+                    serialId:     $serial !== null ? (int) $serial->serial_id : null,
+                    serialNumber: $serial?->serial_number
+                );
+            }
+
+            return new ScanResult(
+                status:      ScanResult::FIFO_VIOLATION,
+                message:     "No available stock of {$product->product_name} is recorded here — "
+                             . 'its batches are depleted or under review. File an Incident Report to proceed.',
+                productId:   $productId,
+                productName: $product->product_name,
+                serialId:    $serial !== null ? (int) $serial->serial_id : null,
+                serialNumber: $serial?->serial_number
+            );
+        }
+
+        $scannedBatch = $serial !== null
+            ? $this->batchForSerial($locationId, $serial)
+            : $this->batchForZone($locationId, $productId, $confirmedZone, $excludedBatchIds);
+
+        // When the scan maps to no batch, only ONE case is trusted: an installation material
+        // scanned without a zone (the picker is trusted to take the plan's oldest).
+        // A serial with no batch linkage, or a confirmed zone matching no batch,
+        // is a violation while older pickable stock exists — we cannot confirm the
+        // scan is that oldest stock, so it must not slip past FIFO.
+        $isOldest = $scannedBatch === null
+            ? ($serial === null && $confirmedZone === null)
+            : (int) $scannedBatch->batch_id === (int) $oldest->batch_id;
+
+        if (! $isOldest) {
+            $expectedZone = $oldest->zone_label ?? 'the oldest batch';
+
+            return new ScanResult(
+                status:  ScanResult::FIFO_VIOLATION,
+                message: "Oldest stock of {$product->product_name} is in {$expectedZone}"
+                         . ($oldest->received_at ? ' (received ' . $oldest->received_at->format('M j, Y') . ')' : '')
+                         . '. File an Incident Report to pick from elsewhere.',
+                productId:          $productId,
+                productName:        $product->product_name,
+                serialId:           $serial !== null ? (int) $serial->serial_id : null,
+                serialNumber:       $serial?->serial_number,
+                batchId:            $scannedBatch !== null ? (int) $scannedBatch->batch_id : null,
+                zoneLabel:          $scannedBatch?->zone_label ?? $confirmedZone,
+                expectedBatchId:    (int) $oldest->batch_id,
+                expectedZoneLabel:  $oldest->zone_label,
+                expectedReceivedAt: optional($oldest->received_at)->toDateTimeString()
+            );
+        }
+
+        return new ScanResult(
+            status:       ScanResult::ACCEPTED,
+            message:      'Accepted.',
+            productId:    $productId,
+            productName:  $product->product_name,
+            serialId:     $serial !== null ? (int) $serial->serial_id : null,
+            serialNumber: $serial?->serial_number,
+            batchId:      (int) $oldest->batch_id,
+            zoneLabel:    $oldest->zone_label
+        );
+    }
+
+    protected function batchForSerial(int $locationId, ItemSerial $serial): ?InventoryBatch
+    {
+        if ($serial->receiving_id === null) {
+            return null;
+        }
+
+        return InventoryBatch::where('location_id', $locationId)
+            ->where('receiving_id', $serial->receiving_id)
+            ->where('product_id', $serial->product_id)
+            ->first();
+    }
+
+    protected function batchForZone(int $locationId, int $productId, ?string $zone, array $excluded): ?InventoryBatch
+    {
+        if ($zone === null) {
+            return null;
+        }
+
+        return $this->orderedBatches($locationId, $productId, $excluded)
+            ->first(fn ($batch) => strcasecmp(trim((string) $batch->zone_label), trim($zone)) === 0);
+    }
+}

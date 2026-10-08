@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 
-use App\Mail\SendOTPMail;
+use App\Mail\LoginOtpMail;
 use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\Controller;
 use App\Models\LoginActivity;
@@ -11,6 +11,9 @@ use App\Models\User;
 use App\Models\AuditTrail;
 use App\Models\SystemSetting;
 use App\Services\LoginCaptchaService;
+use App\Services\LoginOtpIssuer;
+use App\Services\TwoFactorPolicy;
+use App\Services\UnauthorizedAccessLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -22,6 +25,34 @@ use Illuminate\Support\Str;
 class AuthController extends Controller
 {
     private const LOGIN_DECAY_SECONDS = 900;
+
+    /**
+     * Wrong guesses allowed against one issued login code before it is burned.
+     *
+     * A six-digit code is a 900,000 keyspace living for ten minutes. Per-IP
+     * throttling cannot cap that -- the attacker picks the IP, and a few hundred
+     * proxies buy enough guesses to make it a real chance. Capping attempts per
+     * issued code is source-address independent, so it holds however many
+     * addresses they rotate through.
+     */
+    private const MAX_OTP_ATTEMPTS = 5;
+
+    /**
+     * Failed bot checks allowed per (email, IP) before login is refused outright.
+     *
+     * The CAPTCHA is verified BEFORE the password is ever compared, so a client
+     * that never solves it never reaches the credentials limiter -- the gate that
+     * locks the front door sits at zero attempts however long the hammering goes
+     * on. The route's throttle:12,1 is the only other ceiling, and it decays every
+     * sixty seconds, so it caps nothing across the span of an attack.
+     *
+     * Deliberately looser than maxLoginAttempts() and deliberately not that same
+     * setting. Failing this check proves nothing about any password, so the
+     * response to it should be sized to stopping an automated solver -- not to
+     * the credential policy, where a strict value of 3 would shut a person out of
+     * a password they know over mistyped arithmetic.
+     */
+    private const MAX_CAPTCHA_FAILURES = 10;
 
     private function issueAuthToken(User $user): string
     {
@@ -40,6 +71,76 @@ class AuthController extends Controller
         return 'login-captcha:' . sha1(strtolower((string) $request->input('email')) . '|' . $request->ip());
     }
 
+    /**
+     * What to tell the user to go and check when a code could not be sent.
+     *
+     * A person who cannot sign in reads this sentence and acts on it, so it has
+     * to name the thing that is actually broken. The single Brevo-credentials
+     * wording this replaced was printed for every failure including a failed
+     * DNS lookup, which sent an admin auditing an SMTP key that was valid.
+     *
+     * Kept vague about our infrastructure on purpose -- this text is served to
+     * anyone who reaches the login form, including someone who only guessed the
+     * password, so it must not confirm which mail provider we use or when it is
+     * down.
+     */
+    private function otpDeliveryAdvice(?string $failure): string
+    {
+        return match ($failure) {
+            LoginOtpIssuer::FAILURE_NETWORK => 'This looks like a network error -- '
+                .'the mail server could not be reached. Check your internet connection and try again.',
+            LoginOtpIssuer::FAILURE_AUTH => 'The mail server rejected our credentials. '
+                .'Ask an administrator to check the mail settings, then try again.',
+            default => 'Please try again, and contact an administrator if it keeps happening.',
+        };
+    }
+
+    /**
+     * Record that a second-factor code was issued and the login is pending.
+     *
+     * Deliberately NOT logLoginAttempt(): that routes every unsuccessful call
+     * into an `login_failed` audit row, and issuing a code is not a failure.
+     * Using it here would stamp a bogus failed login on the audit trail for
+     * every successful admin sign-in, drowning the signal an admin reviewing
+     * "who has been failing to get in" actually needs.
+     *
+     * It still has to be recorded somewhere. Someone holding a stolen password
+     * can trigger codes at will, and that is the highest-signal event in an
+     * account-takeover investigation -- unlogged, it leaves no trace anywhere
+     * but the victim's inbox.
+     */
+    private function logOtpIssued(Request $request, User $user, bool $delivered): void
+    {
+        try {
+            LoginActivity::create([
+                'user_id' => $user->user_id,
+                'username_attempt' => Str::limit((string) $request->input('email'), 100, ''),
+                // Not a success: no token was issued and the login is unfinished.
+                'success' => false,
+                'failure_reason' => $delivered
+                    ? 'Login code issued; awaiting verification.'
+                    : 'Login code could not be delivered.',
+                'ip_address' => $request->ip(),
+                'user_agent' => Str::limit((string) $request->userAgent(), 2000, ''),
+                'created_at' => now(),
+            ]);
+
+            AuditTrail::create([
+                'user_id'    => $user->user_id,
+                'action'     => $delivered ? 'login_code_issued' : 'login_code_undeliverable',
+                'table_name' => 'security',
+                'record_id'  => $user->user_id,
+                'old_values' => null,
+                'new_values' => ['account' => $user->email],
+                'ip_address' => $request->ip(),
+                'user_agent' => Str::limit((string) $request->userAgent(), 500, ''),
+            ]);
+        } catch (\Throwable $e) {
+            // A failed log must never block a legitimate login.
+            Log::warning('login_otp_issue_log_failed', ['error' => $e->getMessage()]);
+        }
+    }
+
     private function logLoginAttempt(Request $request, ?User $user, bool $success, ?string $failureReason = null): void
     {
         try {
@@ -56,49 +157,40 @@ class AuthController extends Controller
         } catch (\Throwable $e) {
             Log::warning('login_activity_log_failed', ['error' => $e->getMessage()]);
         }
-    }
 
-    /**
-     * Register new user
-     */
-    public function register(Request $request)
-    {
-        $validated = $request->validate([
-            'username' => 'required|unique:users,username|max:50',
-            'email' => 'required|email|unique:users,email|max:100',
-            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
-            'first_name' => 'required|max:50',
-            'last_name' => 'required|max:50',
-            'role_id' => 'required|exists:roles,role_id',
-        ]);
+        if ($success) {
+            return;
+        }
 
-        $user = User::create([
-            'username' => $validated['username'],
-            'email' => $validated['email'],
-            'password_hash' => Hash::make($validated['password']),
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'role_id' => $validated['role_id'],
-            'status_id' => 1,
-        ]);
+        // Two distinct records, because they answer different questions.
+        // An unrecognized email is a stranger probing the system: logged without
+        // the attempted address, by long-standing policy. A failure on a real
+        // account is attributable, so it lands in the audit trail against that
+        // account -- an admin reviewing "who has been failing to get in" needs
+        // to see these, not just the login_activities table.
+        if (! $user) {
+            app(UnauthorizedAccessLogger::class)->logUnrecognizedAccount($request);
 
-        $token = $this->issueAuthToken($user);
+            return;
+        }
 
-        AuditTrail::create([
-            'user_id' => $user->user_id,
-            'action' => 'register',
-            'table_name' => 'users',
-            'record_id' => $user->user_id,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
-
-        return response()->json([
-            'message' => 'User registered successfully',
-            'user' => $user->load('role', 'status'),
-            'token' => $token,
-            'session_timeout_minutes' => SystemSetting::sessionTimeoutMinutes(),
-        ], 201);
+        try {
+            AuditTrail::create([
+                'user_id'    => $user->user_id,
+                'action'     => 'login_failed',
+                'table_name' => 'security',
+                'record_id'  => $user->user_id,
+                'old_values' => null,
+                'new_values' => [
+                    'account' => $user->email,
+                    'reason'  => $failureReason ? Str::limit($failureReason, 250, '') : 'Invalid credentials.',
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => Str::limit((string) $request->userAgent(), 500, ''),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('login_failed_audit_log_failed', ['error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -130,7 +222,12 @@ class AuthController extends Controller
         $maxAttempts = SystemSetting::maxLoginAttempts();
         if (RateLimiter::tooManyAttempts($credentialsKey, $maxAttempts)) {
             $seconds = RateLimiter::availableIn($credentialsKey);
-            $this->logLoginAttempt($request, null, false, 'Account temporarily locked (too many attempts).');
+            $this->logLoginAttempt(
+                $request,
+                User::where('email', $request->input('email'))->first(),
+                false,
+                'Account temporarily locked (too many attempts).'
+            );
 
             throw ValidationException::withMessages([
                 'email' => [
@@ -139,9 +236,35 @@ class AuthController extends Controller
             ]);
         }
 
+        if (RateLimiter::tooManyAttempts($captchaKey, self::MAX_CAPTCHA_FAILURES)) {
+            $seconds = RateLimiter::availableIn($captchaKey);
+            $this->logLoginAttempt(
+                $request,
+                User::where('email', $request->input('email'))->first(),
+                false,
+                'Blocked (too many failed security checks).'
+            );
+
+            // Refused before the challenge is even looked at, so a solver cannot
+            // buy itself another round by finally getting one right.
+            throw ValidationException::withMessages([
+                'captcha_answer' => [
+                    'Too many failed security checks. Try again in ' . ceil($seconds / 60) . ' minute(s).',
+                ],
+            ]);
+        }
+
         if (! $captcha->verify($request->input('captcha_token'), $request->input('captcha_answer'))) {
             RateLimiter::hit($captchaKey, self::LOGIN_DECAY_SECONDS);
-            $this->logLoginAttempt($request, null, false, 'Invalid CAPTCHA.');
+            // Resolve the account so a real user failing the bot check is filed
+            // against their own record rather than as an unrecognized stranger.
+            // An unknown email here still falls through to the anonymous path.
+            $this->logLoginAttempt(
+                $request,
+                User::where('email', $request->input('email'))->first(),
+                false,
+                'Invalid CAPTCHA.'
+            );
 
             throw ValidationException::withMessages([
                 'captcha_answer' => ['Security check failed. Refresh the challenge and try again.'],
@@ -178,20 +301,46 @@ class AuthController extends Controller
         RateLimiter::clear($credentialsKey);
         RateLimiter::clear($captchaKey);
 
-        if (SystemSetting::twoFactorAuthEnabled()) {
-            $otp = (string) random_int(100000, 999999);
+        $policy = app(TwoFactorPolicy::class);
 
-            $user->update([
-                'otp_code' => $otp,
-                'otp_expires_at' => now()->addMinutes(10),
+        if ($policy->requiresRecoveryEmail($user)) {
+            // The account must clear a second factor but has nowhere to receive
+            // it. Collect an address rather than mailing into the void -- for an
+            // admin, refusing here would lock the system's owner out of it with
+            // no self-service way back in.
+            return response()->json([
+                'requires_recovery_email' => true,
+                'email'   => $user->email,
+                'message' => 'Add a personal recovery email to continue signing in.',
             ]);
+        }
 
-            Mail::to($user->email)->send(new SendOTPMail($otp));
+        if ($policy->requiresOtp($user)) {
+            // Recorded whether or not delivery succeeds. Someone holding a
+            // stolen password can trigger codes at will, and that is the single
+            // highest-signal event in an account-takeover investigation --
+            // without this it would leave no trace but the victim's inbox.
+            // Logged as unsuccessful because the password was right but the
+            // login is not finished; calling it a success would make the
+            // activity log claim an authentication that never completed.
+            if (! app(LoginOtpIssuer::class)->issue($user, $failure)) {
+                $this->logOtpIssued($request, $user, false);
+
+                // Fail closed. No code was delivered, so no code can be entered.
+                $dest = $user->recovery_email ?: 'your recovery email';
+
+                return response()->json([
+                    'message' => 'We could not send your login code to '.$dest.'. '
+                        .$this->otpDeliveryAdvice($failure),
+                ], 503);
+            }
+
+            $this->logOtpIssued($request, $user, true);
 
             return response()->json([
                 'requires_otp' => true,
-                'email' => $user->email,
-                'message' => 'OTP has been sent to your email.',
+                'email'   => $user->email,
+                'message' => 'A login code has been sent to your recovery email.',
             ]);
         }
 
@@ -215,6 +364,102 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Collect a recovery address mid-login for an account that must clear a
+     * second factor but has none on file, then issue the code immediately.
+     *
+     * Re-verifies the password. The half-finished login state is not a
+     * credential, so knowing an email address must not be enough to write a
+     * recovery address -- that would let an attacker point the second factor at
+     * an inbox they control, which is the whole factor handed over.
+     */
+    public function submitRecoveryEmail(Request $request)
+    {
+        // Shape only. The uniqueness rules are deliberately NOT here: they
+        // answer "is this address already in the system?", and running them
+        // before the password is checked would turn this endpoint into a
+        // membership oracle any anonymous caller could query.
+        $validated = $request->validate([
+            'email'          => 'required|email|max:100',
+            'password'       => 'required|string|max:255',
+            'recovery_email' => 'required|email|max:100|different:email',
+        ]);
+
+        // This endpoint verifies a password, so it must share /login's lockout.
+        // On its own budget it would be a CAPTCHA-free password oracle sitting
+        // beside the front door, and an attacker would simply use it instead.
+        $credentialsKey = $this->loginCredentialsThrottleKey($request);
+        $maxAttempts = SystemSetting::maxLoginAttempts();
+
+        if (RateLimiter::tooManyAttempts($credentialsKey, $maxAttempts)) {
+            $seconds = RateLimiter::availableIn($credentialsKey);
+
+            throw ValidationException::withMessages([
+                'email' => [
+                    'Too many login attempts. Try again in ' . ceil($seconds / 60) . ' minute(s).',
+                ],
+            ]);
+        }
+
+        $user = User::where('email', $validated['email'])->first();
+
+        if (! $user || ! Hash::check($validated['password'], $user->password_hash)) {
+            RateLimiter::hit($credentialsKey, self::LOGIN_DECAY_SECONDS);
+            $this->logLoginAttempt($request, $user, false, 'Invalid credentials (recovery email step).');
+
+            throw ValidationException::withMessages([
+                'email' => ['Invalid email or password.'],
+            ]);
+        }
+
+        if ($user->status_id !== 1) {
+            throw ValidationException::withMessages([
+                'email' => ['Your account is inactive. Please contact administrator.'],
+            ]);
+        }
+
+        // Fill in a MISSING address only -- never change one that exists.
+        //
+        // Without this, anyone holding a stolen password could repoint the
+        // victim's recovery address at an inbox they control, and would then
+        // receive every future login code AND every password reset. That turns
+        // a stolen password into permanent ownership of the account and defeats
+        // the second factor entirely. Changing a recovery address belongs behind
+        // a full session, in account settings.
+        if (! app(TwoFactorPolicy::class)->requiresRecoveryEmail($user)) {
+            throw ValidationException::withMessages([
+                'recovery_email' => ['This account already has a recovery email. Sign in and change it in account settings.'],
+            ]);
+        }
+
+        // Only now, past the password check, is it safe to ask the database
+        // whether this address is already spoken for.
+        $request->validate([
+            'recovery_email' => 'unique:users,recovery_email|unique:users,email',
+        ]);
+
+        RateLimiter::clear($credentialsKey);
+
+        $user->fill(['recovery_email' => $validated['recovery_email']])->save();
+
+        if (! app(LoginOtpIssuer::class)->issue($user, $failure)) {
+            $this->logOtpIssued($request, $user, false);
+
+            return response()->json([
+                'message' => 'Recovery email saved, but the login code could not be sent. '
+                    .$this->otpDeliveryAdvice($failure),
+            ], 503);
+        }
+
+        $this->logOtpIssued($request, $user, true);
+
+        return response()->json([
+            'requires_otp' => true,
+            'email'   => $user->email,
+            'message' => 'A login code has been sent to your recovery email.',
+        ]);
+    }
+
     public function verifyOtp(Request $request)
     {
         $request->validate([
@@ -224,16 +469,39 @@ class AuthController extends Controller
 
         $otp = (string) $request->input('otp');
 
-        $user = User::where('email', $request->email)
-            ->where('otp_code', $otp)
-            ->where('otp_expires_at', '>', now())
-            ->first();
+        // The stored value is a hash, so the code cannot be matched in the
+        // query any more. Resolve the account first, then compare in PHP.
+        $user = User::where('email', $request->email)->first();
 
-        if (! $user) {
+        $pending = $user
+            && filled($user->otp_code)
+            && $user->otp_expires_at
+            && $user->otp_expires_at->isFuture();
+
+        if (! $pending || ! Hash::check($otp, $user->otp_code)) {
+            if ($pending) {
+                // Only count guesses against a live code. Attempts on an
+                // already-burned or expired code must not accumulate, or the
+                // next legitimate code would start with a spent budget.
+                $attempts = (int) $user->otp_attempts + 1;
+
+                $user->fill([
+                    'otp_attempts' => $attempts,
+                    // Burn the code outright at the cap. Leaving it live but
+                    // refusing guesses would let an attacker simply wait out the
+                    // limiter; this is the defence that holds regardless of how
+                    // many source addresses they rotate through.
+                    'otp_code'     => $attempts >= self::MAX_OTP_ATTEMPTS ? null : $user->otp_code,
+                ])->save();
+            }
+
+            // One message for every failure mode: a caller must not be able to
+            // tell "no such account" from "wrong code" from "expired" from
+            // "burned".
             return response()->json(['message' => 'Invalid or expired OTP.'], 422);
         }
 
-        $user->update(['otp_code' => null, 'otp_expires_at' => null]);
+        $user->update(['otp_code' => null, 'otp_expires_at' => null, 'otp_attempts' => 0]);
 
         $token = $this->issueAuthToken($user);
         $this->logLoginAttempt($request, $user, true);

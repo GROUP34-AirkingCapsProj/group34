@@ -19,7 +19,7 @@ class Issuance extends Model
 
     protected $fillable = [
         'location_id', 'customer_id', 'issuance_date',
-        'issuance_type', 'dr_number', 'discount_type',
+        'issuance_type', 'dr_number', 'external_reference', 'discount_type',
         'discount_percent', 'subtotal', 'discount_amount',
         'total_amount', 'purpose', 'issued_to_user_id',
         'expected_return_date', 'actual_return_date',
@@ -69,6 +69,11 @@ class Issuance extends Model
     public function details(): HasMany
     {
         return $this->hasMany(IssuanceDetail::class, 'issuance_id', 'issuance_id');
+    }
+
+    public function sets(): HasMany
+    {
+        return $this->hasMany(IssuanceSet::class, 'issuance_id', 'issuance_id');
     }
 
     public function warrantyRecords(): HasMany

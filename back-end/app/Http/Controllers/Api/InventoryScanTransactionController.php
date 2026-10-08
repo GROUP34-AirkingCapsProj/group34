@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
 use App\Models\InventoryScanEvent;
 use App\Models\ItemSerial;
 use App\Models\Product;
@@ -14,6 +15,8 @@ use App\Models\PurchaseRequest;
 use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Models\Transfer;
+use App\Services\InventoryBatchService;
+use App\Services\ReceivingPostingService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +28,7 @@ use Illuminate\Validation\ValidationException;
  */
 class InventoryScanTransactionController extends Controller
 {
-    use ApiResponse;
+    use ApiResponse, \App\Traits\NormalizesBarcode;
     use \App\Traits\ResolvesUserLocation;
 
     public function store(Request $request)
@@ -40,6 +43,8 @@ class InventoryScanTransactionController extends Controller
                 'quantity'           => 'nullable|integer|min:1',
                 'po_id'              => 'nullable|exists:purchase_orders,po_id',
                 'po_detail_id'       => 'nullable|exists:purchase_order_details,po_detail_id',
+                'zone_label'         => 'nullable|string|max:100',
+                'accept_overage'     => 'nullable|boolean',
             ]);
         } catch (ValidationException $e) {
             return $this->validationError($e->errors());
@@ -103,7 +108,7 @@ class InventoryScanTransactionController extends Controller
                       ->orWhereRaw("LOWER(TRIM(COALESCE(product_code,''))) = ?", [$norm]);
                 })
                 ->with(['applianceDetail.brand',
-                        'consumableDetail.unit'])
+                        'installationMaterialDetail.unit'])
                 ->first();
             if ($p) {
                 return $p;
@@ -119,7 +124,7 @@ class InventoryScanTransactionController extends Controller
                 $p = Product::query()
                     ->where('product_id', $serial->product_id)
                     ->with(['applianceDetail.brand',
-                            'consumableDetail.unit'])
+                            'installationMaterialDetail.unit'])
                     ->first();
                 if ($p) {
                     return $p;
@@ -136,7 +141,7 @@ class InventoryScanTransactionController extends Controller
                         $q->where('barcode', $ean)->orWhere('product_code', $ean);
                     })
                     ->with(['applianceDetail.brand',
-                            'consumableDetail.unit'])
+                            'installationMaterialDetail.unit'])
                     ->first();
                 if ($p) {
                     return $p;
@@ -144,7 +149,7 @@ class InventoryScanTransactionController extends Controller
             }
         }
 
-        // 4. Receiving history fallback — consumables whose products.barcode is null
+        // 4. Receiving history fallback — installation materials whose products.barcode is null
         //    but whose barcode was scanned during PO receiving
         foreach ($candidates as $c) {
             $norm = strtolower(trim($c));
@@ -158,7 +163,7 @@ class InventoryScanTransactionController extends Controller
                 $p = Product::query()
                     ->where('product_id', $detail->product_id)
                     ->with(['applianceDetail.brand',
-                            'consumableDetail.unit'])
+                            'installationMaterialDetail.unit'])
                     ->first();
                 if ($p) {
                     return $p;
@@ -193,7 +198,7 @@ class InventoryScanTransactionController extends Controller
 
         // One scan always equals exactly one physical unit:
         //   Serialized (appliance) → 1 scan = 1 unit (unique serial number).
-        //   Consumable             → 1 scan = 1 package = pieces_per_package individual pieces.
+        //   Installation material             → 1 scan = 1 package = pieces_per_package individual pieces.
         // The request quantity field is intentionally ignored here so the frontend
         // can never accidentally submit more than one package per scan event.
 
@@ -201,8 +206,8 @@ class InventoryScanTransactionController extends Controller
         if (! $product->relationLoaded('applianceDetail')) {
             $product->load('applianceDetail');
         }
-        if (! $product->relationLoaded('consumableDetail')) {
-            $product->load('consumableDetail');
+        if (! $product->relationLoaded('installationMaterialDetail')) {
+            $product->load('installationMaterialDetail');
         }
 
         $isSerialized     = $product->isSerialized();
@@ -287,7 +292,7 @@ class InventoryScanTransactionController extends Controller
                     ->sum('quantity_amount');
             }
 
-            // quantity_ordered is in packages for consumables, individual units for serialized.
+            // quantity_ordered is in packages for installation materials, individual units for serialized.
             // alreadyReceived and $quantity are both in pieces, so convert ordered to pieces.
             $orderedPieces = $isSerialized
                 ? (int) $poDetail->quantity_ordered
@@ -303,11 +308,10 @@ class InventoryScanTransactionController extends Controller
                     'reason' => "All {$label} already received for this line item.",
                 ], 'Rejected');
             }
-
-            $quantity = min($quantity, $remaining);
         }
 
-        $scannedBarcode = strtolower(trim($validated['barcode']));
+        $scannedBarcode = $this->canonicalSerial((string) $validated['barcode']);
+        $scannedBarcodeLookup = strtolower($scannedBarcode);
 
         // Global barcode uniqueness: every scanned barcode is a one-time-use identifier.
         // Once received anywhere (any PO, any line, any session), the barcode is locked
@@ -315,7 +319,16 @@ class InventoryScanTransactionController extends Controller
         if ($scannedBarcode !== '') {
             if (ReceivingDetail::query()
                 ->whereNotNull('scanned_barcode')
-                ->whereRaw('LOWER(TRIM(scanned_barcode)) = ?', [$scannedBarcode])
+                // The tab and carriage return are bound as parameters rather
+                // than written as CHAR(9)/CHAR(13): CHAR() is MySQL's
+                // code-point-to-character function, but in PostgreSQL CHAR is a
+                // TYPE, so `CHAR(9)` there is a syntax error (the equivalent
+                // function is CHR()). Binding the characters needs no function
+                // at all and behaves identically on both engines.
+                ->whereRaw(
+                    "LOWER(REPLACE(REPLACE(REPLACE(TRIM(scanned_barcode), ' ', ''), ?, ''), ?, '')) = ?",
+                    ["\t", "\r", $scannedBarcodeLookup]
+                )
                 ->exists()
             ) {
                 return $this->success([
@@ -325,101 +338,52 @@ class InventoryScanTransactionController extends Controller
             }
         }
 
+        $overage = $poDetail
+            // One scan is exactly one package for an installation material (see the note
+            // at the top of this method), so the package ceiling applies. A
+            // serialized appliance has no package concept and passes null.
+            ? app(ReceivingPostingService::class)->checkOverage(
+                $poDetail,
+                $product,
+                $quantity,
+                $isSerialized ? null : $packagesReceived
+            )
+            : null;
+        if ($overage !== null && ! $request->boolean('accept_overage')) {
+            return $this->success($overage, 'Over-receipt requires confirmation');
+        }
+
         DB::beginTransaction();
         try {
-            $inv = Inventory::firstOrCreate(
-                [
-                    'location_id' => $locationId,
-                    'product_id'  => $product->product_id,
-                ],
-                [
-                    'quantity_on_hand'   => 0,
-                    'packages_on_hand'   => 0,
-                    'available_quantity' => 0,
-                    'reorder_level'      => 0,
-                ]
+            Inventory::where('location_id', $locationId)
+                ->where('product_id', $product->product_id)
+                ->lockForUpdate()
+                ->first();
+
+            $result = app(ReceivingPostingService::class)->post(
+                product: $product,
+                locationId: $locationId,
+                pieces: $quantity,
+                entryMode: 'scanned',
+                poDetail: $poDetail,
+                supplierBarcode: $scannedBarcode ?: null,
+                zoneLabel: $validated['zone_label'] ?? null,
+                userId: $request->user()?->user_id,
+                unitsEntered: 1,
+                // One scan is exactly one package (see the note at the top of this
+                // method), so the row records that directly. Package progress is
+                // then summed from the rows instead of being derived by dividing
+                // pieces by pieces_per_package — a division that under-reports as
+                // soon as piece verification lets a package post short.
+                // An appliance has no package concept, so both stay null.
+                packagesReceived: $isSerialized ? null : $packagesReceived,
+                piecesExpected:   $isSerialized ? null : $piecesPerPackage,
             );
 
-            if ($isSerialized) {
-                // Serialized: 1 scan = 1 unit; package concept does not apply.
-                $inv->quantity_on_hand   = (int) $inv->quantity_on_hand + 1;
-                $inv->available_quantity = (int) $inv->available_quantity + 1;
-            } else {
-                // Consumable: 1 scan = 1 physical package.
-                // packages_on_hand is the authoritative count; quantity_on_hand is derived.
-                $inv->packages_on_hand   = (int) $inv->packages_on_hand + $packagesReceived;
-                $inv->quantity_on_hand   = $inv->packages_on_hand * $piecesPerPackage;
-                $inv->available_quantity = $inv->quantity_on_hand;
-            }
-            $inv->save();
-
-            // BUG 4: Find or create the receivings header row
-            if ($poId) {
-                $receiving = Receiving::where('po_id', $poId)
-                    ->where('location_id', $locationId)
-                    ->first();
-            } else {
-                $receiving = Receiving::whereNull('po_id')
-                    ->where('location_id', $locationId)
-                    ->whereDate('created_at', now()->toDateString())
-                    ->first();
-            }
-
-            if (! $receiving) {
-                $receiving = new Receiving();
-                $receiving->receiving_number        = 'RCV-SCAN-' . str_replace('.', '', uniqid('', true));
-                $receiving->receiving_date          = now()->toDateString();
-                $receiving->received_by             = $request->user()?->user_id;
-                $receiving->total_quantity_received = 0;
-                $receiving->total_quantity_damaged  = 0;
-                $receiving->location_id             = $locationId;
-                if ($poId) {
-                    $receiving->po_id = $poId;
-                }
-                $receiving->save();
-            }
-
-            $receiving->increment('total_quantity_received', $quantity);
-
-            // Create receiving_details row, storing po_detail_id
-            $receiving->details()->create([
-                'product_id'      => $product->product_id,
-                'po_detail_id'    => $poDetail?->po_detail_id,
-                'quantity_amount' => $quantity,
-                'prod_price'      => $product->cost_price ?? 0,
-                'condition'       => 'Good',
-                'scanned_barcode' => $scannedBarcode ?: null,
-            ]);
-
-            // Register serial number for all product types that have a scanned barcode
-            if ($scannedBarcode !== '') {
-                if ($isSerialized) {
-                    ItemSerial::create([
-                        'product_id'    => $product->product_id,
-                        'location_id'   => $locationId,
-                        'receiving_id'  => $receiving->receiving_id,
-                        'scanned_by'    => $request->user()?->user_id,
-                        'serial_number' => $scannedBarcode,
-                        'serial_type'   => 'received',
-                        'status_id'     => 26,
-                    ]);
-                } else {
-                    // Consumables: one row per barcode+location (idempotent on re-receive)
-                    ItemSerial::firstOrCreate(
-                        [
-                            'product_id'    => $product->product_id,
-                            'location_id'   => $locationId,
-                            'serial_number' => $scannedBarcode,
-                        ],
-                        [
-                            'receiving_id' => $receiving->receiving_id,
-                            'scanned_by'   => $request->user()?->user_id,
-                            'serial_type'  => 'received',
-                            'status_id'    => 26,
-                        ]
-                    );
-                }
-            }
+            $receiving = $result['receiving'];
+            $inv       = Inventory::where('location_id', $locationId)
+                ->where('product_id', $product->product_id)
+                ->first();
 
             // Sync PO status (Partially Received / Completed) and received_by
             // inside the transaction so both writes are atomic.
@@ -463,7 +427,7 @@ class InventoryScanTransactionController extends Controller
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
-                'applianceDetail.brand',                'consumableDetail.unit',
+                'applianceDetail.brand',                'installationMaterialDetail.unit',
             ]);
 
             $payload = [
@@ -477,6 +441,12 @@ class InventoryScanTransactionController extends Controller
                 'packages_on_hand'   => $isSerialized ? null : $inv->packages_on_hand,
                 'pieces_per_package' => $piecesPerPackage,
                 'is_serialized'      => $isSerialized,
+                'serial_number'      => $scannedBarcode ?: null,
+                'tags' => collect($result['tags'] ?? [])->map(fn ($t) => [
+                    'serial_id'        => $t->serial_id,
+                    'serial_number'    => $t->serial_number,
+                    'supplier_barcode' => $t->supplier_barcode,
+                ])->values()->all(),
             ];
 
             if ($poId && $remaining !== null) {
@@ -488,7 +458,7 @@ class InventoryScanTransactionController extends Controller
                     : ($piecesPerPackage > 0 ? (int) ceil($remainingPieces / $piecesPerPackage) : null);
                 $payload['packages_unit_label']   = $isSerialized
                     ? null
-                    : ($product->consumableDetail?->package_unit ?? 'package');
+                    : ($product->installationMaterialDetail?->package_unit ?? 'package');
                 $payload['ordered_packages']      = $isSerialized
                     ? null
                     : (int) ($poDetail?->quantity_ordered ?? 0);
@@ -560,8 +530,8 @@ class InventoryScanTransactionController extends Controller
                 ], 'Rejected');
             }
 
-            $fromInventory->quantity_on_hand = max(0, (int) $fromInventory->quantity_on_hand - $quantity);
-            $fromInventory->available_quantity = max(0, (int) $fromInventory->available_quantity - $quantity);
+            $scanPpp = $this->piecesPerPackageFor($product);
+            $fromInventory->setPieces((int) $fromInventory->quantity_on_hand - $quantity, $scanPpp);
             $fromInventory->save();
 
             $toInventory = Inventory::firstOrCreate(
@@ -575,8 +545,7 @@ class InventoryScanTransactionController extends Controller
                     'reorder_level'      => 0,
                 ]
             );
-            $toInventory->quantity_on_hand = (int) $toInventory->quantity_on_hand + $quantity;
-            $toInventory->available_quantity = (int) $toInventory->available_quantity + $quantity;
+            $toInventory->setPieces((int) $toInventory->quantity_on_hand + $quantity, $scanPpp);
             $toInventory->save();
 
             $transferNumber = 'TR-SCAN-'.str_replace('.', '', uniqid('', true));
@@ -615,7 +584,7 @@ class InventoryScanTransactionController extends Controller
 
             // Keep item_serial in sync with the inventory move
             $isSerialized = $product->isSerialized();
-            $scannedBarcode = trim($validated['barcode'] ?? '');
+            $scannedBarcode = $this->canonicalSerial((string) ($validated['barcode'] ?? ''));
             if ($scannedBarcode !== '') {
                 if ($isSerialized) {
                     // Move the unit's serial record to the destination location
@@ -670,7 +639,7 @@ class InventoryScanTransactionController extends Controller
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
-                'applianceDetail.brand',                'consumableDetail.unit',
+                'applianceDetail.brand',                'installationMaterialDetail.unit',
             ]);
 
             return $this->success([
@@ -703,36 +672,80 @@ class InventoryScanTransactionController extends Controller
             ?? \App\Models\Location::query()->where('location_id', $locationId)->value('location_name')
             ?? '—';
 
+        // An audit scan changes no stock — it only reads. Never let the activity
+        // write turn a lookup into a failed scan.
         $uid = $request->user()?->user_id;
         if ($uid) {
-            ActivityLog::create([
-                'user_id'       => $uid,
-                'activity_type' => 'audit_scan',
-                'module'        => 'inventory_operation',
-                'description'   => sprintf('Audit scan barcode=%s product_id=%s location_id=%s stock=%s', $barcode, $product->product_id, $locationId ?: '—', $stock),
-            ]);
+            try {
+                ActivityLog::create([
+                    'user_id'       => $uid,
+                    'activity_type' => 'audit_scan',
+                    'module'        => 'inventory_operation',
+                    'description'   => sprintf('Audit scan barcode=%s product_id=%s location_id=%s stock=%s', $barcode, $product->product_id, $locationId ?: '—', $stock),
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         $this->logScanEvent($request, 'audit', 'applied', $product,
             ['barcode' => $barcode, 'location_id' => $locationId],
             0, null, ['stock_on_hand' => $stock]);
 
+        $serial = ItemSerial::query()
+            ->with(['location', 'status', 'receiving', 'scannedBy'])
+            ->where('product_id', $product->product_id)
+            ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower(trim($barcode))])
+            ->first();
+
+        $history = InventoryScanEvent::query()
+            ->with(['user', 'location', 'toLocation', 'purchaseOrder'])
+            ->where('product_id', $product->product_id)
+            ->where('action', 'applied')
+            ->forUser($request->user())
+            ->when($serial, function ($query) use ($barcode) {
+                $normalized = strtolower(trim($barcode));
+                $query->where(function ($q) use ($normalized) {
+                    $q->whereRaw('LOWER(TRIM(barcode)) = ?', [$normalized])
+                      ->orWhereRaw("LOWER(TRIM(COALESCE(serial_number, ''))) = ?", [$normalized]);
+                });
+            })
+            ->latest('created_at')
+            ->limit(50)
+            ->get();
+
+        $inventoryRows = collect($this->inventoryRowsForProduct((int) $product->product_id));
+        $totalOnHand = $inventoryRows->sum(
+            fn ($row) => (int) ($row->quantity_on_hand ?? 0)
+        );
+        $totalAvailable = $inventoryRows->sum(
+            fn ($row) => (int) ($row->available_quantity ?? $row->quantity_on_hand ?? 0)
+        );
+
         $fresh = $product->fresh()->load([
             'category',
             'status',
             'applianceDetail.brand',
-            'consumableDetail.unit',
+            'installationMaterialDetail.unit',
         ]);
 
         return $this->success([
             'action' => 'applied',
             'product' => $fresh,
-            'inventory' => $this->inventoryRowsForProduct((int) $product->product_id),
+            'inventory' => $inventoryRows->values()->all(),
             'warnings' => [],
             'audit' => [
                 'location_id'   => $locationId ?: null,
                 'location_name' => $locationName,
                 'stock_on_hand' => $stock,
+                'current_stock' => $stock,
+                'total_on_hand' => $totalOnHand,
+                'total_available' => $totalAvailable,
+                'inventory_locations' => $inventoryRows->count(),
+                'matched_by' => $serial ? 'serial_number' : 'product_barcode',
+                'serial' => $serial,
+                'history_scope' => $serial ? 'serial' : 'product',
+                'history' => $history,
             ],
         ], 'Audit logged');
     }
@@ -770,8 +783,10 @@ class InventoryScanTransactionController extends Controller
                 ], 'Rejected');
             }
 
-            $fromInventory->quantity_on_hand = max(0, (int) $fromInventory->quantity_on_hand - $quantity);
-            $fromInventory->available_quantity = max(0, (int) $fromInventory->available_quantity - $quantity);
+            $fromInventory->setPieces(
+                (int) $fromInventory->quantity_on_hand - $quantity,
+                $this->piecesPerPackageFor($product)
+            );
             $fromInventory->save();
 
             // Update item_serial to reflect the issuance
@@ -784,7 +799,7 @@ class InventoryScanTransactionController extends Controller
                         ->whereRaw('LOWER(TRIM(serial_number)) = ?', [strtolower($issuanceBarcode)])
                         ->delete();
                 }
-                // Consumables are quantity-managed via inventory; no per-row serial removal needed
+                // Installation materials are quantity-managed via inventory; no per-row serial removal needed
             }
 
             DB::commit();
@@ -794,7 +809,7 @@ class InventoryScanTransactionController extends Controller
             $fresh = $product->fresh()->load([
                 'category',
                 'status',
-                'applianceDetail.brand',                'consumableDetail.unit',
+                'applianceDetail.brand',                'installationMaterialDetail.unit',
             ]);
 
             return $this->success([
@@ -862,72 +877,14 @@ class InventoryScanTransactionController extends Controller
 
     private function syncPoReceivingStatus(int $poId, $userId = null): void
     {
-        $details = PurchaseOrderDetail::with('product.consumableDetail')
-            ->where('po_id', $poId)
-            ->get(['po_detail_id', 'product_id', 'quantity_ordered']);
+        app(\App\Services\PoReceivingStatusService::class)->sync($poId, $userId);
+    }
 
-        if ($details->isEmpty()) {
-            return;
-        }
-
-        $totalOrdered  = 0;
-        $totalReceived = 0;
-
-        foreach ($details as $d) {
-            $product = $d->product;
-            if (! $product) {
-                continue;
-            }
-
-            // Ensure extension tables are loaded before calling V5 helpers.
-            if (! $product->relationLoaded('applianceDetail')) {
-                $product->load('applianceDetail');
-            }
-            if (! $product->relationLoaded('consumableDetail')) {
-                $product->load('consumableDetail');
-            }
-
-            $isSerialized  = $product->isSerialized();
-            $pcsPerPackage = $product->getPiecesPerPackage();
-
-            // quantity_ordered is in units for appliances, packages for consumables.
-            // quantity_amount is always stored in pieces — convert ordered to pieces.
-            $orderedPieces = $isSerialized
-                ? (int) $d->quantity_ordered
-                : (int) $d->quantity_ordered * $pcsPerPackage;
-
-            $receivedPieces = (int) ReceivingDetail::where('po_detail_id', $d->po_detail_id)
-                ->sum('quantity_amount');
-
-            $totalOrdered  += $orderedPieces;
-            $totalReceived += $receivedPieces;
-        }
-
-        $updateData = [];
-
-        if ($totalReceived > 0) {
-            // V5 status IDs — hardcoded; no DB string lookup needed.
-            // 11 = Completed, 12 = Partially Received
-            $newStatusId             = ($totalReceived >= $totalOrdered) ? 11 : 12;
-            $updateData['status_id'] = $newStatusId;
-
-            if ($userId !== null) {
-                $updateData['received_by'] = $userId;
-            }
-
-            PurchaseOrder::where('po_id', $poId)->update($updateData);
-
-            // When PO is fully completed: move budget from committed → spent.
-            // Only applies to POs sourced from a PR that has a budget_id.
-            if ($newStatusId === 11) {
-                $po = PurchaseOrder::with('purchaseRequest')->find($poId);
-                if ($po) {
-                    app(\App\Services\BudgetService::class)->spend($po, $userId);
-                }
-            }
-        } elseif ($userId !== null) {
-            // No items received yet — still stamp received_by on the PO.
-            PurchaseOrder::where('po_id', $poId)->update(['received_by' => $userId]);
-        }
+    /** Pieces per package for a product; 0 for serialized items, which have no package concept. */
+    private function piecesPerPackageFor(?Product $product): int
+    {
+        return ($product && ! $product->isSerialized())
+            ? $product->getPiecesPerPackage()
+            : 0;
     }
 }

@@ -3,6 +3,7 @@ import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
+import UnitRoleBadge from '../components/UnitRoleBadge';
 import { adjustmentsAPI, locationsAPI, productsAPI, statusAPI } from '../services/api';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
@@ -153,9 +154,9 @@ const AdjustmentManagement = () => {
         <div className="stats-row">
           {[
             { label: 'Total Adjustments', value: pagination.total || adjustments.length, color: '#6366f1' },
-            { label: 'Add Stock', value: adjustments.filter(a => addTypes.includes(a.adjustment_type)).length, color: '#10b981' },
-            { label: 'Deduct Stock', value: adjustments.filter(a => deductTypes.includes(a.adjustment_type)).length, color: '#ef4444' },
-            { label: 'This Month', value: thisMonth.length, color: '#f59e0b' },
+            { label: 'Add Stock', value: adjustments.filter(a => addTypes.includes(a.adjustment_type)).length, color: 'var(--ink-teal-600)' },
+            { label: 'Deduct Stock', value: adjustments.filter(a => deductTypes.includes(a.adjustment_type)).length, color: 'var(--ink-red-400)' },
+            { label: 'This Month', value: thisMonth.length, color: 'var(--ink-orange-500-2)' },
           ].map((s, i) => (
             <div key={i} className="stat-card">
               <div className="stat-icon" style={{ background: s.color + '20', color: s.color }}>
@@ -180,7 +181,7 @@ const AdjustmentManagement = () => {
             </thead>
             <tbody>
               {loading ? <tr><td colSpan="7"><Loader /></td></tr>
-                : error ? <tr><td colSpan="7" className="table-empty"><span style={{ color: '#ef4444' }}>{error}</span><button className="btn-link" onClick={() => fetchAdjustments(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
+                : error ? <tr><td colSpan="7" className="table-empty"><span style={{ color: 'var(--ink-red-400)' }}>{error}</span><button className="btn-link" onClick={() => fetchAdjustments(currentPage)} style={{ marginLeft: 8 }}>Retry</button></td></tr>
                   : adjustments.length === 0 ? <tr><td colSpan="7" className="table-empty">No adjustment records found.</td></tr>
                     : adjustments.map(adj => (
                       <tr key={adj.adjustment_id}>
@@ -226,14 +227,20 @@ const AdjustmentManagement = () => {
           </div>
           {viewingAdj.details?.length > 0 && (
             <div style={{ marginTop: 16 }}>
-              <h4 style={{ marginBottom: 8, color: '#374151' }}>Items Adjusted</h4>
+              <h4 style={{ marginBottom: 8, color: 'var(--text-body)' }}>Items Adjusted</h4>
               <table className="data-table">
-                <thead><tr><th>Product</th><th style={{ color: '#10b981' }}>Add Qty</th><th style={{ color: '#ef4444' }}>Deduct Qty</th></tr></thead>
+                <thead><tr><th>Product</th><th style={{ color: 'var(--ink-teal-600)' }}>Add Qty</th><th style={{ color: 'var(--ink-red-400)' }}>Deduct Qty</th></tr></thead>
                 <tbody>{viewingAdj.details.map((d, i) => (
                   <tr key={i}>
-                    <td>{d.product?.product_name || '—'}</td>
-                    <td style={{ color: '#10b981', fontWeight: 600 }}>+{d.add_quantity || 0}</td>
-                    <td style={{ color: '#ef4444', fontWeight: 600 }}>-{d.deduct_quantity || 0}</td>
+                    <td>
+                      <UnitRoleBadge role={d.product?.unit_role} />
+                      {d.product?.product_name || '—'}
+                      {d.product?.ac_type_name && (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}> · {d.product.ac_type_name}</span>
+                      )}
+                    </td>
+                    <td style={{ color: 'var(--ink-teal-600)', fontWeight: 600 }}>+{d.add_quantity || 0}</td>
+                    <td style={{ color: 'var(--ink-red-400)', fontWeight: 600 }}>-{d.deduct_quantity || 0}</td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -283,7 +290,7 @@ const AdjustmentManagement = () => {
 
             <div style={{ marginTop: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <h4 style={{ margin: 0, color: '#374151' }}>Items to Adjust</h4>
+                <h4 style={{ margin: 0, color: 'var(--text-body)' }}>Items to Adjust</h4>
                 <button type="button" className="btn-secondary" style={{ padding: '4px 12px', fontSize: 13 }} onClick={addDetailRow}>+ Add Item</button>
               </div>
               <table className="data-table">

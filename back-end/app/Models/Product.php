@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Str;
 use App\Traits\Auditable;
 
 class Product extends Model
@@ -37,7 +36,15 @@ class Product extends Model
 
     // Serialize the pieces_per_package accessor so API responses always include it.
     // Reads from installation_material_details; returns 1 for appliances.
-    protected $appends = ['pieces_per_package'];
+    //
+    // unit_role and ac_type_name ride along for a specific operational reason:
+    // an indoor unit and its outdoor partner share a brand, a capacity and
+    // usually a near-identical name, so on a scanning or picking screen they
+    // are indistinguishable. Staff need to see WHICH HALF a row is before
+    // they scan it. Appending them here rather than in each controller means
+    // every screen that serialises a product — receiving, issuance, incident,
+    // transfers, adjustments — gets them without its own plumbing.
+    protected $appends = ['pieces_per_package', 'unit_role', 'ac_type_name'];
 
     protected $casts = [
         'cost_price'         => 'decimal:2',
@@ -57,8 +64,8 @@ class Product extends Model
         return $query->where('product_type', 'appliance');
     }
 
-    /** Scope: only consumable supply records. */
-    public function scopeConsumables($query)
+    /** Scope: only installation material supply records. */
+    public function scopeInstallationMaterials($query)
     {
         return $query->where('product_type', 'installation_material');
     }
@@ -72,7 +79,7 @@ class Product extends Model
         return strtolower($this->product_type ?? '') === 'appliance';
     }
 
-    public function isConsumable(): bool
+    public function isInstallationMaterial(): bool
     {
         return strtolower($this->product_type ?? '') === 'installation_material';
     }
@@ -85,10 +92,10 @@ class Product extends Model
                 : $this->load('applianceDetail')->applianceDetail;
             return (bool) ($detail->is_serialized ?? true);
         }
-        if ($this->isConsumable()) {
-            $detail = $this->relationLoaded('consumableDetail')
-                ? $this->consumableDetail
-                : $this->load('consumableDetail')->consumableDetail;
+        if ($this->isInstallationMaterial()) {
+            $detail = $this->relationLoaded('installationMaterialDetail')
+                ? $this->installationMaterialDetail
+                : $this->load('installationMaterialDetail')->installationMaterialDetail;
             return (bool) ($detail->is_serialized ?? false);
         }
         return false;
@@ -96,13 +103,23 @@ class Product extends Model
 
     public function getPiecesPerPackage(): int
     {
-        if ($this->isConsumable()) {
-            $detail = $this->relationLoaded('consumableDetail')
-                ? $this->consumableDetail
-                : $this->load('consumableDetail')->consumableDetail;
+        if ($this->isInstallationMaterial()) {
+            $detail = $this->relationLoaded('installationMaterialDetail')
+                ? $this->installationMaterialDetail
+                : $this->load('installationMaterialDetail')->installationMaterialDetail;
             return max(1, (int) ($detail->pieces_per_package ?? 1));
         }
         return 1;
+    }
+
+    /**
+     * Product prices for installation materials are stored per package, while
+     * inventory quantities are stored as individual pieces.
+     */
+    public function getPricePerPiece(?float $price = null): float
+    {
+        $packagePrice = $price ?? (float) $this->unit_price;
+        return round($packagePrice / $this->getPiecesPerPackage(), 4);
     }
 
     public function applianceDetail()
@@ -110,9 +127,9 @@ class Product extends Model
         return $this->hasOne(ApplianceDetail::class, 'product_id', 'product_id');
     }
 
-    public function consumableDetail()
+    public function installationMaterialDetail()
     {
-        return $this->hasOne(ConsumableDetail::class, 'product_id', 'product_id');
+        return $this->hasOne(InstallationMaterialDetail::class, 'product_id', 'product_id');
     }
 
     public function category(): BelongsTo
@@ -163,146 +180,72 @@ class Product extends Model
         return $this->hasMany(AdjustmentDetail::class, 'product_id', 'product_id');
     }
 
-    public function issuableUnits(): HasMany
-    {
-        return $this->hasMany(ProductIssuableUnit::class, 'product_id', 'product_id')
-                    ->orderBy('sort_order');
-    }
-
     /**
      * Delegate pieces_per_package to installation_material_details.
      * Called automatically when code reads $product->pieces_per_package,
      * so existing scan/receiving code keeps working without changes.
      */
-    public function getPiecesPerPackageAttribute($value): int
+    /**
+     * Which half of a split aircon this product is: indoor, outdoor, or
+     * complete. Null for anything that is not an appliance.
+     *
+     * Lazy-loads applianceDetail when it is not already there, matching
+     * pieces_per_package below. That is a deliberate choice over returning
+     * null when unloaded: this value is read on scanning and picking screens
+     * to tell two near-identical halves apart, and a silently absent badge
+     * would read as "not an aircon" rather than "not loaded" — the one
+     * failure mode that could put the wrong carton on a truck.
+     *
+     * The cost is one query per product row on any screen that does not
+     * eager-load. Callers listing products should eager-load
+     * `applianceDetail` (and `applianceDetail.acType` for the name below).
+     */
+    public function getUnitRoleAttribute(): ?string
     {
-        if ($value !== null) return (int) $value;
-        return (int) ($this->consumableDetail?->pieces_per_package ?? 1);
+        if (! $this->isAppliance()) {
+            return null;
+        }
+
+        $detail = $this->relationLoaded('applianceDetail')
+            ? $this->applianceDetail
+            : $this->load('applianceDetail')->applianceDetail;
+
+        return $detail?->unit_role;
     }
 
     /**
-     * Returns quick-action button and dropdown data for the issuance quantity
-     * panel. Reads from product_issuable_units when defined; falls back to
-     * computed defaults for products not yet configured.
+     * The AC kind's display name — "Split Type", "Cassette" — or null when
+     * the product is not an appliance or carries no type.
+     *
+     * See getUnitRoleAttribute() for why this lazy-loads rather than
+     * returning null when the relation is cold.
      */
-    public function buildConsumableQuickActions(): array
+    public function getAcTypeNameAttribute(): ?string
     {
-        if ($this->isSerialized()) return [];
-
-        // Ensure consumableDetail.unit is loaded.
-        if (! $this->relationLoaded('consumableDetail')) {
-            $this->load('consumableDetail.unit');
-        } elseif ($this->consumableDetail && ! $this->consumableDetail->relationLoaded('unit')) {
-            $this->consumableDetail->load('unit');
+        if (! $this->isAppliance()) {
+            return null;
         }
 
-        $cd               = $this->consumableDetail;
-        $unit             = $cd?->unit;
-        $piecesPerPackage = $this->getPiecesPerPackage();
-        $packageUnit      = $cd?->package_unit ?? ($unit?->unit_name ?? 'package');
-        $baseUnitName     = $unit?->unit_name ?? 'piece';
-        $unitPrice        = (float) $this->unit_price;
-        $pricePerPiece    = $piecesPerPackage > 0
-            ? round($unitPrice / $piecesPerPackage, 4)
-            : $unitPrice;
+        $detail = $this->relationLoaded('applianceDetail')
+            ? $this->applianceDetail
+            : $this->load('applianceDetail')->applianceDetail;
 
-        // Load from product_issuable_units if defined
-        $issuableUnits = $this->issuableUnits()->with('unit')->orderBy('sort_order')->get();
+        return $detail?->acType?->ac_type_name;
+    }
 
-        $actions = [];
-
-        if ($issuableUnits->isNotEmpty()) {
-            foreach ($issuableUnits as $iu) {
-                $conversionFactor = (float) $iu->conversion_factor;
-                // round before ceil so float dust (e.g. 5.000001) can't bump a whole number up
-                $piecesDeducted   = max(1, (int) ceil(round($conversionFactor, 4)));
-                $subtotal         = round($pricePerPiece * $piecesDeducted, 2);
-
-                $actions[] = [
-                    'label'               => $iu->label,
-                    'unit_id'             => $iu->unit_id,
-                    'unit_name'           => $iu->unit?->unit_name ?? $baseUnitName,
-                    'unit_abbreviation'   => $iu->unit?->unit_abbreviation ?? 'pc',
-                    'conversion_factor'   => $conversionFactor,
-                    'quantity_in_pieces'  => $piecesDeducted,
-                    'is_whole_package'    => $iu->is_whole_package,
-                    'show_as_quick_action'=> $iu->show_as_quick_action,
-                    'price_preview'       => '₱' . number_format($subtotal, 2),
-                    'is_custom'           => false,
-                ];
-            }
-        } else {
-            // Fallback: generate defaults from pieces_per_package
-            foreach ([1, 2, 5] as $pkgCount) {
-                $pieces   = $pkgCount * $piecesPerPackage;
-                $subtotal = round($pricePerPiece * $pieces, 2);
-                $label    = $pkgCount === 1
-                    ? "1 {$packageUnit}"
-                    : "{$pkgCount} " . Str::plural($packageUnit);
-
-                $actions[] = [
-                    'label'               => $label,
-                    'unit_id'             => $cd?->unit_id,
-                    'unit_name'           => $baseUnitName,
-                    'unit_abbreviation'   => $unit?->unit_abbreviation ?? 'pc',
-                    'conversion_factor'   => (float) $pieces,
-                    'quantity_in_pieces'  => $pieces,
-                    'is_whole_package'    => true,
-                    'show_as_quick_action'=> true,
-                    'price_preview'       => '₱' . number_format($subtotal, 2),
-                    'is_custom'           => false,
-                ];
-            }
-
-            // Fallback fractions for Roll products
-            if ($unit && (int) $unit->unit_id === 3) {
-                foreach ([
-                    ['Half Roll',    11, 0.5],
-                    ['Quarter Roll',  9, 0.25],
-                ] as [$lbl, $uid, $frac]) {
-                    $pieces   = max(1, (int) floor($piecesPerPackage * $frac));
-                    $subtotal = round($pricePerPiece * $pieces, 2);
-                    $actions[] = [
-                        'label'               => $lbl,
-                        'unit_id'             => $uid,
-                        'unit_name'           => $lbl,
-                        'unit_abbreviation'   => ($frac === 0.5 ? '1/2' : '1/4'),
-                        'conversion_factor'   => (float) $pieces,
-                        'quantity_in_pieces'  => $pieces,
-                        'is_whole_package'    => false,
-                        'show_as_quick_action'=> true,
-                        'price_preview'       => '₱' . number_format($subtotal, 2),
-                        'is_custom'           => false,
-                    ];
-                }
-            }
-        }
-
-        // Always append Custom
-        $actions[] = [
-            'label'               => 'Custom',
-            'unit_id'             => null,
-            'unit_name'           => $baseUnitName,
-            'unit_abbreviation'   => $unit?->unit_abbreviation ?? 'pc',
-            'conversion_factor'   => null,
-            'quantity_in_pieces'  => null,
-            'is_whole_package'    => false,
-            'show_as_quick_action'=> true,
-            'price_preview'       => null,
-            'is_custom'           => true,
-        ];
-
-        return $actions;
+    public function getPiecesPerPackageAttribute($value): int
+    {
+        if ($value !== null) return (int) $value;
+        return (int) ($this->installationMaterialDetail?->pieces_per_package ?? 1);
     }
 
     /**
      * Returns the units available for the custom quantity dropdown for this
-     * product: the base unit plus all distinctly defined issuable unit types.
+     * product: the product's base unit.
      */
     public function getIssuableDropdownUnits(): array
     {
-        $unitIds = collect([$this->consumableDetail?->unit_id])
-            ->merge($this->issuableUnits()->pluck('unit_id'))
+        $unitIds = collect([$this->installationMaterialDetail?->unit_id])
             ->filter()
             ->unique()
             ->values();

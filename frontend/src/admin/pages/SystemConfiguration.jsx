@@ -4,6 +4,8 @@ import Loader from '../components/Loader';
 import UserManagementPanel from '../components/UserManagementPanel';
 import { toast } from '../utils/toast';
 import { getApiBaseUrl, getToken, systemSettingsAPI, companySettingsAPI, accountPolicyAPI, setSessionTimeoutMinutes, passwordResetAPI } from '../services/api';
+import LabelPrinterPanel from '../components/LabelPrinterPanel';
+import BackupPanel from '../components/BackupPanel';
 import '../styles/system_configuration.css';
 
 const LockIcon = () => (
@@ -54,12 +56,6 @@ const SaveIcon = () => (
   </svg>
 );
 
-const AvatarPersonIcon = () => (
-  <svg width="44" height="44" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z"/>
-  </svg>
-);
-
 const MailIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
@@ -78,9 +74,9 @@ const MapPinIcon = () => (
   </svg>
 );
 
-const CheckCircleIcon = () => (
+const PrinterIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+    <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
   </svg>
 );
 
@@ -126,11 +122,19 @@ const PolicyToggle = ({ id, label, desc, checked, onChange }) => (
   </div>
 );
 
+const DatabaseIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4zm0 2c3.87 0 6 1.36 6 2s-2.13 2-6 2-6-1.36-6-2 2.13-2 6-2zm0 14c-3.87 0-6-1.36-6-2v-1.14c1.55.83 3.7 1.14 6 1.14s4.45-.31 6-1.14V17c0 .64-2.13 2-6 2zm0-5c-3.87 0-6-1.36-6-2v-1.14c1.55.83 3.7 1.14 6 1.14s4.45-.31 6-1.14V12c0 .64-2.13 2-6 2z"/>
+  </svg>
+);
+
 const TABS = [
   { id: 'security', label: 'Security', icon: <LockIcon /> },
+  { id: 'backup', label: 'Backup', icon: <DatabaseIcon /> },
   { id: 'accounts', label: 'User Accounts', icon: <PersonIcon /> },
   { id: 'users', label: 'User Management', icon: <PersonAddIcon />, badge: 2 },
   { id: 'company', label: 'Company Settings', icon: <BuildingIcon /> },
+  { id: 'printers', label: 'Barcode Printers', icon: <PrinterIcon /> },
 ];
 
 const DEFAULT_SETTINGS = {
@@ -163,13 +167,12 @@ const SystemConfiguration = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const [resetRequests, setResetRequests]  = useState([]);
   const [activeCodes, setActiveCodes]      = useState([]);
   const [activeCodesLoading, setActiveCodesLoading] = useState(false);
   const [manualUser, setManualUser]        = useState('');
 
   // Company settings state
-  const [companyForm, setCompanyForm] = useState({ company_name: '', company_address: '', company_email: '', company_phone: '' });
+  const [companyForm, setCompanyForm] = useState({ company_name: '', company_address: '', company_email: '', company_phone: '', pdf_paper_size: 'a4' });
   const [companySaving, setCompanySaving] = useState(false);
   const [companyLoading, setCompanyLoading] = useState(false);
 
@@ -249,6 +252,7 @@ const SystemConfiguration = () => {
           company_address: data.company_address || '',
           company_email:   data.company_email   || '',
           company_phone:   data.company_phone   || '',
+          pdf_paper_size:  data.pdf_paper_size  || 'a4',
         });
       } catch {
         // Keep empty defaults
@@ -358,26 +362,6 @@ const SystemConfiguration = () => {
     } finally {
       setCompanySaving(false);
     }
-  };
-
-  const handleGenerateCode = async (req) => {
-    if (!req?.user_id) {
-      toast.error('Invalid reset request.');
-      return;
-    }
-    try {
-      await passwordResetAPI.issue(Number(req.user_id));
-      setResetRequests((prev) => prev.filter((r) => r.id !== req.id));
-      toast.success(`Reset code generated for ${req.name || 'user'}.`);
-      await fetchActiveResetCodes();
-    } catch (err) {
-      toast.error(err.message || 'Failed to issue reset code.');
-    }
-  };
-
-  const handleDenyRequest = (id) => {
-    setResetRequests(prev => prev.filter(r => r.id !== id));
-    toast.success('Request denied.');
   };
 
   const handleRevoke = async (id) => {
@@ -531,8 +515,12 @@ const SystemConfiguration = () => {
                   </span>
                   <input type="checkbox" id="twoFactorAuth" checked={settings.twoFactorAuth} onChange={() => handleToggle('twoFactorAuth')} />
                   <label htmlFor="twoFactorAuth">
-                    <span className="sc-checkbox-label">Enable Two-Factor Authentication (2FA)</span>
-                    <span className="sc-checkbox-desc">Require a one-time code sent to the user&apos;s email at login</span>
+                    <span className="sc-checkbox-label">Require a login code for all users</span>
+                    <span className="sc-checkbox-desc">
+                      Sends a one-time code to the user&apos;s recovery email at login.
+                      This applies to every role, administrators included — turning it
+                      off removes the second step from your own sign-in too.
+                    </span>
                   </label>
                 </div>
               </div>
@@ -619,39 +607,6 @@ const SystemConfiguration = () => {
           <div className="sc-tab-content">
             {/* User Management (shared panel) */}
             <UserManagementPanel />
-
-            {/* Password Reset Requests */}
-            <div className="sc-card">
-              <div className="sc-card-header">
-                <h3>Password Reset Requests</h3>
-                <p>Manage user password reset requests</p>
-              </div>
-              <div className="sc-card-body">
-                {resetRequests.length === 0 && (
-                  <p className="sc-placeholder" style={{ padding: '16px 0' }}>No pending reset requests.</p>
-                )}
-                {resetRequests.map(req => (
-                  <div key={req.id} className="sc-um-request-item">
-                    <div className="sc-um-request-avatar">
-                      <AvatarPersonIcon />
-                    </div>
-                    <div className="sc-um-request-info">
-                      <span className="sc-um-request-name">{req.name}</span>
-                      <span className="sc-um-request-email">{req.email}</span>
-                      <span className="sc-um-request-time">Requested: {req.requested}</span>
-                    </div>
-                    <div className="sc-um-request-actions">
-                      <button type="button" className="sc-um-btn-generate" onClick={() => handleGenerateCode(req)}>
-                        <CheckCircleIcon /> Generate Code
-                      </button>
-                      <button type="button" className="sc-um-btn-deny" onClick={() => handleDenyRequest(req.id)}>
-                        <XCircleIcon /> Deny
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
             {/* Active Reset Codes */}
             <div className="sc-card">
@@ -792,6 +747,22 @@ const SystemConfiguration = () => {
                         </div>
                       </div>
                     </div>
+                    <div className="sc-field-row">
+                      <div className="sc-field">
+                        <label>Default PDF Paper Size</label>
+                        <select
+                          value={companyForm.pdf_paper_size}
+                          onChange={e => handleCompanyChange('pdf_paper_size', e.target.value)}
+                        >
+                          <option value="a4">A4</option>
+                          <option value="letter">Letter</option>
+                          <option value="legal">Legal</option>
+                          <option value="a5">A5</option>
+                        </select>
+                        <span className="sc-field-hint">Used by automatic PO and GRN PDF downloads.</span>
+                      </div>
+                      <div className="sc-field" />
+                    </div>
                   </>
                 )}
               </div>
@@ -804,27 +775,39 @@ const SystemConfiguration = () => {
                 <p>Live preview of how the company header will appear on exported Purchase Orders.</p>
               </div>
               <div className="sc-card-body">
-                <div style={{ fontFamily: "'Times New Roman', serif", background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '20px 24px' }}>
+                <div style={{ fontFamily: "'Times New Roman', serif", background: 'var(--bg-muted)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '20px 24px' }}>
                   <div style={{ textAlign: 'center', borderBottom: '2px solid #1e293b', paddingBottom: 12, marginBottom: 12 }}>
                     <div style={{ fontSize: 20, fontWeight: 900, textTransform: 'uppercase', marginBottom: 4 }}>
                       {companyForm.company_name || 'COMPANY NAME'}
                     </div>
                     {companyForm.company_address && (
-                      <div style={{ fontSize: 12, color: '#475569' }}>{companyForm.company_address}</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-blue-700)' }}>{companyForm.company_address}</div>
                     )}
                     {companyForm.company_email && (
-                      <div style={{ fontSize: 12, color: '#475569' }}>{companyForm.company_email}</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-blue-700)' }}>{companyForm.company_email}</div>
                     )}
                     {companyForm.company_phone && (
-                      <div style={{ fontSize: 12, color: '#475569' }}>{companyForm.company_phone}</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-blue-700)' }}>{companyForm.company_phone}</div>
                     )}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>PURCHASE ORDER #PO-XXXX</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-blue-500)', fontStyle: 'italic' }}>PURCHASE ORDER #PO-XXXX</div>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'printers' && (
+          <div className="sc-tab-content">
+            <LabelPrinterPanel />
+          </div>
+        )}
+
+        {activeTab === 'backup' && (
+          <div className="sc-tab-content">
+            <BackupPanel />
           </div>
         )}
 

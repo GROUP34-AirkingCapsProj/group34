@@ -32,29 +32,29 @@ class TransferController extends Controller
         return DB::table('status_lookup')->where('status_name', $statusName)->value('status_id');
     }
 
+    private static function withRelations(): array
+    {
+        return ['fromLocation', 'toLocation', 'requestedBy', 'approvedBy', 'status', 'details.product'];
+    }
+
     public function index(Request $request)
     {
         try {
             $user = $request->user();
-            $query = Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'approvedBy', 'receivedBy', 'status', 'details.product']);
+            $query = Transfer::with(self::withRelations())->forUser($user);
 
-            $query->forUser($user);
-
-            if ($request->has('from_location_id')) {
-                $query->where('from_location_id', $request->from_location_id);
+            if ($request->filled('status_id')) {
+                $query->where('status_id', $request->integer('status_id'));
             }
-            if ($request->has('to_location_id')) {
-                $query->where('to_location_id', $request->to_location_id);
-            }
-            if ($request->has('status_id')) {
-                $query->where('status_id', $request->status_id);
-            }
-            if ($request->has('search')) {
+            if ($request->filled('search')) {
                 $query->where('transfer_number', 'like', '%' . $request->search . '%');
             }
 
-            $perPage = $request->get('per_page', 20);
-            return $this->paginated($query->orderBy('created_at', 'desc')->paginate($perPage), 'Transfers retrieved successfully');
+            $perPage = $request->integer('per_page', 20);
+            return $this->paginated(
+                $query->orderBy('created_at', 'desc')->paginate($perPage),
+                'Transfers retrieved'
+            );
         } catch (\Exception $e) {
             return $this->error('Failed to retrieve transfers: ' . $e->getMessage(), 500);
         }
@@ -62,68 +62,117 @@ class TransferController extends Controller
 
     public function store(Request $request, TransferService $service)
     {
-        try {
-            $validated = $request->validate([
-                'from_location_id'           => 'required|exists:locations,location_id',
-                'to_location_id'             => 'required|different:from_location_id|exists:locations,location_id',
-                'transfer_date'              => 'required|date',
-                'details'                    => 'required|array|min:1',
-                'details.*.product_id'       => 'required|exists:products,product_id',
-                'details.*.quantity_transferred' => 'required|integer|min:1',
-                'details.*.serials'          => 'sometimes|array',
-                'details.*.serials.*'        => 'string',
+        $validated = $request->validate([
+            'intent'                         => 'required|in:pull,offload,demand',
+            'from_location_id'               => 'nullable|exists:locations,location_id',
+            'to_location_id'                 => 'nullable|exists:locations,location_id',
+            'transfer_date'                  => 'required|date',
+            'notes'                          => 'nullable|string|max:500',
+            'products'                       => 'required|array|min:1',
+            'products.*.product_id'          => 'required|exists:products,product_id',
+            'products.*.quantity_requested'  => 'required|integer|min:1',
+        ]);
+
+        $validated['from_location_id'] = $validated['from_location_id'] ?? null;
+        $validated['to_location_id']   = $validated['to_location_id'] ?? null;
+
+        // Per-intent source/destination rules:
+        //  - pull:    requester names the destination; the analyst assigns the source later.
+        //  - offload: requester names the source; the analyst assigns the destination later
+        //             (only admin/IA can see every location's stock to decide where it goes).
+        //  - demand:  the analyst names both up front (lands Approved immediately).
+        if ($validated['intent'] === 'pull') {
+            $validated['from_location_id'] = null;
+            if (empty($validated['to_location_id'])) {
+                return $this->error('A destination location is required for this request.', 422);
+            }
+        } elseif ($validated['intent'] === 'offload') {
+            if (empty($validated['from_location_id'])) {
+                return $this->error('A source location is required for this request.', 422);
+            }
+            // Destination is intentionally optional — the analyst assigns it at verification.
+        } else { // demand
+            if (empty($validated['from_location_id']) || empty($validated['to_location_id'])) {
+                return $this->error('Both source and destination are required.', 422);
+            }
+        }
+
+        if (!empty($validated['from_location_id']) && !empty($validated['to_location_id'])
+            && (int) $validated['from_location_id'] === (int) $validated['to_location_id']) {
+            return $this->error('Source and destination must be different.', 422);
+        }
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($validated, $user, $service) {
+            $status = $validated['intent'] === 'demand' ? 'Approved' : 'Pending';
+
+            $transfer = Transfer::create([
+                'transfer_request_id'        => null,
+                'intent'                     => $validated['intent'],
+                'from_location_id'           => $validated['from_location_id'],
+                'to_location_id'             => $validated['to_location_id'],
+                'transfer_number'            => 'TR-PENDING-' . uniqid('', true),
+                'transfer_date'              => $validated['transfer_date'],
+                'requested_by'               => $user->user_id,
+                'approved_by'                => $validated['intent'] === 'demand' ? $user->user_id : null,
+                'status_id'                  => $service->statusIdForTest($status),
+                'notes'                      => $validated['notes'] ?? null,
+                'total_quantity_transferred' => 0,
+                'total_quantity_received'    => 0,
+            ]);
+            $transfer->transfer_number = 'TR-' . date('Ymd') . '-' . str_pad((string) $transfer->transfer_id, 4, '0', STR_PAD_LEFT);
+            $transfer->save();
+
+            foreach ($validated['products'] as $row) {
+                $transfer->details()->create([
+                    'product_id'           => $row['product_id'],
+                    'quantity_requested'   => (int) $row['quantity_requested'],
+                    'quantity_scanned'     => 0,
+                    'quantity_transferred' => 0,
+                    'quantity_received'    => 0,
+                ]);
+            }
+
+            \App\Models\TblTransferTracking::create([
+                'transfer_id' => $transfer->transfer_id,
+                'location_id' => $validated['to_location_id'] ?? $validated['from_location_id'],
+                'status_note' => ucfirst($validated['intent']) . ' transfer request submitted',
+                'recorded_by' => $user->user_id,
+                'recorded_at' => now(),
             ]);
 
-            $lines = array_map(fn ($d) => [
-                'product_id' => (int) $d['product_id'],
-                'quantity'   => (int) $d['quantity_transferred'],
-                'serials'    => $d['serials'] ?? [],
-            ], $validated['details']);
-
-            $transfer = $service->directOverride(
-                (int) $validated['from_location_id'],
-                (int) $validated['to_location_id'],
-                $lines,
-                $request->user()->user_id,
-                $validated['transfer_date']
+            \App\Support\RealtimeBroadcaster::transferChanged(
+                (int) ($transfer->from_location_id ?? 0),
+                (int) $transfer->to_location_id,
+                'request_changed'
             );
 
-            try {
-                \App\Models\AuditTrail::create([
-                    'user_id'    => $request->user()?->user_id,
-                    'action'     => 'admin_direct_transfer',
-                    'table_name' => 'transfers',
-                    'record_id'  => $transfer->transfer_id,
-                    'old_values' => null,
-                    'new_values' => [
-                        'transfer_number'  => $transfer->transfer_number,
-                        'from_location_id' => $validated['from_location_id'],
-                        'to_location_id'   => $validated['to_location_id'],
-                    ],
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                ]);
-            } catch (\Throwable $e) { report($e); }
-
-            return $this->success(
-                $transfer->load(['fromLocation', 'toLocation', 'details.product']),
-                'Direct transfer completed',
-                201
-            );
-        } catch (ValidationException $e) {
-            return $this->validationError($e->errors());
-        } catch (\RuntimeException $e) {
-            return $this->error($e->getMessage(), 422);
-        } catch (\Exception $e) {
-            return $this->error('Failed to complete direct transfer: ' . $e->getMessage(), 500);
-        }
+            return $this->success($transfer->load(self::withRelations()), 'Transfer request submitted', 201);
+        });
     }
 
     public function show($id)
     {
         try {
-            $transfer = Transfer::with(['fromLocation', 'toLocation', 'requestedBy', 'approvedBy', 'receivedBy', 'status', 'details.product', 'transferTracking'])->findOrFail($id);
-            return $this->success($transfer, 'Transfer retrieved successfully');
+            $transfer = Transfer::with(array_merge(self::withRelations(), ['transferTracking.recordedBy', 'details.product.installationMaterialDetail']))
+                ->findOrFail($id);
+
+            $fromLocId = $transfer->from_location_id;
+            $availability = $fromLocId
+                ? \App\Models\Inventory::where('location_id', $fromLocId)
+                    ->whereIn('product_id', $transfer->details->pluck('product_id'))
+                    ->pluck('available_quantity', 'product_id')
+                : collect();
+
+            foreach ($transfer->details as $detail) {
+                $available = (int) ($availability[$detail->product_id] ?? 0);
+                $detail->available_at_source = $available;
+                $detail->stock_at_source     = $available;
+                $detail->shortfall           = max(0, (int) $detail->quantity_requested - $available);
+            }
+
+            return $this->success($transfer, 'Transfer retrieved');
         } catch (\Exception $e) {
             return $this->error('Transfer not found', 404);
         }
@@ -149,11 +198,30 @@ class TransferController extends Controller
                 'details.*.quantity_transferred' => 'required_with:details|integer|min:1',
             ]);
 
+            // Line items may only be changed while this transfer has moved no
+            // stock. The check used to look at quantity_received alone, which
+            // is only set once the goods land at the destination — so a
+            // dispatched-but-unreceived transfer (quantity_transferred > 0,
+            // quantity_received = 0) slipped through while its stock was
+            // already deducted.
+            //
+            // That mattered because dispatch moves BOTH ledgers (it calls
+            // InventoryBatchService::deductFifo), while the reversal below
+            // only adds back to `inventory` — this controller never touches
+            // inventory_batches at all. Editing a dispatched transfer
+            // therefore left the two ledgers disagreeing, and since FIFO
+            // picking reads the batch ledger, the difference was stock that
+            // showed as on hand and could not be picked.
+            //
+            // Same rule updateRequest() already applies ("Pending has moved no
+            // stock, so lines can be swapped wholesale").
             if (array_key_exists('details', $validated)) {
                 foreach ($transfer->details as $oldDetail) {
-                    if ((int) ($oldDetail->quantity_received ?? 0) > 0) {
+                    if ((int) ($oldDetail->quantity_transferred ?? 0) > 0
+                        || (int) ($oldDetail->quantity_received ?? 0) > 0) {
                         return $this->error(
-                            'Cannot change line items after stock has been received at the destination.',
+                            'Cannot change line items once stock has been dispatched or received. '
+                            . 'Cancel this transfer and raise a new one instead.',
                             422
                         );
                     }
@@ -168,6 +236,7 @@ class TransferController extends Controller
             // If details are being changed, reverse previous inventory movement first,
             // then apply the new details. This keeps inventory consistent.
             if (array_key_exists('details', $validated)) {
+                $transfer->loadMissing('details.product.installationMaterialDetail', 'details.product.applianceDetail');
                 foreach ($transfer->details as $oldDetail) {
                     $qtyTrans = (int) ($oldDetail->quantity_transferred ?? 0);
                     $qtyRecv = (int) ($oldDetail->quantity_received ?? 0);
@@ -179,8 +248,8 @@ class TransferController extends Controller
                         ['location_id' => $transfer->from_location_id, 'product_id' => $oldDetail->product_id],
                         ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
                     );
-                    $srcInv->quantity_on_hand = (int) $srcInv->quantity_on_hand + $qtyTrans;
-                    $srcInv->available_quantity = (int) $srcInv->available_quantity + $qtyTrans;
+                    $oldPpp = $this->piecesPerPackageFor($oldDetail->product);
+                    $srcInv->setPieces((int) $srcInv->quantity_on_hand + $qtyTrans, $oldPpp);
                     $srcInv->save();
 
                     if ($qtyRecv > 0) {
@@ -188,8 +257,7 @@ class TransferController extends Controller
                             ->where('product_id', $oldDetail->product_id)
                             ->first();
                         if ($dstInv) {
-                            $dstInv->quantity_on_hand = max(0, (int) $dstInv->quantity_on_hand - $qtyRecv);
-                            $dstInv->available_quantity = max(0, (int) $dstInv->available_quantity - $qtyRecv);
+                            $dstInv->setPieces((int) $dstInv->quantity_on_hand - $qtyRecv, $oldPpp);
                             $dstInv->save();
                         }
                     }
@@ -200,6 +268,13 @@ class TransferController extends Controller
                 $mergedStatusId = isset($validated['status_id']) ? (int) $validated['status_id'] : (int) $transfer->status_id;
                 $inTransitId = $this->transferStatusId('In Transit');
                 $awaiting = $inTransitId && $mergedStatusId === (int) $inTransitId;
+
+                // Preloaded outside the loop: packaging comes off the product and
+                // resolving it per iteration would be an N+1 across the detail lines.
+                $lineProducts = Product::with(['installationMaterialDetail', 'applianceDetail'])
+                    ->whereIn('product_id', collect($validated['details'])->pluck('product_id')->all())
+                    ->get()
+                    ->keyBy('product_id');
 
                 $total = 0;
                 $totalReceived = 0;
@@ -222,8 +297,8 @@ class TransferController extends Controller
                     if ($available < $qty) {
                         throw new \RuntimeException("Insufficient stock for transfer product_id {$detail['product_id']}.");
                     }
-                    $fromInventory->quantity_on_hand = max(0, (int) $fromInventory->quantity_on_hand - $qty);
-                    $fromInventory->available_quantity = max(0, (int) $fromInventory->available_quantity - $qty);
+                    $linePpp = $this->piecesPerPackageFor($lineProducts->get($detail['product_id']));
+                    $fromInventory->setPieces((int) $fromInventory->quantity_on_hand - $qty, $linePpp);
                     $fromInventory->save();
 
                     if (!$awaiting) {
@@ -231,8 +306,7 @@ class TransferController extends Controller
                             ['location_id' => $toId, 'product_id' => $detail['product_id']],
                             ['quantity_on_hand' => 0, 'available_quantity' => 0, 'reorder_level' => 0]
                         );
-                        $toInventory->quantity_on_hand = (int) $toInventory->quantity_on_hand + $qty;
-                        $toInventory->available_quantity = (int) $toInventory->available_quantity + $qty;
+                        $toInventory->setPieces((int) $toInventory->quantity_on_hand + $qty, $linePpp);
                         $toInventory->save();
                         $totalReceived += $qty;
                     }
@@ -327,6 +401,7 @@ class TransferController extends Controller
                 'transfer_detail_id' => 'nullable|exists:transfer_details,transfer_detail_id',
                 'barcode'            => 'nullable|string|max:100',
                 'quantity'           => 'sometimes|integer|min:1',
+                'quantity_unit'      => 'sometimes|string|in:package,piece',
                 'received_by'        => 'nullable|exists:users,user_id',
             ]);
 
@@ -390,8 +465,9 @@ class TransferController extends Controller
                     'reorder_level' => 0,
                 ]
             );
-            $toInventory->quantity_on_hand = (int) $toInventory->quantity_on_hand + $add;
-            $toInventory->available_quantity = (int) $toInventory->available_quantity + $add;
+            $detail->loadMissing('product.installationMaterialDetail', 'product.applianceDetail');
+            $recvPpp = $this->piecesPerPackageFor($detail->product);
+            $toInventory->setPieces((int) $toInventory->quantity_on_hand + $add, $recvPpp);
             $toInventory->save();
 
             $detail->quantity_received = $already + $add;
@@ -430,6 +506,669 @@ class TransferController extends Controller
         }
     }
 
+    public function verify(Request $request, $id, TransferService $service)
+    {
+        $validated = $request->validate([
+            'from_location_id'           => 'nullable|exists:locations,location_id',
+            'to_location_id'             => 'nullable|exists:locations,location_id',
+            'lines'                      => 'sometimes|array',
+            'lines.*.transfer_detail_id' => 'required|integer',
+            'lines.*.quantity_approved'  => 'required|integer|min:0',
+        ]);
+
+        $transfer = Transfer::with('details')->findOrFail($id);
+        if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
+            return $this->error('Only submitted requests can be verified.', 422);
+        }
+
+        $newFrom = !empty($validated['from_location_id']) ? (int) $validated['from_location_id'] : $transfer->from_location_id;
+        $newTo   = !empty($validated['to_location_id']) ? (int) $validated['to_location_id'] : $transfer->to_location_id;
+
+        if ($newFrom === null) {
+            return $this->error('A source location must be assigned.', 422);
+        }
+        if ($newTo === null) {
+            return $this->error('A destination location must be assigned.', 422);
+        }
+        if ((int) $newFrom === (int) $newTo) {
+            return $this->error('Source and destination must differ.', 422);
+        }
+
+        $zeroed = collect($validated['lines'] ?? [])
+            ->filter(fn ($l) => (int) $l['quantity_approved'] === 0)
+            ->pluck('transfer_detail_id')->all();
+        $survivors = $transfer->details->reject(fn ($d) => in_array($d->transfer_detail_id, $zeroed))->count();
+        if ($survivors < 1) {
+            return $this->error('At least one line must remain.', 422);
+        }
+
+        return DB::transaction(function () use ($request, $validated, $transfer, $service, $newFrom, $newTo) {
+            $user = $request->user();
+            $transfer->from_location_id = $newFrom;
+            $transfer->to_location_id   = $newTo;
+
+            foreach ($validated['lines'] ?? [] as $line) {
+                $detail = TransferDetail::where('transfer_detail_id', $line['transfer_detail_id'])
+                    ->where('transfer_id', $transfer->transfer_id)->first();
+                if (!$detail) continue;
+                if ((int) $line['quantity_approved'] === 0) {
+                    $detail->delete();
+                } else {
+                    $detail->quantity_requested = (int) $line['quantity_approved'];
+                    $detail->save();
+                }
+            }
+
+            $transfer->approved_by = $user->user_id;
+            $transfer->status_id   = $service->statusIdForTest('Approved');
+            $transfer->save();
+
+            \App\Models\TblTransferTracking::create([
+                'transfer_id' => $transfer->transfer_id,
+                'location_id' => $transfer->from_location_id,
+                'status_note' => "Verified & assigned to source by " . ($user->username ?? "user#{$user->user_id}"),
+                'recorded_by' => $user->user_id,
+                'recorded_at' => now(),
+            ]);
+
+            \App\Support\RealtimeBroadcaster::transferChanged(
+                (int) $transfer->from_location_id, (int) $transfer->to_location_id, 'request_changed'
+            );
+
+            return $this->success($transfer->fresh()->load(self::withRelations()), 'Transfer verified and assigned');
+        });
+    }
+
+    public function reject(Request $request, $id, TransferService $service)
+    {
+        $validated = $request->validate(['rejection_reason' => 'nullable|string|max:500']);
+        $transfer = Transfer::findOrFail($id);
+        if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
+            return $this->error('Only submitted requests can be rejected.', 422);
+        }
+        $transfer->status_id = $service->statusIdForTest('Rejected');
+        if (!empty($validated['rejection_reason'])) {
+            $transfer->notes = trim("REJECTED: {$validated['rejection_reason']}\n\n" . ($transfer->notes ?? ''));
+        }
+        $transfer->save();
+        \App\Support\RealtimeBroadcaster::transferChanged(
+            (int) ($transfer->from_location_id ?? 0), (int) $transfer->to_location_id, 'request_changed'
+        );
+        return $this->success($transfer->fresh()->load(self::withRelations()), 'Transfer request rejected');
+    }
+
+    public function pickList($id, TransferService $service)
+    {
+        $transfer = Transfer::with('details.product')->findOrFail($id);
+        return $this->success($service->pickList($transfer), 'Pick list generated');
+    }
+
+    /** The requester, or an admin/IA, may edit/cancel a request while it is still Pending. */
+    private function canEditRequest($user, Transfer $transfer): bool
+    {
+        return (int) $transfer->requested_by === (int) $user->user_id
+            || in_array((int) $user->role_id, [1, 2], true); // admin, inventory_analyst
+    }
+
+    /** Edit a still-Pending request's product lines + notes (requester or admin/IA). */
+    public function updateRequest(Request $request, $id, TransferService $service)
+    {
+        $validated = $request->validate([
+            'notes'                          => 'nullable|string|max:500',
+            'products'                       => 'required|array|min:1',
+            'products.*.product_id'          => 'required|exists:products,product_id',
+            'products.*.quantity_requested'  => 'required|integer|min:1',
+        ]);
+
+        $transfer = Transfer::with('details')->findOrFail($id);
+        if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
+            return $this->error('Only a pending request can be edited.', 422);
+        }
+        $user = $request->user();
+        if (!$this->canEditRequest($user, $transfer)) {
+            return $this->error('You can only edit your own pending request.', 403);
+        }
+
+        return DB::transaction(function () use ($transfer, $validated, $user) {
+            if (array_key_exists('notes', $validated)) {
+                $transfer->notes = $validated['notes'];
+            }
+            $transfer->save();
+
+            // Pending has moved no stock, so lines can be swapped wholesale.
+            $transfer->details()->delete();
+            foreach ($validated['products'] as $row) {
+                $transfer->details()->create([
+                    'product_id'           => $row['product_id'],
+                    'quantity_requested'   => (int) $row['quantity_requested'],
+                    'quantity_scanned'     => 0,
+                    'quantity_transferred' => 0,
+                    'quantity_received'    => 0,
+                ]);
+            }
+
+            \App\Models\TblTransferTracking::create([
+                'transfer_id' => $transfer->transfer_id,
+                'location_id' => $transfer->to_location_id ?? $transfer->from_location_id,
+                'status_note' => 'Request edited by ' . ($user->username ?? "user#{$user->user_id}"),
+                'recorded_by' => $user->user_id,
+                'recorded_at' => now(),
+            ]);
+
+            return $this->success($transfer->fresh()->load(self::withRelations()), 'Request updated');
+        });
+    }
+
+    /** Withdraw a still-Pending request (requester or admin/IA). Soft-deletes it. */
+    public function cancel(Request $request, $id, TransferService $service)
+    {
+        $transfer = Transfer::findOrFail($id);
+        if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
+            return $this->error('Only a pending request can be cancelled.', 422);
+        }
+        $user = $request->user();
+        if (!$this->canEditRequest($user, $transfer)) {
+            return $this->error('You can only cancel your own pending request.', 403);
+        }
+
+        \App\Models\TblTransferTracking::create([
+            'transfer_id' => $transfer->transfer_id,
+            'location_id' => $transfer->to_location_id ?? $transfer->from_location_id,
+            'status_note' => 'Request cancelled by ' . ($user->username ?? "user#{$user->user_id}"),
+            'recorded_by' => $user->user_id,
+            'recorded_at' => now(),
+        ]);
+        $transfer->delete();
+
+        return $this->success(null, 'Request cancelled');
+    }
+
+    public function sourceAvailability($id)
+    {
+        $transfer = Transfer::with('details')->findOrFail($id);
+        $productIds = $transfer->details->pluck('product_id')->unique()->values();
+
+        if ($productIds->isEmpty()) {
+            return $this->success([], 'Source availability');
+        }
+
+        $rows = Inventory::query()
+            ->join('locations', 'inventory.location_id', '=', 'locations.location_id')
+            ->where('locations.location_type', 'warehouse')
+            ->whereIn('inventory.product_id', $productIds)
+            ->get([
+                'inventory.location_id',
+                'inventory.product_id',
+                'inventory.available_quantity',
+                'inventory.quantity_on_hand',
+            ]);
+
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(int) $r->location_id][(int) $r->product_id] = [
+                'available' => (int) $r->available_quantity,
+                'on_hand'   => (int) $r->quantity_on_hand,
+            ];
+        }
+
+        return $this->success($map, 'Source availability');
+    }
+
+    private function statusId(string $name): ?int
+    {
+        $id = DB::table('status_lookup')
+            ->where('status_category', 'transfer')
+            ->where('status_name', $name)
+            ->value('status_id');
+        return $id !== null ? (int) $id : null;
+    }
+
+    /** Returns a 403 JsonResponse if the caller may not act on this IST's destination, else null. */
+    private function ensureReceiveLocation(Request $request, Transfer $ist): ?\Illuminate\Http\JsonResponse
+    {
+        $user      = $request->user();
+        $role      = $user->role?->role_name ?? '';
+        $isAdmin   = in_array($role, ['admin', 'inventory_analyst'], true);
+        $userLocId = $user->enforced_location_id ?? $user->location_id;
+
+        if (!$isAdmin && $userLocId && (int) $userLocId !== (int) $ist->to_location_id) {
+            return $this->error('You are not authorized to receive items at this destination.', 403);
+        }
+        return null;
+    }
+
+    /**
+     * Record a barcode scan against an approved IST.
+     */
+    public function scan(Request $request, $id, TransferService $service)
+    {
+        try {
+            $validated = $request->validate([
+                'barcode'            => 'required|string|max:255',
+                'transfer_detail_id' => 'sometimes|nullable|integer',
+                'quantity'           => 'sometimes|integer|min:1',
+                'confirmed_zone'     => 'nullable|string|max:100',
+            ]);
+
+            $approvedId = $this->statusId('Approved');
+            $ist = Transfer::with(['details.product'])
+                ->where('status_id', $approvedId)
+                ->findOrFail($id);
+
+            $barcode = trim($validated['barcode']);
+
+            // FIFO gate, shared with issuance picking so the ordering rule cannot
+            // drift between the two. Runs BEFORE any TransferService write; it only
+            // judges the scan — recording/counting/serials remain the service's job.
+            $lines = $ist->details->map(fn ($detail) => [
+                'product_id' => (int) $detail->product_id,
+                'quantity'   => (int) $detail->quantity_requested,
+                'picked'     => (int) $detail->quantity_scanned,
+            ])->values()->all();
+
+            $locationId = (int) $ist->from_location_id;
+
+            $verdict = app(\App\Services\FifoPickingService::class)->validateScan(
+                $locationId,
+                $lines,
+                $barcode,
+                $validated['confirmed_zone'] ?? null,
+                null,
+                app(\App\Services\IncidentService::class)->excludedBatchIds($locationId)
+            );
+
+            if (! $verdict->accepted()) {
+                return response()->json([
+                    'success'     => false,
+                    'message'     => $verdict->message,
+                    'scan_result' => $verdict->toArray(),
+                ], 422);
+            }
+
+            $result = $service->recordDispatchScan(
+                $ist,
+                $barcode,
+                $validated['transfer_detail_id'] ?? null,
+                $request->user()->user_id,
+                (int) ($validated['quantity'] ?? 1),
+                ($validated['quantity_unit'] ?? 'package') === 'package',
+            );
+
+            $ist->load('details');
+            $fullyScanned = $ist->details->every(
+                fn ($d) => (int) $d->quantity_scanned >= (int) $d->quantity_requested
+            );
+
+            return $this->success(array_merge($result, [
+                'ist_fully_scanned' => $fullyScanned,
+            ]), 'Scan recorded');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Scan failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Count-entry dispatch for unbarcoded materials. Quantity is in PIECES.
+     */
+    public function countScan(Request $request, $id, TransferService $service)
+    {
+        try {
+            $validated = $request->validate([
+                'transfer_detail_id' => 'required|integer',
+                'quantity'           => 'required|integer|min:1',
+            ]);
+
+            $approvedId = $this->statusId('Approved');
+            $ist = Transfer::with(['details.product'])
+                ->where('status_id', $approvedId)
+                ->findOrFail($id);
+
+            $result = $service->countDispatchScan(
+                $ist,
+                (int) $validated['transfer_detail_id'],
+                (int) $validated['quantity'],
+                $request->user()?->user_id
+            );
+
+            $ist->load('details');
+            $fullyScanned = $ist->details->every(
+                fn ($d) => (int) $d->quantity_scanned >= (int) $d->quantity_requested
+            );
+
+            return $this->success(array_merge($result, [
+                'ist_fully_scanned' => $fullyScanned,
+            ]), 'Count recorded');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Count failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Count-entry receiving for unbarcoded materials. Quantity is in PIECES.
+     */
+    public function countReceiveScan(Request $request, $id, TransferService $service)
+    {
+        try {
+            $validated = $request->validate([
+                'transfer_detail_id' => 'required|integer',
+                'quantity'           => 'required|integer|min:1',
+            ]);
+
+            $ist = Transfer::findOrFail($id);
+
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
+            }
+
+            $result = $service->countReceiveScan(
+                $ist,
+                (int) $validated['transfer_detail_id'],
+                (int) $validated['quantity'],
+                $request->user()?->user_id
+            );
+
+            return $this->success($result, 'Receive count recorded');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Receive count failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Remove a single scan — decrements quantity_scanned and deletes the barcode_scans row.
+     */
+    public function removeScan(Request $request, $id, $scanId, TransferService $service)
+    {
+        try {
+            $approvedId = $this->statusId('Approved');
+            $ist = Transfer::where('status_id', $approvedId)
+                ->findOrFail($id);
+
+            $service->removeDispatchScan($ist, (int) $scanId);
+            return $this->success(null, 'Scan removed');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Failed to remove scan: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Confirm dispatch: set IST to In Transit, deduct inventory, record tracking.
+     */
+    public function confirmDispatch(Request $request, $id, TransferService $service)
+    {
+        try {
+            $ist = Transfer::with(['details.product'])
+                ->findOrFail($id);
+
+            $result = $service->dispatch($ist, $request->user()?->user_id);
+
+            try {
+                \App\Models\AuditTrail::create([
+                    'user_id'    => $request->user()?->user_id,
+                    'action'     => 'ist_dispatched',
+                    'table_name' => 'transfers',
+                    'record_id'  => $result->transfer_id,
+                    'old_values' => ['status' => 'Approved'],
+                    'new_values' => ['status' => 'In Transit', 'total_quantity_transferred' => (int) $result->total_quantity_transferred],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) { report($e); }
+
+            return $this->success([
+                'transfer_number'  => $result->transfer_number,
+                'status'           => 'In Transit',
+                'total_dispatched' => (int) $result->total_quantity_transferred,
+            ], 'IST dispatched successfully');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Failed to confirm dispatch: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Return current scan progress for an IST (used to restore UI state across refreshes).
+     */
+    public function scanStatus($id)
+    {
+        try {
+            $ist = Transfer::with(['details.product'])
+                ->findOrFail($id);
+
+            $scanHistory = \App\Models\BarcodeScan::where('transfer_id', $id)
+                ->with('product')
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            return $this->success([
+                'details'      => $ist->details,
+                'scan_history' => $scanHistory,
+            ], 'Scan status retrieved');
+        } catch (\Exception $e) {
+            return $this->error('IST not found', 404);
+        }
+    }
+
+    /**
+     * Record a receive-side barcode scan against an In Transit IST.
+     */
+    public function receiveScan(Request $request, $id, TransferService $service)
+    {
+        try {
+            $validated = $request->validate([
+                'barcode'            => 'required|string|max:255',
+                'transfer_detail_id' => 'sometimes|nullable|integer',
+                'quantity'           => 'sometimes|integer|min:1',
+                'quantity_unit'      => 'sometimes|string|in:package,piece',
+            ]);
+
+            $ist = Transfer::findOrFail($id);
+
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
+            }
+
+            $user   = $request->user();
+            $result = $service->recordReceiveScan(
+                $ist,
+                $validated['barcode'],
+                $validated['transfer_detail_id'] ?? null,
+                $user->user_id,
+                (int) ($validated['quantity'] ?? 1),
+                ($validated['quantity_unit'] ?? 'package') === 'package'
+            );
+
+            return $this->success($result, 'Receive scan recorded');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Receive scan failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Remove a receive-side scan (undo before confirmation).
+     */
+    public function removeReceiveScan(Request $request, $id, $scanId, TransferService $service)
+    {
+        try {
+            $ist = Transfer::findOrFail($id);
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
+            }
+            $service->removeReceiveScan($ist, (int) $scanId);
+            return $this->success(null, 'Receive scan removed');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Failed to remove receive scan: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Confirm receipt: update inventory at destination, set status to Received.
+     */
+    public function receiveStore(Request $request, $id, TransferService $service)
+    {
+        try {
+            $ist = Transfer::with(['details.product'])
+                ->findOrFail($id);
+
+            if ($resp = $this->ensureReceiveLocation($request, $ist)) {
+                return $resp;
+            }
+
+            $user   = $request->user();
+            $result = $service->receive($ist, $user->user_id);
+
+            try {
+                \App\Models\AuditTrail::create([
+                    'user_id'    => $request->user()?->user_id,
+                    'action'     => 'ist_received',
+                    'table_name' => 'transfers',
+                    'record_id'  => $result->transfer_id,
+                    'old_values' => ['status' => 'In Transit'],
+                    'new_values' => ['status' => 'Received', 'total_quantity_received' => (int) $result->total_quantity_received],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) { report($e); }
+
+            return $this->success([
+                'transfer_number'         => $result->transfer_number,
+                'status'                  => 'Received',
+                'total_quantity_received' => (int) $result->total_quantity_received,
+            ], 'Transfer received successfully');
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Exception $e) {
+            return $this->error('Failed to confirm receipt: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Return IST data for the receive-confirmation form (only In Transit ISTs).
+     */
+    public function receiveForm($id)
+    {
+        try {
+            $inTransitId = $this->statusId('In Transit');
+            $ist = Transfer::with(array_merge(self::withRelations(), ['transferTracking.recordedBy']))
+                ->where('status_id', $inTransitId)
+                ->findOrFail($id);
+
+            $serials = \App\Models\ItemSerial::where('transfer_id', $id)
+                ->select('product_id', 'serial_number')
+                ->get()
+                ->groupBy('product_id');
+
+            foreach ($ist->details as $detail) {
+                $detail->item_serials = $serials->get($detail->product_id, collect())
+                    ->pluck('serial_number')
+                    ->values();
+            }
+
+            return $this->success($ist, 'IST receive form data retrieved');
+        } catch (\Exception $e) {
+            return $this->error('IST not found or not In Transit', 404);
+        }
+    }
+
+    /**
+     * Return receipt data (JSON) for a received IST.
+     */
+    public function receipt($id)
+    {
+        try {
+            $receivedId = $this->statusId('Received');
+
+            $ist = Transfer::with(array_merge(self::withRelations(), [
+                'transferTracking.recordedBy',
+                'receivedBy',
+            ]))->where('status_id', $receivedId)
+               ->findOrFail($id);
+
+            $serials = \App\Models\ItemSerial::where('transfer_id', $id)
+                ->select('product_id', 'serial_number')
+                ->get()
+                ->groupBy('product_id');
+
+            foreach ($ist->details as $detail) {
+                $detail->item_serials = $serials->get($detail->product_id, collect())
+                    ->pluck('serial_number')
+                    ->values();
+            }
+
+            return $this->success($ist, 'IST receipt data retrieved');
+        } catch (\Exception $e) {
+            return $this->error('IST not found or not yet received', 404);
+        }
+    }
+
+    /**
+     * Stream a PDF receipt for a received IST.
+     */
+    public function receiptPdf(\Illuminate\Http\Request $request, $id)
+    {
+        try {
+            $receivedId = $this->statusId('Received');
+
+            $ist = Transfer::with(array_merge(self::withRelations(), [
+                'receivedBy',
+                'transferTracking.recordedBy',
+            ]))->where('status_id', $receivedId)
+               ->findOrFail($id);
+
+            $serials = \App\Models\ItemSerial::where('transfer_id', $id)
+                ->select('product_id', 'serial_number')
+                ->get()
+                ->groupBy('product_id');
+
+            foreach ($ist->details as $detail) {
+                $detail->item_serials = $serials->get($detail->product_id, collect())
+                    ->pluck('serial_number')
+                    ->values();
+            }
+
+            $paperSize = strtolower((string) $request->query('paper_size', \App\Models\SystemSetting::pdfPaperSize()));
+            if (! in_array($paperSize, ['a4', 'letter', 'legal', 'a5'], true)) {
+                $paperSize = \App\Models\SystemSetting::pdfPaperSize();
+            }
+            $paperWidths = ['a4' => 595.28, 'letter' => 612, 'legal' => 612, 'a5' => 419.53];
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ist.receipt', [
+                'ist' => $ist,
+                'printable_width_pt' => $paperWidths[$paperSize] - 72,
+                'company' => [
+                    'name' => \App\Models\SystemSetting::companyName(),
+                    'address' => \App\Models\SystemSetting::companyAddress(),
+                    'email' => \App\Models\SystemSetting::companyEmail(),
+                    'phone' => \App\Models\SystemSetting::companyPhone(),
+                ],
+            ])->setPaper($paperSize, 'portrait');
+
+            $filename = 'IST-' . $ist->transfer_number . '.pdf';
+            return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function addTracking(Request $request, $id)
     {
         try {
@@ -455,5 +1194,13 @@ class TransferController extends Controller
         } catch (\Exception $e) {
             return $this->error('Failed to add tracking: ' . $e->getMessage(), 500);
         }
+    }
+
+    /** Pieces per package for a product; 0 for serialized items, which have no package concept. */
+    private function piecesPerPackageFor(?Product $product): int
+    {
+        return ($product && ! $product->isSerialized())
+            ? $product->getPiecesPerPackage()
+            : 0;
     }
 }

@@ -7,11 +7,50 @@ use Illuminate\Support\Facades\DB;
 class PermissionResolver
 {
     /**
+     * Permissions deliberately carved out of the admin structural bypass:
+     * PO verification is auditor-only by separation of duties, so the System
+     * Administrator does NOT get it automatically — only via a per-user
+     * override (see SeederTest + PoVerificationTest).
+     *
+     * @var array<int, string>  "feature.action"
+     */
+    private const ADMIN_BYPASS_EXCLUDED = [
+        'purchase_order_verification.verify',
+    ];
+
+    /**
      * Per-request memo: "feature.action" => permission_id
      *
      * @var array<string, int>
      */
     private array $permissionIdCache = [];
+
+    /**
+     * Per-request memo: user_id => is the user a System Administrator.
+     *
+     * @var array<int, bool>
+     */
+    private array $adminCache = [];
+
+    /**
+     * Whether the user's role is the System Administrator ('admin' slug).
+     *
+     * Admin is granted full access structurally (not via seeded rows), so
+     * permission toggles can never lock the administrator out of any page.
+     */
+    public function isAdmin(int $userId): bool
+    {
+        if (array_key_exists($userId, $this->adminCache)) {
+            return $this->adminCache[$userId];
+        }
+
+        $slug = DB::table('users')
+            ->join('roles', 'users.role_id', '=', 'roles.role_id')
+            ->where('users.user_id', $userId)
+            ->value('roles.role_name');
+
+        return $this->adminCache[$userId] = (strtolower((string) $slug) === 'admin');
+    }
 
     /**
      * Returns the permission_id for the given feature+action, or null if unknown.
@@ -45,6 +84,14 @@ class PermissionResolver
      */
     public function canUser(int $userId, string $feature, string $action): bool
     {
+        // System Administrator always has full access — guarantees toggles can
+        // never lock admin out of any page (including the permission editor) —
+        // EXCEPT verification actions carved out to auditor-only (admin can still
+        // self-grant those via a per-user override, so it's not a hard lockout).
+        if ($this->isAdmin($userId) && ! in_array("{$feature}.{$action}", self::ADMIN_BYPASS_EXCLUDED, true)) {
+            return true;
+        }
+
         $permId = $this->permissionId($feature, $action);
 
         if ($permId === null) {

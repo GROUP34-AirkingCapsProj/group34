@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\InsufficientBudgetException;
-use App\Exceptions\UnverifiedBudgetException;
+use App\Exceptions\NoActiveBudgetException;
 use App\Http\Controllers\Controller;
 use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
@@ -11,7 +11,9 @@ use App\Models\PurchaseOrderDetail;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestDetail;
 use App\Models\Supplier;
+use App\Models\Product;
 use App\Services\BudgetService;
+use App\Services\History\RecordHistoryService;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -36,9 +38,85 @@ class PurchaseRequestController extends Controller
         'budget',
         'convertedPO',
         'details.product.applianceDetail.brand',
-        'details.product.consumableDetail.unit',
+        'details.product.installationMaterialDetail.unit',
         'details.location',
     ];
+
+    /**
+     * Live low-stock list for the PR create form. Unlike the analytics report,
+     * this uses current inventory and does not require recommendation permissions.
+     */
+    public function lowStock(Request $request)
+    {
+        $validated = $request->validate([
+            'location_id' => 'required|integer|exists:locations,location_id',
+        ]);
+
+        $locationId = (int) $validated['location_id'];
+        $user = $request->user();
+        if (! $user->isCentralized() && (int) $user->scopedLocationId() !== $locationId) {
+            return $this->forbidden('You do not have access to this warehouse.');
+        }
+
+        $stockAtLocation = DB::table('inventory')
+            ->where('location_id', $locationId)
+            ->groupBy('product_id')
+            ->selectRaw('product_id, SUM(quantity_on_hand) as current_stock');
+
+        // Start from products, not inventory. A missing inventory row means the
+        // warehouse has zero of that product and is therefore out of stock.
+        $rows = Product::query()
+            ->where('recommended_stocks', '>', 0)
+            ->leftJoinSub($stockAtLocation, 'warehouse_stock', function ($join) {
+                $join->on('warehouse_stock.product_id', '=', 'products.product_id');
+            })
+            ->with('installationMaterialDetail')
+            ->select('products.*')
+            ->selectRaw('COALESCE(warehouse_stock.current_stock, 0) as current_stock')
+            ->get()
+            ->filter(function ($product) {
+                return (int) $product->current_stock < (int) $product->recommended_stocks;
+            })
+            ->map(function ($product) use ($locationId) {
+                $current = max(0, (int) $product->current_stock);
+                $target = max(1, (int) $product->recommended_stocks);
+                $needed = max(1, $target - $current);
+                $isMaterial = $product->product_type === 'installation_material';
+                $piecesPerPackage = $isMaterial
+                    ? max(1, (int) ($product->installationMaterialDetail?->pieces_per_package ?? 1))
+                    : 1;
+
+                return [
+                    'recommendation_id' => 'live-' . $locationId . '-' . $product->product_id,
+                    'product_id' => $product->product_id,
+                    'location_id' => $locationId,
+                    'current_stock' => $current,
+                    'recommended_quantity' => $needed,
+                    'priority' => $current === 0 ? 'CRITICAL' : 'HIGH',
+                    'reason_codes' => [$current === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'],
+                    'pieces_per_package' => $isMaterial ? $piecesPerPackage : null,
+                    'package_unit' => $isMaterial
+                        ? ($product->installationMaterialDetail?->package_unit ?: null)
+                        : null,
+                    'order_packages' => $isMaterial
+                        ? (int) ceil($needed / $piecesPerPackage)
+                        : null,
+                    'product' => [
+                        'product_id' => $product->product_id,
+                        'product_code' => $product->product_code,
+                        'product_name' => $product->product_name,
+                    ],
+                ];
+            })
+            ->sortBy([
+                fn ($a, $b) => ($a['priority'] === 'CRITICAL' ? 0 : 1)
+                    <=> ($b['priority'] === 'CRITICAL' ? 0 : 1),
+                fn ($a, $b) => $b['recommended_quantity'] <=> $a['recommended_quantity'],
+            ])
+            ->values();
+
+        return $this->success($rows, 'Live low-stock products retrieved');
+    }
 
     /**
      * IA sees their own PRs.
@@ -157,11 +235,33 @@ class PurchaseRequestController extends Controller
         return $this->success($pr, 'Purchase request retrieved');
     }
 
+    /** Curated lifecycle timeline for one PR: audit milestones + PO conversion. */
+    public function history($id, RecordHistoryService $history)
+    {
+        $pr = PurchaseRequest::with('convertedPO')->find($id);
+
+        $milestones = $history->forRecord('purchase_requests', (int) $id);
+
+        if ($pr && $pr->convertedPO) {
+            $milestones[] = [
+                'type'       => 'converted',
+                'label'      => 'Converted to PO ' . $pr->convertedPO->po_number,
+                'actor_name' => 'System',
+                'timestamp'  => $pr->convertedPO->created_at?->toIso8601String(),
+                'changes'    => [],
+            ];
+        }
+
+        usort($milestones, fn ($a, $b) => strcmp((string) $a['timestamp'], (string) $b['timestamp']));
+
+        return $this->success(array_values($milestones), 'Purchase request history retrieved');
+    }
+
     public function export(Request $request)
     {
         $prs = PurchaseRequest::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'details.location',
             'location',
             'supplier',
@@ -217,7 +317,7 @@ class PurchaseRequestController extends Controller
                 foreach ($pr->details as $i => $d) {
                     $p  = $d->product;
                     $ad = $p?->applianceDetail;
-                    $cd = $p?->consumableDetail;
+                    $cd = $p?->installationMaterialDetail;
 
                     fputcsv($handle, [
                         $pr->pr_number,
@@ -254,7 +354,7 @@ class PurchaseRequestController extends Controller
     {
         $p  = $detail->product;
         $ad = $p?->applianceDetail;
-        $cd = $p?->consumableDetail;
+        $cd = $p?->installationMaterialDetail;
 
         return [
             'pr_detail_id'       => $detail->pr_detail_id,
@@ -272,11 +372,11 @@ class PurchaseRequestController extends Controller
             'product_name'       => $p?->product_name,
             'product_type'       => $p?->product_type,
             'is_serialized'      => $p?->isSerialized() ?? false,
-            // Appliance (null for consumables)
+            // Appliance (null for installation materials)
             'brand_name'         => $ad?->brand?->brand_name,
             'capacity_rating'    => $ad?->capacity_rating,
             'variant'            => $ad?->variant,
-            // Consumable (null for appliances)
+            // Installation material (null for appliances)
             'unit_name'          => $cd?->unit?->unit_name,
             'unit_abbreviation'  => $cd?->unit?->unit_abbreviation,
             'pieces_per_package' => $cd?->pieces_per_package,
@@ -350,7 +450,7 @@ class PurchaseRequestController extends Controller
             $budget = $this->budgetService->resolveActiveBudget((int) $locId);
             $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
             if (!$budget) {
-                return $this->error("{$whName} has no verified active budget for today.", 422);
+                return $this->error("{$whName} has no active budget for today.", 422);
             }
             if (!$this->budgetService->hasAvailable($budget, $combined)) {
                 return $this->error(sprintf(
@@ -460,12 +560,8 @@ class PurchaseRequestController extends Controller
 
         try {
             DB::transaction(function () use ($pr, $request, $hasLineWarehouses) {
-                $pr->update([
-                    'status_id'    => 14,
-                    'approved_by'  => $request->user()->user_id,
-                    'approval_date'=> today(),
-                ]);
-
+                // Validate availability WITHOUT reserving — reservation now happens
+                // at PO approval. A PR is only a request.
                 if ($hasLineWarehouses) {
                     $groups = $pr->details->groupBy('location_id');
                     foreach ($groups as $locId => $lines) {
@@ -473,15 +569,32 @@ class PurchaseRequestController extends Controller
                         $budget = $this->budgetService->resolveActiveBudget((int) $locId);
                         if (!$budget) {
                             $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
-                            throw new UnverifiedBudgetException($whName ?? "warehouse #{$locId}", 'pending');
+                            throw new NoActiveBudgetException($whName ?? "warehouse #{$locId}");
                         }
-                        $this->budgetService->commitGroup($pr, $budget, $subtotal, $request->user()->user_id);
+                        if (!$this->budgetService->hasAvailable($budget, $subtotal)) {
+                            $available = (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent;
+                            throw new InsufficientBudgetException($budget->period_label, $subtotal, $available);
+                        }
                     }
                 } else {
-                    $this->budgetService->commit($pr, $request->user()->user_id);
+                    $budget = \App\Models\BudgetAllocation::find($pr->budget_id);
+                    if (!$budget) {
+                        $whName = \App\Models\Location::where('location_id', $pr->location_id)->value('location_name');
+                        throw new NoActiveBudgetException($whName ?? "warehouse #{$pr->location_id}");
+                    }
+                    if (!$this->budgetService->hasAvailable($budget, (float) $pr->estimated_total)) {
+                        $available = (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent;
+                        throw new InsufficientBudgetException($budget->period_label, (float) $pr->estimated_total, $available);
+                    }
                 }
+
+                $pr->update([
+                    'status_id'    => 14,
+                    'approved_by'  => $request->user()->user_id,
+                    'approval_date'=> today(),
+                ]);
             });
-        } catch (UnverifiedBudgetException $e) {
+        } catch (NoActiveBudgetException $e) {
             return $this->error($e->getMessage(), 422);
         } catch (InsufficientBudgetException $e) {
             return $this->error($e->getMessage(), 422);
@@ -545,7 +658,7 @@ class PurchaseRequestController extends Controller
     {
         $pr = PurchaseRequest::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'details.location',
             'location',
             'budget',
@@ -569,7 +682,7 @@ class PurchaseRequestController extends Controller
 
             $p  = $d->product;
             $ad = $p?->applianceDetail;
-            $cd = $p?->consumableDetail;
+            $cd = $p?->installationMaterialDetail;
 
             return [
                 'product_id'               => $d->product_id,
@@ -607,8 +720,8 @@ class PurchaseRequestController extends Controller
     }
 
     /**
-     * Archive (soft-delete) a PR. Approved/partially-converted PRs release
-     * their outstanding budget commitment back to available.
+     * Archive (soft-delete) a PR. PRs no longer hold budget reservations
+     * (reservation is PO-anchored), so archiving a PR is a plain soft-delete.
      */
     public function destroy(Request $request, $id)
     {
@@ -617,10 +730,7 @@ class PurchaseRequestController extends Controller
             return $this->notFound('Purchase request not found');
         }
 
-        DB::transaction(function () use ($pr, $request) {
-            $this->budgetService->releaseOutstanding($pr, 'PR archived', $request->user()?->user_id);
-            $pr->delete();
-        });
+        $pr->delete();
 
         $targets = $pr->details()->whereNotNull('location_id')->distinct()->pluck('location_id');
         if ($targets->isEmpty() && $pr->location_id) { $targets = collect([$pr->location_id]); }
@@ -785,7 +895,7 @@ class PurchaseRequestController extends Controller
             }
 
             $po->load(['supplier', 'location', 'status', 'purchaseRequest',
-                'details.product.applianceDetail.brand', 'details.product.consumableDetail.unit']);
+                'details.product.applianceDetail.brand', 'details.product.installationMaterialDetail.unit']);
             return $this->success($po, 'Purchase request converted to purchase order', 201);
         } catch (\Throwable $e) {
             return $this->error('Conversion failed: ' . $e->getMessage(), 500);

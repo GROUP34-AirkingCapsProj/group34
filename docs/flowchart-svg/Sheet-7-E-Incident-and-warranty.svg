@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="1250" viewBox="0 0 920 1250" role="img"
+           aria-label="Flowchart sheet 7. From connector E, enter incident details and photo evidence; the report is saved as open and the affected batches quarantined so they are excluded from FIFO. The inspector attaches evidence and sets an outcome per item, then the administrator decides. Rejection returns to the inspector, dismissal lifts the quarantine and returns to the menu, and confirmation applies each outcome. Outcomes that remove stock deduct the quantity; a warranty claim outcome creates a claim. The report is then set to resolved and flow returns to connector M.">
+  <style>
+    svg { background: #ffffff; }
+    .sym  { fill: #ffffff; stroke: #000000; stroke-width: 1.7; }
+    .flow { fill: none; stroke: #000000; stroke-width: 1.6; }
+    .jn   { fill: #000000; stroke: none; }
+    .mk   { fill: #000000; }
+    .t  { font-family: Arial, Helvetica, sans-serif; font-size: 12.5px; fill: #000000; text-anchor: middle; }
+    .tb { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .tc { font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 700; fill: #000000; text-anchor: middle; }
+    .yn { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; font-weight: 700; fill: #000000; }
+    .nt { font-family: Arial, Helvetica, sans-serif; font-size: 11px; fill: #555555; }
+  </style>
+
+        <defs>
+          <marker id="f7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="mk" d="M0,0 L10,5 L0,10 z"></path>
+          </marker>
+        </defs>
+
+        <circle class="sym" cx="280" cy="40" r="22"></circle>
+        <text class="tc" x="280" y="46">E</text>
+        <text class="nt" x="312" y="44">from Sheets 2, 4 and 5</text>
+
+        <line class="flow" x1="280" y1="62" x2="280" y2="94" marker-end="url(#f7)"></line>
+
+        <polygon class="sym" points="174,96 410,96 386,148 150,148"></polygon>
+        <text class="t" x="280" y="118">Enter incident details</text>
+        <text class="t" x="280" y="135">and photo evidence</text>
+
+        <line class="flow" x1="280" y1="148" x2="280" y2="178" marker-end="url(#f7)"></line>
+
+        <rect class="sym" x="150" y="180" width="260" height="64"></rect>
+        <text class="t" x="280" y="204">Save report — status = Open;</text>
+        <text class="t" x="280" y="221">quarantine affected batches</text>
+        <text class="t" x="280" y="238">(excluded from FIFO picking)</text>
+
+        <line class="flow" x1="280" y1="244" x2="280" y2="276" marker-end="url(#f7)"></line>
+
+        <rect class="sym" x="150" y="278" width="260" height="44"></rect>
+        <text class="t" x="280" y="305">Set Awaiting Inspection</text>
+
+        <line class="flow" x1="280" y1="322" x2="280" y2="354" marker-end="url(#f7)"></line>
+
+        <polygon class="sym" points="174,356 410,356 386,420 150,420"></polygon>
+        <text class="t" x="280" y="380">Inspector: attach evidence,</text>
+        <text class="t" x="280" y="397">set an outcome per item</text>
+
+        <line class="flow" x1="280" y1="420" x2="280" y2="452" marker-end="url(#f7)"></line>
+
+        <rect class="sym" x="150" y="454" width="260" height="44"></rect>
+        <text class="t" x="280" y="481">Set Awaiting Approval</text>
+
+        <line class="flow" x1="280" y1="498" x2="280" y2="530" marker-end="url(#f7)"></line>
+
+        <polygon class="sym" points="280,532 410,580 280,628 150,580"></polygon>
+        <text class="t" x="280" y="576">Administrator</text>
+        <text class="t" x="280" y="592">confirms?</text>
+
+        <path class="flow" d="M150,580 H70 V388 H164" marker-end="url(#f7)"></path>
+        <text class="yn" x="80" y="572">Reject</text>
+        <text class="nt" x="84" y="484" transform="rotate(-90 84 484)" text-anchor="middle">re-inspect</text>
+
+        <line class="flow" x1="410" y1="580" x2="508" y2="580" marker-end="url(#f7)"></line>
+        <text class="yn" x="424" y="572">Dismiss</text>
+
+        <rect class="sym" x="510" y="552" width="260" height="56"></rect>
+        <text class="t" x="640" y="576">Lift quarantine;</text>
+        <text class="t" x="640" y="593">set status = Dismissed</text>
+
+        <path class="flow" d="M770,580 H870 V1150 H304" marker-end="url(#f7)"></path>
+
+        <line class="flow" x1="280" y1="628" x2="280" y2="660" marker-end="url(#f7)"></line>
+        <text class="yn" x="292" y="650">Confirm</text>
+
+        <rect class="sym" x="150" y="662" width="260" height="56"></rect>
+        <text class="t" x="280" y="686">Apply each outcome to its</text>
+        <text class="t" x="280" y="703">item and set the item status</text>
+
+        <line class="flow" x1="280" y1="718" x2="280" y2="750" marker-end="url(#f7)"></line>
+
+        <polygon class="sym" points="280,752 410,800 280,848 150,800"></polygon>
+        <text class="t" x="280" y="796">Outcome removes</text>
+        <text class="t" x="280" y="812">the stock?</text>
+
+        <line class="flow" x1="410" y1="800" x2="508" y2="800" marker-end="url(#f7)"></line>
+        <text class="yn" x="432" y="792">Yes</text>
+
+        <rect class="sym" x="510" y="772" width="260" height="56"></rect>
+        <text class="t" x="640" y="796">Deduct quantity; append a</text>
+        <text class="t" x="640" y="813">batch movement record</text>
+
+        <path class="flow" d="M640,828 V872 H286" marker-end="url(#f7)"></path>
+        <text class="nt" x="522" y="866">return to supplier · scrap · write-off</text>
+
+        <line class="flow" x1="280" y1="848" x2="280" y2="886" marker-end="url(#f7)"></line>
+        <text class="yn" x="292" y="864">No</text>
+        <circle class="jn" cx="280" cy="872" r="4"></circle>
+
+        <polygon class="sym" points="280,888 410,936 280,984 150,936"></polygon>
+        <text class="t" x="280" y="932">Outcome is a</text>
+        <text class="t" x="280" y="948">warranty claim?</text>
+
+        <line class="flow" x1="410" y1="936" x2="508" y2="936" marker-end="url(#f7)"></line>
+        <text class="yn" x="432" y="928">Yes</text>
+
+        <rect class="sym" x="510" y="908" width="260" height="56"></rect>
+        <text class="t" x="640" y="932">Create warranty claim;</text>
+        <text class="t" x="640" y="949">unit held in the building</text>
+
+        <path class="flow" d="M640,964 V1008 H286" marker-end="url(#f7)"></path>
+
+        <line class="flow" x1="280" y1="984" x2="280" y2="1032" marker-end="url(#f7)"></line>
+        <text class="yn" x="292" y="1000">No</text>
+        <circle class="jn" cx="280" cy="1008" r="4"></circle>
+
+        <rect class="sym" x="150" y="1034" width="260" height="56"></rect>
+        <text class="t" x="280" y="1058">Set report status = Resolved;</text>
+        <text class="t" x="280" y="1075">write audit trail entry</text>
+
+        <line class="flow" x1="280" y1="1090" x2="280" y2="1126" marker-end="url(#f7)"></line>
+
+        <circle class="sym" cx="280" cy="1150" r="22"></circle>
+        <text class="tc" x="280" y="1156">M</text>
+        <text class="nt" x="312" y="1154">back to Sheet 2</text>
+      </svg>

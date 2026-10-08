@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { batchAPI, inventoryAPI } from '../../services/api';
+import { batchAPI } from '../../services/api';
 
 export const PALETTE = {
   crimson: '#dc143c', crimsonSoft: 'rgba(220,20,60,0.12)',
@@ -14,9 +14,8 @@ export const fmt = (n) => Number(n || 0).toLocaleString();
 export const isCentralizedRole = (user) => [1, 2, 5].includes(Number(user?.role?.role_id));
 
 /**
- * Fetches the (server-scoped) dashboard payload plus an inventory list.
- * Scoped roles request inventory for their own location only; centralized
- * roles request unfiltered (capped) inventory.
+ * Fetches the (server-scoped) dashboard payload only.
+ * KPI counts come from dashboard stats / chart series — no 300-row inventory dump.
  */
 export function useRoleDashboard() {
   const { user: _user } = useAuth();
@@ -25,7 +24,6 @@ export function useRoleDashboard() {
   const locationId = centralized ? null : (user?.location?.location_id ?? null);
 
   const [data, setData] = useState(null);
-  const [inv, setInv] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -33,20 +31,10 @@ export function useRoleDashboard() {
     let alive = true;
     (async () => {
       try {
-        const invParams = { per_page: 300, ...(locationId ? { location_id: locationId } : {}) };
-        const [dashRes, invRes] = await Promise.allSettled([
-          batchAPI.get({ include: ['dashboard'] }),
-          inventoryAPI.getAll(invParams),
-        ]);
+        const dashRes = await batchAPI.get({ include: ['dashboard'] });
         if (!alive) return;
-        if (dashRes.status === 'fulfilled') {
-          const d = dashRes.value?.data?.dashboard ?? null;
-          setData(d && d.success === false ? null : d);
-        }
-        if (invRes.status === 'fulfilled') {
-          const items = invRes.value?.data ?? invRes.value?.inventory ?? [];
-          setInv(Array.isArray(items) ? items : []);
-        }
+        const d = dashRes?.data?.dashboard ?? null;
+        setData(d && d.success === false ? null : d);
       } catch (e) {
         if (alive) setError(e.message || 'Failed to load dashboard.');
       } finally {
@@ -56,7 +44,15 @@ export function useRoleDashboard() {
     return () => { alive = false; };
   }, [locationId]);
 
-  return { user, centralized, locationName: user?.location?.location_name || user?.branch?.branch_name || 'All Locations', data, inv, loading, error };
+  return {
+    user,
+    centralized,
+    locationName: user?.location?.location_name || user?.branch?.branch_name || 'All Locations',
+    data,
+    inv: [],
+    loading,
+    error,
+  };
 }
 
 /** A single KPI stat card using the ak- design system. */
@@ -76,7 +72,7 @@ export function Kpi({ label, value, icon, tone = 'crimson' }) {
 
 export const baseChartOptions = {
   responsive: true, maintainAspectRatio: false,
-  plugins: { legend: { display: false }, tooltip: { backgroundColor: '#14181f', padding: 10, cornerRadius: 8 } },
+  plugins: { legend: { display: false }, tooltip: { backgroundColor: 'var(--fill-blue-900)', padding: 10, cornerRadius: 8 } },
   scales: {
     x: { grid: { display: false }, ticks: { color: PALETTE.ink, font: { size: 11 } } },
     y: { grid: { color: PALETTE.grid }, ticks: { color: PALETTE.ink, font: { size: 11 } }, beginAtZero: true },

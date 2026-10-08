@@ -1,80 +1,72 @@
 {
-  "name": "frontend",
-  "version": "0.1.0",
-  "private": true,
-  "proxy": "http://127.0.0.1:8000",
-  "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/material": "^7.3.9",
-    "@supabase/supabase-js": "^2.101.1",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.1",
-    "@testing-library/user-event": "^13.5.0",
-    "@zxing/browser": "^0.1.5",
-    "@zxing/library": "^0.21.3",
-    "chart.js": "^4.5.1",
-    "chartjs-plugin-datalabels": "^2.2.0",
-    "html5-qrcode": "^2.3.8",
-    "jspdf": "^4.2.1",
-    "jspdf-autotable": "^5.0.7",
-    "laravel-echo": "^2.3.7",
-    "pusher-js": "^8.5.0",
-    "react": "^19.2.3",
-    "react-barcode": "^1.6.1",
-    "react-chartjs-2": "^5.3.1",
-    "react-dom": "^19.2.3",
-    "react-hot-toast": "^2.6.0",
-    "react-router-dom": "^7.12.0",
-    "react-scripts": "5.0.1",
-    "sweetalert2": "^11.26.18",
-    "tailwindcss": "^4.2.2",
-    "vite-plugin-pwa": "^1.2.0",
-    "web-vitals": "^2.1.4",
-    "workbox-webpack-plugin": "^7.4.0",
-    "xlsx": "^0.18.5",
-    "zustand": "^5.0.12"
-  },
-  "scripts": {
-    "start": "react-scripts start",
-    "start:lan": "cross-env HOST=0.0.0.0 DANGEROUSLY_DISABLE_HOST_CHECK=true react-scripts start",
-    "build": "cross-env GENERATE_SOURCEMAP=false react-scripts build",
-    "serve:build": "npx --yes serve -s build -l 5000",
-    "serve:build:lan": "npx --yes serve -s build -l 5000 --no-clipboard",
-    "demo": "npm run build && npm run serve:build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "dev": "concurrently -k -n api,reverb,web -c \"#93c5fd,#fb7185,#86efac\" \"cd ../back-end && php artisan serve --host=0.0.0.0 --port=8000\" \"cd ../back-end && php artisan reverb:start --host=0.0.0.0 --port=8080\" \"npm start\"",
-    "dev:lan": "concurrently -k -n api,reverb,web -c \"#93c5fd,#fb7185,#86efac\" \"cd ../back-end && php artisan serve --host=0.0.0.0 --port=8000\" \"cd ../back-end && php artisan reverb:start --host=0.0.0.0 --port=8080\" \"npm run start:lan\""
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "devDependencies": {
-    "concurrently": "^9.1.0",
-    "cross-env": "^7.0.3"
-  },
-  "jest": {
-    "moduleNameMapper": {
-      "^react-router-dom$": "<rootDir>/node_modules/react-router-dom/dist/index.js",
-      "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js",
-      "^react-router$": "<rootDir>/node_modules/react-router/dist/development/index.js"
+    "name": "frontend",
+    "version": "0.1.0",
+    "private": true,
+    "dependencies": {
+        "@emotion/react": "^11.14.0",
+        "@emotion/styled": "^11.14.1",
+        "@mui/material": "^7.3.9",
+        "@supabase/supabase-js": "^2.101.1",
+        "@testing-library/dom": "^10.4.1",
+        "@testing-library/jest-dom": "^6.9.1",
+        "@testing-library/react": "^16.3.1",
+        "@testing-library/user-event": "^13.5.0",
+        "@zxing/browser": "^0.1.5",
+        "@zxing/library": "^0.21.3",
+        "chart.js": "^4.5.1",
+        "chartjs-plugin-datalabels": "^2.2.0",
+        "html5-qrcode": "^2.3.8",
+        "jspdf": "^4.2.1",
+        "jspdf-autotable": "^5.0.7",
+        "laravel-echo": "^2.3.7",
+        "pusher-js": "^8.5.0",
+        "react": "^19.2.3",
+        "react-barcode": "^1.6.1",
+        "react-chartjs-2": "^5.3.1",
+        "react-dom": "^19.2.3",
+        "react-hot-toast": "^2.6.0",
+        "react-router-dom": "^7.12.0",
+        "sweetalert2": "^11.26.18",
+        "web-vitals": "^2.1.4",
+        "xlsx": "^0.18.5",
+        "zustand": "^5.0.12"
+    },
+    "scripts": {
+        "start": "vite",
+        "start:lan": "vite --host 0.0.0.0",
+        "build": "vite build",
+        "serve:build": "npx --yes serve -s build -l 5000",
+        "serve:build:lan": "npx --yes serve -s build -l 5000 --no-clipboard",
+        "demo": "npm run build && npm run serve:build",
+        "test": "jest",
+        "dev": "concurrently -k -n api,reverb,web -c \"#93c5fd,#fb7185,#86efac\" \"cd ../back-end && php artisan serve --host=0.0.0.0 --port=8000\" \"cd ../back-end && php artisan reverb:start --host=0.0.0.0 --port=8080\" \"npm start\"",
+        "dev:lan": "concurrently -k -n api,reverb,web -c \"#93c5fd,#fb7185,#86efac\" \"cd ../back-end && php artisan serve --host=0.0.0.0 --port=8000\" \"cd ../back-end && php artisan reverb:start --host=0.0.0.0 --port=8080\" \"npm run start:lan\"",
+        "preview": "vite preview --port 5000",
+        "test:watch": "jest --watch"
+    },
+    "devDependencies": {
+        "@babel/core": "^8.0.6",
+        "@babel/preset-env": "^8.0.6",
+        "@babel/preset-react": "^8.0.1",
+        "@vitejs/plugin-react": "^6.1.1",
+        "babel-jest": "^30.5.2",
+        "concurrently": "^9.1.0",
+        "cross-env": "^7.0.3",
+        "jest": "^30.5.2",
+        "jest-environment-jsdom": "^30.5.2",
+        "vite": "^8.3.1",
+        "whatwg-fetch": "^3.6.20"
+    },
+    "browserslist": {
+        "production": [
+            ">0.2%",
+            "not dead",
+            "not op_mini all"
+        ],
+        "development": [
+            "last 1 chrome version",
+            "last 1 firefox version",
+            "last 1 safari version"
+        ]
     }
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  }
 }

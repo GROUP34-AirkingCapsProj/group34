@@ -11,18 +11,16 @@ import '../styles/role_dashboards.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
-const qtyOf = (i) => Number(i.quantity_on_hand ?? i.quantity ?? 0);
-
 export default function BranchManagerDashboard() {
   const navigate = useNavigate();
-  const { locationName, data, inv, loading, error } = useRoleDashboard();
+  const { locationName, data, loading, error } = useRoleDashboard();
 
   if (loading) return <AdminLayout><Loader variant="page" label="Loading branch data" /></AdminLayout>;
   if (error)   return <AdminLayout><div className="rd-error"><p>{error}</p><button onClick={() => window.location.reload()}>Retry</button></div></AdminLayout>;
 
   const stats = data?.stats ?? {};
-  const skus = inv.filter((i) => qtyOf(i) > 0).length;
-  const units = inv.reduce((s, i) => s + qtyOf(i), 0);
+  const skus = Number(stats.total_items ?? 0);
+  const units = (data?.inventory_by_category?.values ?? []).reduce((s, v) => s + Number(v || 0), 0);
   const pendingApprovals = Number(stats.pending_pos || 0) + Number(stats.pending_transfers || 0);
   const lowStockItems = data?.low_stock_items ?? [];
   const tt = data?.transaction_trends ?? { labels: [], values: [], purchase_values: [] };

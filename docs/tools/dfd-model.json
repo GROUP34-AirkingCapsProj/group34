@@ -1,0 +1,1631 @@
+[
+ {
+  "name": "Context Diagram",
+  "nodes": [
+   {
+    "id": "n0",
+    "kind": "entity",
+    "label": "Branch Staff (requester)",
+    "x": 60.0,
+    "y": 110.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n1",
+    "kind": "entity",
+    "label": "Branch Manager",
+    "x": 60.0,
+    "y": 320.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n2",
+    "kind": "entity",
+    "label": "Warehouse Personnel",
+    "x": 60.0,
+    "y": 530.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n3",
+    "kind": "entity",
+    "label": "Supplier",
+    "x": 1010.0,
+    "y": 110.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n4",
+    "kind": "entity",
+    "label": "Customer",
+    "x": 1010.0,
+    "y": 320.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n5",
+    "kind": "entity",
+    "label": "Administrator",
+    "x": 1010.0,
+    "y": 530.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n6",
+    "kind": "entity",
+    "label": "Auditor",
+    "x": 535.0,
+    "y": 740.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n7",
+    "kind": "process",
+    "label": "0|Airking Inventory and Procurement System",
+    "x": 470.0,
+    "y": 330.0,
+    "w": 320.0,
+    "h": 170.0
+   }
+  ],
+  "edges": [
+   {
+    "id": "f0",
+    "label": "purchase request, stock enquiry",
+    "src": "n0",
+    "tgt": "n7"
+   },
+   {
+    "id": "f1",
+    "label": "request status, availability",
+    "src": "n7",
+    "tgt": "n0"
+   },
+   {
+    "id": "f2",
+    "label": "approval or rejection",
+    "src": "n1",
+    "tgt": "n7"
+   },
+   {
+    "id": "f3",
+    "label": "pending approvals, budget utilisation",
+    "src": "n7",
+    "tgt": "n1"
+   },
+   {
+    "id": "f4",
+    "label": "scanned barcodes, counted quantities",
+    "src": "n2",
+    "tgt": "n7"
+   },
+   {
+    "id": "f5",
+    "label": "pick list, goods received note, labels",
+    "src": "n7",
+    "tgt": "n2"
+   },
+   {
+    "id": "f6",
+    "label": "delivered goods, delivery note",
+    "src": "n3",
+    "tgt": "n7"
+   },
+   {
+    "id": "f7",
+    "label": "purchase order, return notice",
+    "src": "n7",
+    "tgt": "n3"
+   },
+   {
+    "id": "f8",
+    "label": "order details, warranty claim",
+    "src": "n4",
+    "tgt": "n7"
+   },
+   {
+    "id": "f9",
+    "label": "quotation, delivery receipt, claim outcome",
+    "src": "n7",
+    "tgt": "n4"
+   },
+   {
+    "id": "f10",
+    "label": "budget allocation, user setup, incident decision",
+    "src": "n5",
+    "tgt": "n7"
+   },
+   {
+    "id": "f11",
+    "label": "stock and budget alerts, incident reports",
+    "src": "n7",
+    "tgt": "n5"
+   },
+   {
+    "id": "f12",
+    "label": "report request",
+    "src": "n6",
+    "tgt": "n7"
+   },
+   {
+    "id": "f13",
+    "label": "reports, audit trail",
+    "src": "n7",
+    "tgt": "n6"
+   }
+  ]
+ },
+ {
+  "name": "Level 1 Data Flow Diagram",
+  "nodes": [
+   {
+    "id": "n0",
+    "kind": "entity",
+    "label": "Branch Staff (requester)",
+    "x": 40.0,
+    "y": 70.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n1",
+    "kind": "entity",
+    "label": "Branch Manager",
+    "x": 40.0,
+    "y": 166.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n2",
+    "kind": "entity",
+    "label": "Warehouse Personnel",
+    "x": 40.0,
+    "y": 262.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n3",
+    "kind": "entity",
+    "label": "Supplier",
+    "x": 40.0,
+    "y": 358.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n4",
+    "kind": "entity",
+    "label": "Customer",
+    "x": 40.0,
+    "y": 454.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n5",
+    "kind": "entity",
+    "label": "Administrator",
+    "x": 40.0,
+    "y": 550.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n6",
+    "kind": "entity",
+    "label": "Auditor",
+    "x": 40.0,
+    "y": 646.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n7",
+    "kind": "process",
+    "label": "1.0|Manage Users and Access",
+    "x": 430.0,
+    "y": 70.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n8",
+    "kind": "process",
+    "label": "2.0|Process Procurement",
+    "x": 430.0,
+    "y": 194.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n9",
+    "kind": "process",
+    "label": "3.0|Receive Deliveries",
+    "x": 430.0,
+    "y": 318.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n10",
+    "kind": "process",
+    "label": "4.0|Maintain Inventory",
+    "x": 430.0,
+    "y": 442.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n11",
+    "kind": "process",
+    "label": "5.0|Issue Stock and Sales",
+    "x": 430.0,
+    "y": 566.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n12",
+    "kind": "process",
+    "label": "6.0|Transfer Stock Between Branches",
+    "x": 430.0,
+    "y": 690.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n13",
+    "kind": "process",
+    "label": "7.0|Handle Incidents and Warranty",
+    "x": 430.0,
+    "y": 814.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n14",
+    "kind": "process",
+    "label": "8.0|Generate Reports and Audit",
+    "x": 430.0,
+    "y": 938.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n15",
+    "kind": "store",
+    "label": "D1 Users and Permissions",
+    "x": 900.0,
+    "y": 70.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n16",
+    "kind": "store",
+    "label": "D2 Product Catalogue",
+    "x": 900.0,
+    "y": 150.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n17",
+    "kind": "store",
+    "label": "D3 Budget Ledger",
+    "x": 900.0,
+    "y": 230.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n18",
+    "kind": "store",
+    "label": "D4 Purchase Requests and Orders",
+    "x": 900.0,
+    "y": 310.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n19",
+    "kind": "store",
+    "label": "D5 Receiving Records",
+    "x": 900.0,
+    "y": 390.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n20",
+    "kind": "store",
+    "label": "D6 Inventory and Batches",
+    "x": 900.0,
+    "y": 470.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n21",
+    "kind": "store",
+    "label": "D7 Issuances and Sales",
+    "x": 900.0,
+    "y": 550.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n22",
+    "kind": "store",
+    "label": "D8 Transfers",
+    "x": 900.0,
+    "y": 630.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n23",
+    "kind": "store",
+    "label": "D9 Incidents and Warranty",
+    "x": 900.0,
+    "y": 710.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n24",
+    "kind": "store",
+    "label": "D10 Audit and Activity Log",
+    "x": 900.0,
+    "y": 790.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n25",
+    "kind": "store",
+    "label": "D11 Reference Data",
+    "x": 900.0,
+    "y": 870.0,
+    "w": 330.0,
+    "h": 52.0
+   }
+  ],
+  "edges": [
+   {
+    "id": "f0",
+    "label": "user and role setup",
+    "src": "n5",
+    "tgt": "n7"
+   },
+   {
+    "id": "f1",
+    "label": "credentials, permissions",
+    "src": "n7",
+    "tgt": "n15"
+   },
+   {
+    "id": "f2",
+    "label": "role and overrides",
+    "src": "n15",
+    "tgt": "n7"
+   },
+   {
+    "id": "f3",
+    "label": "purchase request",
+    "src": "n0",
+    "tgt": "n8"
+   },
+   {
+    "id": "f4",
+    "label": "approval decision",
+    "src": "n1",
+    "tgt": "n8"
+   },
+   {
+    "id": "f5",
+    "label": "available balance",
+    "src": "n17",
+    "tgt": "n8"
+   },
+   {
+    "id": "f6",
+    "label": "commit / release",
+    "src": "n8",
+    "tgt": "n17"
+   },
+   {
+    "id": "f7",
+    "label": "request and order",
+    "src": "n8",
+    "tgt": "n18"
+   },
+   {
+    "id": "f8",
+    "label": "product and supplier",
+    "src": "n16",
+    "tgt": "n8"
+   },
+   {
+    "id": "f9",
+    "label": "purchase order",
+    "src": "n8",
+    "tgt": "n3"
+   },
+   {
+    "id": "f10",
+    "label": "delivery note, goods",
+    "src": "n3",
+    "tgt": "n9"
+   },
+   {
+    "id": "f11",
+    "label": "scanned items, counts",
+    "src": "n2",
+    "tgt": "n9"
+   },
+   {
+    "id": "f12",
+    "label": "expected quantities",
+    "src": "n18",
+    "tgt": "n9"
+   },
+   {
+    "id": "f13",
+    "label": "draft, then posted receipt",
+    "src": "n9",
+    "tgt": "n19"
+   },
+   {
+    "id": "f14",
+    "label": "new batch, serials",
+    "src": "n9",
+    "tgt": "n20"
+   },
+   {
+    "id": "f15",
+    "label": "spend",
+    "src": "n9",
+    "tgt": "n17"
+   },
+   {
+    "id": "f16",
+    "label": "goods received note, labels",
+    "src": "n9",
+    "tgt": "n2"
+   },
+   {
+    "id": "f17",
+    "label": "adjusted quantity",
+    "src": "n10",
+    "tgt": "n20"
+   },
+   {
+    "id": "f18",
+    "label": "stock levels",
+    "src": "n20",
+    "tgt": "n10"
+   },
+   {
+    "id": "f19",
+    "label": "low-stock alert",
+    "src": "n10",
+    "tgt": "n5"
+   },
+   {
+    "id": "f20",
+    "label": "order details",
+    "src": "n4",
+    "tgt": "n11"
+   },
+   {
+    "id": "f21",
+    "label": "pick scan",
+    "src": "n2",
+    "tgt": "n11"
+   },
+   {
+    "id": "f22",
+    "label": "FIFO batch suggestion",
+    "src": "n20",
+    "tgt": "n11"
+   },
+   {
+    "id": "f23",
+    "label": "deduction, reservation",
+    "src": "n11",
+    "tgt": "n20"
+   },
+   {
+    "id": "f24",
+    "label": "issuance, sale",
+    "src": "n11",
+    "tgt": "n21"
+   },
+   {
+    "id": "f25",
+    "label": "quotation, delivery receipt",
+    "src": "n11",
+    "tgt": "n4"
+   },
+   {
+    "id": "f26",
+    "label": "transfer approval",
+    "src": "n1",
+    "tgt": "n12"
+   },
+   {
+    "id": "f27",
+    "label": "transfer record",
+    "src": "n12",
+    "tgt": "n22"
+   },
+   {
+    "id": "f28",
+    "label": "dispatch and receipt",
+    "src": "n12",
+    "tgt": "n20"
+   },
+   {
+    "id": "f29",
+    "label": "incident report",
+    "src": "n2",
+    "tgt": "n13"
+   },
+   {
+    "id": "f30",
+    "label": "inspection decision",
+    "src": "n5",
+    "tgt": "n13"
+   },
+   {
+    "id": "f31",
+    "label": "incident, claim",
+    "src": "n13",
+    "tgt": "n23"
+   },
+   {
+    "id": "f32",
+    "label": "quarantine, write-off",
+    "src": "n13",
+    "tgt": "n20"
+   },
+   {
+    "id": "f33",
+    "label": "warranty claim",
+    "src": "n4",
+    "tgt": "n13"
+   },
+   {
+    "id": "f34",
+    "label": "claim outcome",
+    "src": "n13",
+    "tgt": "n4"
+   },
+   {
+    "id": "f35",
+    "label": "activity history",
+    "src": "n24",
+    "tgt": "n14"
+   },
+   {
+    "id": "f36",
+    "label": "sales figures",
+    "src": "n21",
+    "tgt": "n14"
+   },
+   {
+    "id": "f37",
+    "label": "reports, audit trail",
+    "src": "n14",
+    "tgt": "n6"
+   },
+   {
+    "id": "f38",
+    "label": "report run record",
+    "src": "n14",
+    "tgt": "n24"
+   }
+  ]
+ },
+ {
+  "name": "Level 2 - Process 2.0 Procurement",
+  "nodes": [
+   {
+    "id": "n0",
+    "kind": "entity",
+    "label": "Branch Staff (requester)",
+    "x": 40.0,
+    "y": 70.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n1",
+    "kind": "entity",
+    "label": "Branch Manager",
+    "x": 40.0,
+    "y": 166.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n2",
+    "kind": "entity",
+    "label": "Supplier",
+    "x": 40.0,
+    "y": 262.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n3",
+    "kind": "entity",
+    "label": "Administrator",
+    "x": 40.0,
+    "y": 358.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n4",
+    "kind": "process",
+    "label": "2.1|Encode Purchase Request",
+    "x": 430.0,
+    "y": 70.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n5",
+    "kind": "process",
+    "label": "2.2|Check Budget Availability",
+    "x": 430.0,
+    "y": 194.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n6",
+    "kind": "process",
+    "label": "2.3|Approve or Reject Request",
+    "x": 430.0,
+    "y": 318.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n7",
+    "kind": "process",
+    "label": "2.4|Create Purchase Order",
+    "x": 430.0,
+    "y": 442.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n8",
+    "kind": "process",
+    "label": "2.5|Commit Budget and Notify",
+    "x": 430.0,
+    "y": 566.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n9",
+    "kind": "process",
+    "label": "2.6|Process Purchase Return",
+    "x": 430.0,
+    "y": 690.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n10",
+    "kind": "store",
+    "label": "D2 Product Catalogue",
+    "x": 900.0,
+    "y": 70.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n11",
+    "kind": "store",
+    "label": "D3 Budget Ledger",
+    "x": 900.0,
+    "y": 150.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n12",
+    "kind": "store",
+    "label": "D4 Purchase Requests and Orders",
+    "x": 900.0,
+    "y": 230.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n13",
+    "kind": "store",
+    "label": "D5 Receiving Records",
+    "x": 900.0,
+    "y": 310.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n14",
+    "kind": "store",
+    "label": "D10 Audit and Activity Log",
+    "x": 900.0,
+    "y": 390.0,
+    "w": 330.0,
+    "h": 52.0
+   }
+  ],
+  "edges": [
+   {
+    "id": "f0",
+    "label": "items, quantities, branch",
+    "src": "n0",
+    "tgt": "n4"
+   },
+   {
+    "id": "f1",
+    "label": "product and price",
+    "src": "n10",
+    "tgt": "n4"
+   },
+   {
+    "id": "f2",
+    "label": "request total",
+    "src": "n4",
+    "tgt": "n5"
+   },
+   {
+    "id": "f3",
+    "label": "allocation balance",
+    "src": "n11",
+    "tgt": "n5"
+   },
+   {
+    "id": "f4",
+    "label": "budget verdict",
+    "src": "n5",
+    "tgt": "n6"
+   },
+   {
+    "id": "f5",
+    "label": "insufficient budget notice",
+    "src": "n5",
+    "tgt": "n0"
+   },
+   {
+    "id": "f6",
+    "label": "approval decision",
+    "src": "n1",
+    "tgt": "n6"
+   },
+   {
+    "id": "f7",
+    "label": "request status",
+    "src": "n6",
+    "tgt": "n12"
+   },
+   {
+    "id": "f8",
+    "label": "approved lines",
+    "src": "n6",
+    "tgt": "n7"
+   },
+   {
+    "id": "f9",
+    "label": "purchase order",
+    "src": "n7",
+    "tgt": "n12"
+   },
+   {
+    "id": "f10",
+    "label": "purchase order",
+    "src": "n7",
+    "tgt": "n2"
+   },
+   {
+    "id": "f11",
+    "label": "order total",
+    "src": "n7",
+    "tgt": "n8"
+   },
+   {
+    "id": "f12",
+    "label": "commit entry",
+    "src": "n8",
+    "tgt": "n11"
+   },
+   {
+    "id": "f13",
+    "label": "80% utilisation alert",
+    "src": "n8",
+    "tgt": "n3"
+   },
+   {
+    "id": "f14",
+    "label": "audit entry",
+    "src": "n8",
+    "tgt": "n14"
+   },
+   {
+    "id": "f15",
+    "label": "received quantities",
+    "src": "n13",
+    "tgt": "n9"
+   },
+   {
+    "id": "f16",
+    "label": "return notice",
+    "src": "n9",
+    "tgt": "n2"
+   },
+   {
+    "id": "f17",
+    "label": "release entry",
+    "src": "n9",
+    "tgt": "n11"
+   }
+  ]
+ },
+ {
+  "name": "Level 2 - Process 3.0 Receiving",
+  "nodes": [
+   {
+    "id": "n0",
+    "kind": "entity",
+    "label": "Supplier",
+    "x": 40.0,
+    "y": 70.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n1",
+    "kind": "entity",
+    "label": "Warehouse Personnel",
+    "x": 40.0,
+    "y": 166.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n2",
+    "kind": "entity",
+    "label": "Administrator",
+    "x": 40.0,
+    "y": 262.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n3",
+    "kind": "process",
+    "label": "3.1|Create Receiving Draft",
+    "x": 430.0,
+    "y": 70.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n4",
+    "kind": "process",
+    "label": "3.2|Scan or Count Delivered Items",
+    "x": 430.0,
+    "y": 194.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n5",
+    "kind": "process",
+    "label": "3.3|Validate Against Order Line",
+    "x": 430.0,
+    "y": 318.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n6",
+    "kind": "process",
+    "label": "3.4|Post Draft to Inventory",
+    "x": 430.0,
+    "y": 442.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n7",
+    "kind": "process",
+    "label": "3.5|Update Order and Spend Budget",
+    "x": 430.0,
+    "y": 566.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n8",
+    "kind": "process",
+    "label": "3.6|Print GRN and Labels",
+    "x": 430.0,
+    "y": 690.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n9",
+    "kind": "store",
+    "label": "D3 Budget Ledger",
+    "x": 900.0,
+    "y": 70.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n10",
+    "kind": "store",
+    "label": "D4 Purchase Requests and Orders",
+    "x": 900.0,
+    "y": 150.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n11",
+    "kind": "store",
+    "label": "D5 Receiving Records",
+    "x": 900.0,
+    "y": 230.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n12",
+    "kind": "store",
+    "label": "D6 Inventory and Batches",
+    "x": 900.0,
+    "y": 310.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n13",
+    "kind": "store",
+    "label": "D9 Incidents and Warranty",
+    "x": 900.0,
+    "y": 390.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n14",
+    "kind": "store",
+    "label": "D10 Audit and Activity Log",
+    "x": 900.0,
+    "y": 470.0,
+    "w": 330.0,
+    "h": 52.0
+   }
+  ],
+  "edges": [
+   {
+    "id": "f0",
+    "label": "delivery note",
+    "src": "n0",
+    "tgt": "n3"
+   },
+   {
+    "id": "f1",
+    "label": "open order lines",
+    "src": "n10",
+    "tgt": "n3"
+   },
+   {
+    "id": "f2",
+    "label": "empty draft",
+    "src": "n3",
+    "tgt": "n11"
+   },
+   {
+    "id": "f3",
+    "label": "barcode scan, counted quantity",
+    "src": "n1",
+    "tgt": "n4"
+   },
+   {
+    "id": "f4",
+    "label": "scanned line",
+    "src": "n4",
+    "tgt": "n5"
+   },
+   {
+    "id": "f5",
+    "label": "expected product and quantity",
+    "src": "n10",
+    "tgt": "n5"
+   },
+   {
+    "id": "f6",
+    "label": "discrepancy incident",
+    "src": "n5",
+    "tgt": "n13"
+   },
+   {
+    "id": "f7",
+    "label": "staged row",
+    "src": "n5",
+    "tgt": "n11"
+   },
+   {
+    "id": "f8",
+    "label": "submit draft",
+    "src": "n4",
+    "tgt": "n6"
+   },
+   {
+    "id": "f9",
+    "label": "all staged rows",
+    "src": "n11",
+    "tgt": "n6"
+   },
+   {
+    "id": "f10",
+    "label": "batch, serials, tags",
+    "src": "n6",
+    "tgt": "n12"
+   },
+   {
+    "id": "f11",
+    "label": "posted quantities",
+    "src": "n6",
+    "tgt": "n7"
+   },
+   {
+    "id": "f12",
+    "label": "partially received / completed",
+    "src": "n7",
+    "tgt": "n10"
+   },
+   {
+    "id": "f13",
+    "label": "spend entry",
+    "src": "n7",
+    "tgt": "n9"
+   },
+   {
+    "id": "f14",
+    "label": "audit entry",
+    "src": "n7",
+    "tgt": "n14"
+   },
+   {
+    "id": "f15",
+    "label": "posted receipt",
+    "src": "n6",
+    "tgt": "n8"
+   },
+   {
+    "id": "f16",
+    "label": "goods received note, barcode labels",
+    "src": "n8",
+    "tgt": "n1"
+   }
+  ]
+ },
+ {
+  "name": "Level 2 - Process 5.0 Issuance",
+  "nodes": [
+   {
+    "id": "n0",
+    "kind": "entity",
+    "label": "Customer",
+    "x": 40.0,
+    "y": 70.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n1",
+    "kind": "entity",
+    "label": "Warehouse Personnel",
+    "x": 40.0,
+    "y": 166.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n2",
+    "kind": "process",
+    "label": "5.1|Build Quote from Sets or Lines",
+    "x": 430.0,
+    "y": 70.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n3",
+    "kind": "process",
+    "label": "5.2|Confirm Quote and Reserve Stock",
+    "x": 430.0,
+    "y": 194.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n4",
+    "kind": "process",
+    "label": "5.3|Suggest FIFO Pick Order",
+    "x": 430.0,
+    "y": 318.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n5",
+    "kind": "process",
+    "label": "5.4|Scan and Pick Items",
+    "x": 430.0,
+    "y": 442.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n6",
+    "kind": "process",
+    "label": "5.5|Complete Issuance and Deduct Stock",
+    "x": 430.0,
+    "y": 566.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n7",
+    "kind": "process",
+    "label": "5.6|Record Warranty and Print Receipt",
+    "x": 430.0,
+    "y": 690.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n8",
+    "kind": "store",
+    "label": "D2 Product Catalogue",
+    "x": 900.0,
+    "y": 70.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n9",
+    "kind": "store",
+    "label": "D6 Inventory and Batches",
+    "x": 900.0,
+    "y": 150.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n10",
+    "kind": "store",
+    "label": "D7 Issuances and Sales",
+    "x": 900.0,
+    "y": 230.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n11",
+    "kind": "store",
+    "label": "D9 Incidents and Warranty",
+    "x": 900.0,
+    "y": 310.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n12",
+    "kind": "store",
+    "label": "D10 Audit and Activity Log",
+    "x": 900.0,
+    "y": 390.0,
+    "w": 330.0,
+    "h": 52.0
+   }
+  ],
+  "edges": [
+   {
+    "id": "f0",
+    "label": "requested items",
+    "src": "n0",
+    "tgt": "n2"
+   },
+   {
+    "id": "f1",
+    "label": "product set, price",
+    "src": "n8",
+    "tgt": "n2"
+   },
+   {
+    "id": "f2",
+    "label": "draft issuance",
+    "src": "n2",
+    "tgt": "n10"
+   },
+   {
+    "id": "f3",
+    "label": "confirmed lines",
+    "src": "n2",
+    "tgt": "n3"
+   },
+   {
+    "id": "f4",
+    "label": "available quantity",
+    "src": "n9",
+    "tgt": "n3"
+   },
+   {
+    "id": "f5",
+    "label": "pick reservation",
+    "src": "n3",
+    "tgt": "n9"
+   },
+   {
+    "id": "f6",
+    "label": "quotation",
+    "src": "n3",
+    "tgt": "n0"
+   },
+   {
+    "id": "f7",
+    "label": "reserved lines",
+    "src": "n3",
+    "tgt": "n4"
+   },
+   {
+    "id": "f8",
+    "label": "batch ages",
+    "src": "n9",
+    "tgt": "n4"
+   },
+   {
+    "id": "f9",
+    "label": "suggested batches",
+    "src": "n4",
+    "tgt": "n5"
+   },
+   {
+    "id": "f10",
+    "label": "item barcode",
+    "src": "n1",
+    "tgt": "n5"
+   },
+   {
+    "id": "f11",
+    "label": "FIFO override incident",
+    "src": "n5",
+    "tgt": "n11"
+   },
+   {
+    "id": "f12",
+    "label": "picked lines",
+    "src": "n5",
+    "tgt": "n6"
+   },
+   {
+    "id": "f13",
+    "label": "deduction, release hold",
+    "src": "n6",
+    "tgt": "n9"
+   },
+   {
+    "id": "f14",
+    "label": "completed issuance",
+    "src": "n6",
+    "tgt": "n10"
+   },
+   {
+    "id": "f15",
+    "label": "issued serials",
+    "src": "n6",
+    "tgt": "n7"
+   },
+   {
+    "id": "f16",
+    "label": "warranty record",
+    "src": "n7",
+    "tgt": "n11"
+   },
+   {
+    "id": "f17",
+    "label": "delivery receipt",
+    "src": "n7",
+    "tgt": "n0"
+   },
+   {
+    "id": "f18",
+    "label": "audit entry",
+    "src": "n7",
+    "tgt": "n12"
+   }
+  ]
+ },
+ {
+  "name": "Level 2 - Process 7.0 Incident and Warranty",
+  "nodes": [
+   {
+    "id": "n0",
+    "kind": "entity",
+    "label": "Warehouse Personnel",
+    "x": 40.0,
+    "y": 70.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n1",
+    "kind": "entity",
+    "label": "Administrator",
+    "x": 40.0,
+    "y": 166.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n2",
+    "kind": "entity",
+    "label": "Customer",
+    "x": 40.0,
+    "y": 262.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n3",
+    "kind": "entity",
+    "label": "Supplier",
+    "x": 40.0,
+    "y": 358.0,
+    "w": 190.0,
+    "h": 62.0
+   },
+   {
+    "id": "n4",
+    "kind": "process",
+    "label": "7.1|File Incident and Quarantine",
+    "x": 430.0,
+    "y": 70.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n5",
+    "kind": "process",
+    "label": "7.2|Inspect and Record Outcome",
+    "x": 430.0,
+    "y": 194.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n6",
+    "kind": "process",
+    "label": "7.3|Approve, Reject or Dismiss",
+    "x": 430.0,
+    "y": 318.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n7",
+    "kind": "process",
+    "label": "7.4|Apply Outcome to Stock",
+    "x": 430.0,
+    "y": 442.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n8",
+    "kind": "process",
+    "label": "7.5|Raise Warranty Claim",
+    "x": 430.0,
+    "y": 566.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n9",
+    "kind": "process",
+    "label": "7.6|Complete Claim and Return Unit",
+    "x": 430.0,
+    "y": 690.0,
+    "w": 260.0,
+    "h": 84.0
+   },
+   {
+    "id": "n10",
+    "kind": "store",
+    "label": "D6 Inventory and Batches",
+    "x": 900.0,
+    "y": 70.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n11",
+    "kind": "store",
+    "label": "D7 Issuances and Sales",
+    "x": 900.0,
+    "y": 150.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n12",
+    "kind": "store",
+    "label": "D9 Incidents and Warranty",
+    "x": 900.0,
+    "y": 230.0,
+    "w": 330.0,
+    "h": 52.0
+   },
+   {
+    "id": "n13",
+    "kind": "store",
+    "label": "D10 Audit and Activity Log",
+    "x": 900.0,
+    "y": 310.0,
+    "w": 330.0,
+    "h": 52.0
+   }
+  ],
+  "edges": [
+   {
+    "id": "f0",
+    "label": "damage, shortfall, FIFO override",
+    "src": "n0",
+    "tgt": "n4"
+   },
+   {
+    "id": "f1",
+    "label": "incident report",
+    "src": "n4",
+    "tgt": "n12"
+   },
+   {
+    "id": "f2",
+    "label": "quarantine flag",
+    "src": "n4",
+    "tgt": "n10"
+   },
+   {
+    "id": "f3",
+    "label": "open incident",
+    "src": "n4",
+    "tgt": "n5"
+   },
+   {
+    "id": "f4",
+    "label": "evidence photo, per-item outcome",
+    "src": "n0",
+    "tgt": "n5"
+   },
+   {
+    "id": "f5",
+    "label": "inspection findings",
+    "src": "n5",
+    "tgt": "n12"
+   },
+   {
+    "id": "f6",
+    "label": "submitted inspection",
+    "src": "n5",
+    "tgt": "n6"
+   },
+   {
+    "id": "f7",
+    "label": "confirm, reject or dismiss",
+    "src": "n1",
+    "tgt": "n6"
+   },
+   {
+    "id": "f8",
+    "label": "sent back for re-inspection",
+    "src": "n6",
+    "tgt": "n5"
+   },
+   {
+    "id": "f9",
+    "label": "confirmed outcomes",
+    "src": "n6",
+    "tgt": "n7"
+   },
+   {
+    "id": "f10",
+    "label": "deduction or release",
+    "src": "n7",
+    "tgt": "n10"
+   },
+   {
+    "id": "f11",
+    "label": "item status",
+    "src": "n7",
+    "tgt": "n12"
+   },
+   {
+    "id": "f12",
+    "label": "return to supplier",
+    "src": "n7",
+    "tgt": "n3"
+   },
+   {
+    "id": "f13",
+    "label": "audit entry",
+    "src": "n7",
+    "tgt": "n13"
+   },
+   {
+    "id": "f14",
+    "label": "warranty claim",
+    "src": "n2",
+    "tgt": "n8"
+   },
+   {
+    "id": "f15",
+    "label": "issuance and warranty record",
+    "src": "n11",
+    "tgt": "n8"
+   },
+   {
+    "id": "f16",
+    "label": "claim_warranty outcome",
+    "src": "n7",
+    "tgt": "n8"
+   },
+   {
+    "id": "f17",
+    "label": "claim record",
+    "src": "n8",
+    "tgt": "n12"
+   },
+   {
+    "id": "f18",
+    "label": "approved claim",
+    "src": "n8",
+    "tgt": "n9"
+   },
+   {
+    "id": "f19",
+    "label": "replacement unit",
+    "src": "n9",
+    "tgt": "n10"
+   },
+   {
+    "id": "f20",
+    "label": "repaired or replaced unit",
+    "src": "n9",
+    "tgt": "n2"
+   }
+  ]
+ }
+]

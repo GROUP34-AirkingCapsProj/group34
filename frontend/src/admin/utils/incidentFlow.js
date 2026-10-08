@@ -1,0 +1,33 @@
+/**
+ * The two conversions between what a user types and what the API stores.
+ *
+ * They live outside the components because both were live bugs — a bare local
+ * timestamp the UTC server read as eight hours in the future, and a pack
+ * quantity that wrote off a single piece — and a unit test is a cheaper guard
+ * than remembering to re-check them by hand. IncidentDocument uses both.
+ *
+ * The step-sequencing helpers that shared this file went with the five-step
+ * wizard they described.
+ */
+
+/**
+ * `datetime-local` yields bare local wall-time ("2026-08-09T16:02") with no
+ * zone. `new Date()` reads it in the device's zone; toISOString() makes it an
+ * unambiguous UTC instant the server can compare from anywhere.
+ */
+export function toBackendInstant(localValue) {
+  return localValue ? new Date(localValue).toISOString() : null;
+}
+
+/**
+ * The ONE quantity that gets sent. Pack and loose-piece entry is convenience;
+ * inventory, transfers and dispatch all store PIECES.
+ */
+export function totalPiecesFrom({ packs, loosePieces, quantity, piecesPerPackage }) {
+  const per = Number(piecesPerPackage) || 0;
+  const int = (v) => parseInt(v, 10) || 0;
+  const total = per > 1
+    ? int(packs) * per + int(loosePieces)
+    : int(quantity);
+  return Math.max(0, total);
+}

@@ -83,7 +83,7 @@ export default function PwaProducts() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '1.25rem', margin: '0 0 12px', color: '#111827' }}>Products</h1>
+      <h1 style={{ fontSize: '1.25rem', margin: '0 0 12px', color: 'var(--text-dark)' }}>Products</h1>
 
       <div className="pwa-search">
         <input

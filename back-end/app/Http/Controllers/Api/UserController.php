@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Models\User;
+use App\Services\PasswordAuditLogger;
+use App\Services\TemporaryCredentialIssuer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -53,8 +55,15 @@ class UserController extends Controller
                 'first_name' => 'required|string|max:50',
                 'last_name' => 'required|string|max:50',
                 'email' => 'required|email|unique:users|max:100',
+                // Personal inbox for password recovery. `different:email` stops an
+                // admin pasting the company address into both fields, which would
+                // silently defeat the whole mechanism. Both `unique` rules are
+                // required because forgot-password looks accounts up BY this
+                // address: sharing it with another recovery address, or with
+                // any account's login address, would resolve the wrong account.
+                'recovery_email' => 'required|email|max:100|different:email'
+                    . '|unique:users,recovery_email|unique:users,email',
                 'username' => 'required|string|unique:users|max:50',
-                'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
                 'phone' => 'nullable|string|max:20',
                 'role_id' => 'required|exists:roles,role_id',
                 'location_id' => 'nullable|exists:locations,location_id',
@@ -67,13 +76,14 @@ class UserController extends Controller
             $validated['role_id'] = (int) $validated['role_id'];
             $validated['status_id'] = (int) $validated['status_id'];
 
-            // Hash password
-            $validated['password_hash'] = Hash::make($validated['password']);
-            unset($validated['password']);
-            unset($validated['password_confirmation']);
-
             $locationIds = $validated['location_ids'] ?? null;
             unset($validated['location_ids']);
+
+            // A placeholder only. The row needs a non-null hash to be insertable;
+            // the issuer overwrites it a few lines down with the password that is
+            // actually mailed. Nobody can authenticate with this value -- it is a
+            // hash of random bytes that are immediately discarded.
+            $validated['password_hash'] = Hash::make(bin2hex(random_bytes(32)));
 
             $user = User::create($validated);
 
@@ -82,9 +92,16 @@ class UserController extends Controller
                 $user->locations()->sync($locationIds);
             }
 
+            $emailed = app(TemporaryCredentialIssuer::class)->issue($user, $request->user());
+
             return $this->success(
-                $user->load(['role', 'status', 'location', 'locations']),
-                'User created successfully',
+                [
+                    'user'                => $user->fresh()->load(['role', 'status', 'location', 'locations']),
+                    'credentials_emailed' => $emailed,
+                ],
+                $emailed
+                    ? 'User created. Login details have been emailed to their recovery address.'
+                    : 'User created, but the credentials email could not be sent. Use Resend to try again.',
                 201
             );
 
@@ -92,6 +109,57 @@ class UserController extends Controller
             return $this->validationError($e->errors());
         } catch (\Exception $e) {
             return $this->error('Failed to create user: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Re-issue and re-send the temporary credentials for an account that has
+     * never completed its first login.
+     *
+     * Restricted to `must_change_password` accounts on purpose. Resending mints
+     * a NEW password and invalidates the old one -- harmless for someone who
+     * never received the first email, but for a user who already chose their own
+     * password it would silently lock them out. Those accounts use the
+     * forgot-password flow, which is what it is for.
+     */
+    public function resendCredentials(Request $request, User $user)
+    {
+        try {
+            if ($user->trashed()) {
+                return $this->error('Cannot issue credentials for an archived account.', 422);
+            }
+
+            if (! $user->must_change_password) {
+                return $this->error(
+                    'This user has already set their own password. Ask them to use "Forgot password" instead.',
+                    422
+                );
+            }
+
+            // `recovery_email` is only required for accounts created through
+            // store(). Seeded and legacy rows predate the column and can be null
+            // while still carrying the default must_change_password = true, so
+            // they reach this point looking eligible. Without this check the
+            // issuer would rotate the password and only then discover there is
+            // nowhere to send it -- destroying a working credential and blaming
+            // the mail server for it.
+            if (! $user->recovery_email) {
+                return $this->error(
+                    'This account has no recovery email on file. Add one via Edit before resending credentials.',
+                    422
+                );
+            }
+
+            $emailed = app(TemporaryCredentialIssuer::class)->issue($user, $request->user());
+
+            return $this->success(
+                ['credentials_emailed' => $emailed],
+                $emailed
+                    ? 'New login details have been emailed to their recovery address.'
+                    : 'The credentials email could not be sent. Check the mail configuration and try again.',
+            );
+        } catch (\Exception $e) {
+            return $this->error('Failed to resend credentials: ' . $e->getMessage(), 500);
         }
     }
 
@@ -117,6 +185,9 @@ class UserController extends Controller
                 'first_name' => 'sometimes|required|string|max:50',
                 'last_name' => 'sometimes|required|string|max:50',
                 'email' => 'sometimes|required|email|unique:users,email,' . $user->user_id . ',user_id|max:100',
+                'recovery_email' => 'sometimes|email|max:100|different:email'
+                    . '|unique:users,recovery_email,' . $user->user_id . ',user_id'
+                    . '|unique:users,email,' . $user->user_id . ',user_id',
                 'username' => 'sometimes|required|string|unique:users,username,' . $user->user_id . ',user_id|max:50',
                 'phone' => 'nullable|string|max:20',
                 'role_id' => 'sometimes|required|exists:roles,role_id',
@@ -192,9 +263,24 @@ class UserController extends Controller
                 }
             }
 
+            // Self-service change releases the gate. An admin setting someone
+            // else's password is issuing a temporary credential, so it re-arms
+            // the gate — same reasoning as a freshly created account.
+            $isSelf = $request->user()->user_id === $user->user_id;
+
             $user->update([
-                'password_hash' => Hash::make($validated['new_password'])
+                'password_hash' => Hash::make($validated['new_password']),
+                'must_change_password' => ! $isSelf,
             ]);
+
+            app(PasswordAuditLogger::class)->log(
+                $isSelf ? PasswordAuditLogger::SELF_CHANGE : PasswordAuditLogger::ADMIN_CHANGE,
+                $user,
+                $isSelf
+                    ? ['method' => 'self_service']
+                    : ['method' => 'admin_set_temporary', 'must_change_password' => true],
+                $request->user(),
+            );
 
             return $this->success(null, 'Password changed successfully');
 
@@ -294,23 +380,4 @@ class UserController extends Controller
         }
     }
 
-    /**
-     * Get users by role
-     */
-    public function byRole($roleId)
-    {
-        try {
-            $users = User::where('role_id', $roleId)
-                ->with(['role', 'status', 'location'])
-                ->get();
-
-            return $this->success([
-                'users' => $users,
-                'count' => $users->count(),
-            ], 'Role users retrieved successfully');
-
-        } catch (\Exception $e) {
-            return $this->error('Failed to retrieve users: ' . $e->getMessage(), 500);
-        }
-    }
 }

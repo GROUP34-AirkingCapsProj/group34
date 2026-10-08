@@ -1,0 +1,818 @@
+<?php
+
+namespace Tests\Feature\Auth;
+
+use App\Mail\LoginOtpMail;
+use App\Models\SystemSetting;
+use App\Models\User;
+use App\Services\LoginOtpIssuer;
+use App\Services\TwoFactorPolicy;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Tests\TestCase;
+
+class AdminTwoFactorTest extends TestCase
+{
+    use DatabaseTransactions;
+
+    private function makeUser(array $overrides = []): User
+    {
+        $uid = uniqid();
+
+        return User::create(array_merge([
+            'first_name'           => 'Two',
+            'last_name'            => 'Factor',
+            'username'             => 'tf_' . $uid,
+            'email'                => 'tf_' . $uid . '@airking.com',
+            'recovery_email'       => 'tf_' . $uid . '@gmail.com',
+            'password_hash'        => bcrypt('Secret123!'),
+            'must_change_password' => false,
+            'role_id'              => 3, // branch_manager -- a non-admin
+            'status_id'            => 1,
+        ], $overrides));
+    }
+
+    private function makeAdmin(array $overrides = []): User
+    {
+        return $this->makeUser(array_merge(['role_id' => 1], $overrides));
+    }
+
+    public function test_is_admin_distinguishes_the_admin_role(): void
+    {
+        $this->assertTrue($this->makeAdmin()->isAdmin());
+        $this->assertFalse($this->makeUser()->isAdmin());
+    }
+
+    /**
+     * The central claim of this feature: the global switch governs every role,
+     * admins included. Asserted directly against the policy rather than only
+     * through HTTP, so it cannot pass for the wrong reason.
+     */
+    public function test_an_admin_follows_the_toggle(): void
+    {
+        $admin = $this->makeAdmin();
+        $policy = app(TwoFactorPolicy::class);
+
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $this->assertFalse($policy->requiresOtp($admin));
+
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $this->assertTrue($policy->requiresOtp($admin));
+    }
+
+    public function test_a_non_admin_follows_the_toggle(): void
+    {
+        $user = $this->makeUser();
+        $policy = app(TwoFactorPolicy::class);
+
+        SystemSetting::setTwoFactorAuthEnabled(false);
+        $this->assertFalse($policy->requiresOtp($user));
+
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $this->assertTrue($policy->requiresOtp($user));
+    }
+
+    public function test_an_account_with_an_unresolvable_role_is_challenged(): void
+    {
+        SystemSetting::setTwoFactorAuthEnabled(false);
+
+        // The FK on users.role_id makes this unreachable via the database, so
+        // build the state directly. The point is that the gate fails closed if
+        // that guarantee ever weakens.
+        $user = new User(['email' => 'orphan@airking.com']);
+        $user->setRelation('role', null);
+
+        $this->assertTrue(app(TwoFactorPolicy::class)->requiresOtp($user));
+    }
+
+    public function test_requires_recovery_email_only_when_a_code_is_needed_and_none_is_set(): void
+    {
+        $policy = app(TwoFactorPolicy::class);
+
+        SystemSetting::setTwoFactorAuthEnabled(true);
+
+        // Challenged and no address -> must supply one, whatever the role.
+        $this->assertTrue($policy->requiresRecoveryEmail($this->makeAdmin(['recovery_email' => null])));
+        $this->assertTrue($policy->requiresRecoveryEmail($this->makeUser(['recovery_email' => null])));
+
+        // Already has an address -> nothing to collect.
+        $this->assertFalse($policy->requiresRecoveryEmail($this->makeAdmin()));
+
+        SystemSetting::setTwoFactorAuthEnabled(false);
+
+        // Toggle off means no code, so no address either -- this must not gate
+        // anyone who is not being challenged, admins now included.
+        $this->assertFalse($policy->requiresRecoveryEmail($this->makeAdmin(['recovery_email' => null])));
+        $this->assertFalse($policy->requiresRecoveryEmail($this->makeUser(['recovery_email' => null])));
+    }
+
+    public function test_the_code_goes_to_the_recovery_address_not_the_login_address(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+
+        $this->assertTrue(app(LoginOtpIssuer::class)->issue($user));
+
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use ($user) {
+            return $mail->hasTo($user->recovery_email) && ! $mail->hasTo($user->email);
+        });
+    }
+
+    /**
+     * The stored value must not be the code. A database read alone should not
+     * be enough to complete a login someone has stolen a password for -- which
+     * is exactly what plaintext storage allowed.
+     */
+    public function test_the_code_is_stored_hashed_and_still_verifies(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        $stored = $user->fresh()->otp_code;
+
+        $this->assertNotNull($mailed);
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $mailed);
+        $this->assertNotSame($mailed, $stored);
+        $this->assertTrue(Hash::check($mailed, $stored));
+    }
+
+    public function test_the_code_expires_ten_minutes_out_and_reads_back_as_a_date(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+
+        // Pinned against a frozen clock: the TTL is a security parameter, and an
+        // isFuture() check alone would pass just as happily for one second or
+        // ten hours.
+        \Illuminate\Support\Carbon::setTestNow('2026-08-24 12:00:00');
+
+        try {
+            app(LoginOtpIssuer::class)->issue($user);
+
+            // The cast matters: verifyOtp compares this in PHP, not SQL.
+            $expiry = $user->fresh()->otp_expires_at;
+            $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $expiry);
+            $this->assertSame('2026-08-24 12:10:00', $expiry->toDateTimeString());
+        } finally {
+            // In a finally so a failed assertion cannot leak a frozen clock into
+            // every test that runs after this one.
+            \Illuminate\Support\Carbon::setTestNow();
+        }
+    }
+
+    public function test_the_mail_names_the_account_and_the_lifetime_of_the_code(): void
+    {
+        $user = $this->makeAdmin();
+
+        // The code now lands in a PERSONAL inbox that may receive codes for more
+        // than one system. A bare six digits does not tell the reader what they
+        // are approving. The TTL is rendered from the value the issuer used, so
+        // shortening it cannot leave the text promising the old lifetime.
+        $rendered = (new LoginOtpMail('123456', $user, 10))->render();
+
+        $this->assertStringContainsString('123456', $rendered);
+        $this->assertStringContainsString($user->email, $rendered);
+        $this->assertStringContainsString('10 minutes', $rendered);
+    }
+
+    /**
+     * Currently true by construction -- one column, overwritten. Asserted anyway
+     * because a plausible future change ("don't reissue while one is pending")
+     * would break it silently and leave two codes live at once.
+     */
+    public function test_issuing_a_new_code_invalidates_the_previous_one(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        $issuer = app(LoginOtpIssuer::class);
+
+        $codes = [];
+        $capture = function ($mail) use (&$codes) {
+            $codes[] = $mail->otp;
+            return true;
+        };
+
+        $issuer->issue($user);
+        $issuer->issue($user);
+
+        Mail::assertSent(LoginOtpMail::class, $capture);
+
+        $this->assertCount(2, $codes);
+        [$first, $second] = $codes;
+        // Two independent draws from 900k values collide about once in 900k
+        // runs, which would fail the assertions below for a reason that has
+        // nothing to do with invalidation. Cheap to rule out.
+        $this->assertNotSame($first, $second, 'Two draws collided; re-run.');
+
+        $stored = $user->fresh()->otp_code;
+        $this->assertFalse(Hash::check($first, $stored));
+        $this->assertTrue(Hash::check($second, $stored));
+    }
+
+    public function test_issue_returns_false_when_the_mail_cannot_be_sent(): void
+    {
+        $user = $this->makeAdmin();
+
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp down'));
+
+        $this->assertFalse(app(LoginOtpIssuer::class)->issue($user));
+    }
+
+    public function test_the_hashed_code_is_never_serialised_to_a_client(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $fresh = $user->fresh();
+        $json = json_encode($fresh->toArray());
+
+        $this->assertStringNotContainsString('otp_code', $json);
+        // The key name alone is not enough: an accessor or an API resource could
+        // expose the same hash under some other label.
+        $this->assertStringNotContainsString($fresh->getRawOriginal('otp_code'), $json);
+    }
+
+    public function test_the_mailed_code_exchanges_for_a_token(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => $mailed])
+            ->assertStatus(200)
+            ->assertJsonPath('status', 'success')
+            ->assertJsonStructure(['token']);
+
+        // Single use: the code is cleared once spent.
+        $this->assertNull($user->fresh()->otp_code);
+    }
+
+    public function test_a_wrong_code_is_refused(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])
+            ->assertStatus(422);
+
+        // The real code survives a single wrong guess -- a typo must not burn it.
+        $this->assertNotNull($user->fresh()->otp_code);
+    }
+
+    public function test_an_expired_code_is_refused(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        $user->fill(['otp_expires_at' => now()->subMinute()])->save();
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => $mailed])
+            ->assertStatus(422);
+    }
+
+    public function test_verify_is_refused_for_a_user_with_no_pending_code(): void
+    {
+        $user = $this->makeAdmin();
+
+        // otp_code is null. A null hash must never be treated as a match.
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '123456'])
+            ->assertStatus(422);
+    }
+
+    /**
+     * Five wrong guesses burn the code. This is the defence that does not care
+     * how many IP addresses the attacker has: a 6-digit code in a 900,000
+     * keyspace is guessable inside its 10-minute window from a cheap proxy
+     * pool, and per-IP throttling cannot stop that. Capping attempts per issued
+     * code can.
+     */
+    public function test_five_wrong_guesses_burn_the_code(): void
+    {
+        // The attempt counter is the subject here, and it lives in the database.
+        // The rate limiter would answer 429 before the fifth guess reached the
+        // controller, so the test would pass without the counter existing.
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])
+                ->assertStatus(422);
+        }
+
+        $this->assertNull($user->fresh()->otp_code, 'The code should be burned after 5 failures.');
+
+        // Even the REAL code no longer works -- the attacker cannot outlast the
+        // counter by eventually guessing right.
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => $mailed])
+            ->assertStatus(422);
+    }
+
+    public function test_a_successful_verification_resets_the_attempt_counter(): void
+    {
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $mailed = null;
+        Mail::assertSent(LoginOtpMail::class, function ($mail) use (&$mailed) {
+            $mailed = $mail->otp;
+            return true;
+        });
+
+        // Two wrong, then right -- a fumbling honest user must not be punished.
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])->assertStatus(422);
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '111111'])->assertStatus(422);
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => $mailed])
+            ->assertStatus(200);
+
+        $this->assertSame(0, (int) $user->fresh()->otp_attempts);
+    }
+
+    public function test_issuing_a_fresh_code_clears_previous_failures(): void
+    {
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        $this->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])->assertStatus(422);
+        $this->assertSame(1, (int) $user->fresh()->otp_attempts);
+
+        // A new code is a new budget, otherwise a user who fumbled once is
+        // permanently closer to being locked out.
+        app(LoginOtpIssuer::class)->issue($user->fresh());
+
+        $this->assertSame(0, (int) $user->fresh()->otp_attempts);
+    }
+
+    public function test_the_account_keyed_limiter_caps_guesses_from_rotating_addresses(): void
+    {
+        Mail::fake();
+        $user = $this->makeAdmin();
+        app(LoginOtpIssuer::class)->issue($user);
+
+        // Every request from a DIFFERENT source address. Per-IP throttling would
+        // let all of these through; the account-keyed limit is what stops them.
+        $statuses = [];
+        for ($i = 0; $i < 8; $i++) {
+            $statuses[] = $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.' . $i])
+                ->postJson('/api/verify-otp', ['email' => $user->email, 'otp' => '000000'])
+                ->getStatusCode();
+        }
+
+        $this->assertContains(429, $statuses, 'Rotating IPs must not bypass the cap.');
+    }
+
+    /**
+     * POST /api/login gates on a stateless math CAPTCHA. Solve it the way the
+     * real client does rather than bypassing the endpoint, so these tests
+     * exercise the path a user actually takes.
+     */
+    private function login(User $user, string $password = 'Secret123!'): \Illuminate\Testing\TestResponse
+    {
+        $challenge = $this->getJson('/api/login/challenge')->assertStatus(200)->json('data');
+
+        return $this->postJson('/api/login', [
+            'email'          => $user->email,
+            'password'       => $password,
+            'captcha_token'  => $challenge['captcha_token'],
+            'captcha_answer' => (string) ($challenge['operand_a'] + $challenge['operand_b']),
+        ]);
+    }
+
+    public function test_an_admin_is_challenged_with_the_toggle_on(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin();
+
+        $this->login($admin)
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', true)
+            ->assertJsonMissing(['token']);
+
+        Mail::assertSent(LoginOtpMail::class, fn ($m) => $m->hasTo($admin->recovery_email));
+    }
+
+    /**
+     * The behaviour change: the toggle now covers admins too, so switching it
+     * off signs them straight in. Asserted through HTTP because the previous
+     * exemption lived at this layer for a long time and a stale branch here
+     * would be invisible to the policy-level test above.
+     */
+    public function test_an_admin_is_not_challenged_with_the_toggle_off(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+
+        $this->login($this->makeAdmin())
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', false)
+            ->assertJsonStructure(['token']);
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_non_admin_is_not_challenged_with_the_toggle_off(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(false);
+
+        $this->login($this->makeUser())
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', false)
+            ->assertJsonStructure(['token']);
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_non_admin_is_challenged_with_the_toggle_on(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+
+        $this->login($this->makeUser())
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', true);
+
+        Mail::assertSent(LoginOtpMail::class);
+    }
+
+    public function test_a_user_with_no_recovery_address_is_asked_for_one(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+
+        $this->login($admin)
+            ->assertStatus(200)
+            ->assertJsonPath('requires_recovery_email', true)
+            ->assertJsonMissing(['token']);
+
+        // Nothing written and nothing sent: this is a request for information,
+        // not a failed challenge.
+        Mail::assertNothingSent();
+        $this->assertNull($admin->fresh()->otp_code);
+    }
+
+    /**
+     * Fails closed. An authentication control that can be bypassed by breaking
+     * mail delivery is not a control.
+     */
+    public function test_login_is_refused_when_the_code_cannot_be_sent(): void
+    {
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin();
+
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('smtp down'));
+
+        $this->login($admin)
+            ->assertStatus(503)
+            ->assertJsonMissing(['token']);
+    }
+
+    /**
+     * The 503 above is raised for any delivery failure, but the two causes need
+     * different words. Telling someone to check their Brevo key when the real
+     * problem is that the machine could not resolve the SMTP host sends them
+     * auditing credentials that were never wrong -- which is exactly what
+     * happened in production on 2026-09-21.
+     */
+    public function test_a_transport_failure_is_reported_as_a_network_problem(): void
+    {
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin();
+
+        Mail::shouldReceive('to')->once()->andThrow(new TransportException(
+            'Connection could not be established with host "smtp-relay.brevo.com:587": '
+            .'stream_socket_client(): php_network_getaddresses: getaddrinfo for '
+            .'smtp-relay.brevo.com failed: No such host is known. '
+        ));
+
+        $message = $this->login($admin)->assertStatus(503)->json('message');
+
+        $this->assertStringContainsString('network', strtolower($message));
+        // The credentials were fine. Naming them here is the bug.
+        $this->assertStringNotContainsString('brevo', strtolower($message));
+    }
+
+    /**
+     * The converse: a genuine credential rejection must still say so, or fixing
+     * the message above would just move the misdiagnosis to the other case.
+     */
+    public function test_a_rejected_smtp_key_is_still_reported_as_a_mail_setting(): void
+    {
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin();
+
+        Mail::shouldReceive('to')->once()->andThrow(new TransportException(
+            'Expected response code "250" but got code "535", '
+            .'with message "535 5.7.8 Authentication failed".'
+        ));
+
+        $message = $this->login($admin)->assertStatus(503)->json('message');
+
+        $this->assertStringContainsString('mail settings', strtolower($message));
+        $this->assertStringNotContainsString('network', strtolower($message));
+    }
+
+    /**
+     * Without this, an attacker holding a stolen admin password could trigger
+     * codes indefinitely and leave no trace anywhere in the system except an
+     * email in the victim's inbox -- the highest-signal event in an
+     * account-takeover investigation, unrecorded.
+     */
+    public function test_issuing_a_code_is_recorded_as_a_login_attempt(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin();
+
+        $this->login($admin)->assertStatus(200);
+
+        $row = \App\Models\LoginActivity::where('user_id', $admin->user_id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($row, 'Triggering a login code must leave a trace.');
+        $this->assertStringContainsString('code', strtolower((string) $row->failure_reason));
+
+        $this->assertDatabaseHas('audit_trail', [
+            'user_id' => $admin->user_id,
+            'action'  => 'login_code_issued',
+        ]);
+    }
+
+    /**
+     * Issuing a code is not a failed login. Recording it as one would stamp a
+     * bogus failure on the audit trail for every successful admin sign-in,
+     * drowning the signal an admin reviewing "who has been failing to get in"
+     * actually needs.
+     */
+    public function test_issuing_a_code_is_not_recorded_as_a_failed_login(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin();
+
+        $before = \App\Models\AuditTrail::where('action', 'login_failed')->count();
+
+        $this->login($admin)->assertStatus(200);
+
+        $this->assertSame(
+            $before,
+            \App\Models\AuditTrail::where('action', 'login_failed')->count(),
+            'A 2FA challenge must not appear as a failed login.'
+        );
+    }
+
+    public function test_the_bootstrap_saves_an_address_and_sends_the_code(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+        $address = 'bootstrap_' . uniqid() . '@gmail.com';
+
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'Secret123!',
+            'recovery_email' => $address,
+        ])
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', true);
+
+        $this->assertSame($address, $admin->fresh()->recovery_email);
+        Mail::assertSent(LoginOtpMail::class, fn ($m) => $m->hasTo($address));
+    }
+
+    /**
+     * The pending-login state is not a credential. Knowing an email address
+     * must never be enough to write a recovery address onto someone's account
+     * -- that would hand an attacker the second factor itself.
+     */
+    public function test_the_bootstrap_refuses_a_wrong_password(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'WrongPassword1!',
+            'recovery_email' => 'attacker_' . uniqid() . '@gmail.com',
+        ])->assertStatus(422);
+
+        $this->assertNull($admin->fresh()->recovery_email);
+        Mail::assertNothingSent();
+    }
+
+    public function test_the_bootstrap_rejects_an_address_already_in_use(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $taken = $this->makeUser();
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'Secret123!',
+            'recovery_email' => $taken->recovery_email,
+        ])->assertStatus(422);
+
+        $this->assertNull($admin->fresh()->recovery_email);
+    }
+
+    public function test_the_bootstrap_rejects_the_users_own_login_address(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+
+        // Otherwise the "second factor" arrives at the address the attacker
+        // already used as a username.
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'Secret123!',
+            'recovery_email' => $admin->email,
+        ])->assertStatus(422);
+
+        $this->assertNull($admin->fresh()->recovery_email);
+    }
+
+    public function test_the_bootstrap_refuses_an_inactive_account(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin(['recovery_email' => null, 'status_id' => 2]);
+
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'Secret123!',
+            'recovery_email' => 'inactive_' . uniqid() . '@gmail.com',
+        ])->assertStatus(422);
+
+        $this->assertNull($admin->fresh()->recovery_email);
+        Mail::assertNothingSent();
+    }
+
+    /**
+     * The gravest failure this endpoint could have. Someone holding a stolen
+     * password could otherwise repoint the victim's recovery address at an
+     * inbox they control -- collecting every future login code AND every
+     * password reset, converting a stolen password into permanent ownership of
+     * the account and defeating the entire second factor.
+     *
+     * The endpoint exists only to fill in a MISSING address, never to change
+     * one. Changing it belongs behind a full session in account settings.
+     */
+    public function test_the_bootstrap_cannot_overwrite_an_existing_recovery_address(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin();
+        $original = $admin->recovery_email;
+
+        $this->postJson('/api/login/recovery-email', [
+            'email'          => $admin->email,
+            'password'       => 'Secret123!',
+            'recovery_email' => 'attacker_' . uniqid() . '@gmail.com',
+        ])->assertStatus(422);
+
+        $this->assertSame($original, $admin->fresh()->recovery_email);
+        Mail::assertNothingSent();
+    }
+
+    /**
+     * The uniqueness rules must not run before the password is checked. They
+     * answer "is this address already in the system?", and an unauthenticated
+     * caller must not be able to ask that -- it turns the endpoint into a
+     * membership oracle for arbitrary email addresses.
+     */
+    public function test_the_bootstrap_does_not_reveal_whether_an_address_is_registered(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $known = $this->makeUser();
+        $victim = $this->makeAdmin(['recovery_email' => null]);
+
+        $registered = $this->postJson('/api/login/recovery-email', [
+            'email'          => $victim->email,
+            'password'       => 'WrongPassword1!',
+            'recovery_email' => $known->recovery_email,
+        ])->assertStatus(422);
+
+        $unregistered = $this->postJson('/api/login/recovery-email', [
+            'email'          => $victim->email,
+            'password'       => 'WrongPassword1!',
+            'recovery_email' => 'definitely_unused_' . uniqid() . '@gmail.com',
+        ])->assertStatus(422);
+
+        // Identical responses: a wrong password must look the same either way.
+        $this->assertSame(
+            $registered->json('errors'),
+            $unregistered->json('errors'),
+            'A bad password must not reveal whether the recovery address is known.'
+        );
+    }
+
+    /**
+     * /login carries a CAPTCHA and an account-scoped lockout. This endpoint
+     * verifies the same password, so without sharing that lockout it is a
+     * CAPTCHA-free password oracle sitting beside the front door.
+     */
+    public function test_the_bootstrap_shares_the_login_lockout(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin(['recovery_email' => null]);
+
+        $max = \App\Models\SystemSetting::maxLoginAttempts();
+
+        for ($i = 0; $i < $max + 1; $i++) {
+            $this->postJson('/api/login/recovery-email', [
+                'email'          => $admin->email,
+                'password'       => 'WrongPassword1!',
+                'recovery_email' => 'probe_' . $i . '_' . uniqid() . '@gmail.com',
+            ]);
+        }
+
+        // The shared lockout must now also bar the real login door, proving the
+        // two endpoints count against one budget rather than two.
+        $this->login($admin)
+            ->assertStatus(422)
+            ->assertJsonPath('errors.email.0', fn ($m) => str_contains(strtolower((string) $m), 'too many'));
+    }
+
+    /**
+     * Prove who you are before you are allowed to change anything.
+     *
+     * This holds today because login() returns requires_otp INSTEAD of a token,
+     * so CheckPasswordChange -- which only runs on authenticated routes -- is
+     * never reached. Pinned so a refactor that issues a token earlier cannot
+     * quietly invert the order and let a forced password change happen on an
+     * unverified session.
+     */
+    public function test_the_code_challenge_precedes_the_forced_password_change(): void
+    {
+        Mail::fake();
+        SystemSetting::setTwoFactorAuthEnabled(true);
+        $admin = $this->makeAdmin(['must_change_password' => true]);
+
+        $this->login($admin)
+            ->assertStatus(200)
+            ->assertJsonPath('requires_otp', true)
+            ->assertJsonMissing(['token']);
+    }
+
+    /**
+     * The rate limiter writes to the cache, which DatabaseTransactions does not
+     * roll back. Under the array store each test gets a fresh application and so
+     * a fresh store, but this suite must not depend on the cache driver a runner
+     * happens to configure -- with a file or redis store the limiter test would
+     * otherwise leave 429s waiting for whatever runs next.
+     */
+    protected function tearDown(): void
+    {
+        $this->app?->make('cache')->store()->flush();
+
+        parent::tearDown();
+    }
+}

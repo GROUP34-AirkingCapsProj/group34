@@ -82,7 +82,7 @@ export default function PwaDashboard() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '1.25rem', margin: '0 0 16px', color: '#111827' }}>Dashboard</h1>
+      <h1 style={{ fontSize: '1.25rem', margin: '0 0 16px', color: 'var(--text-dark)' }}>Dashboard</h1>
 
       {err ? <div className="pwa-login-error">{err}</div> : null}
 

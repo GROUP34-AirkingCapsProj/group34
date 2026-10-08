@@ -12,12 +12,9 @@ class ListScopingSmokeTest extends TestCase
         $controllers = [
             \App\Http\Controllers\Api\InventoryController::class,
             \App\Http\Controllers\Api\TransferController::class,
-            \App\Http\Controllers\Api\TransferRequestController::class,
-            \App\Http\Controllers\Api\ISTController::class,
             \App\Http\Controllers\Api\IssuanceController::class,
             \App\Http\Controllers\Api\ReceivingController::class,
             \App\Http\Controllers\Api\AdjustmentController::class,
-            \App\Http\Controllers\Api\TransactionController::class,
             \App\Http\Controllers\Api\SaleController::class,
         ];
 

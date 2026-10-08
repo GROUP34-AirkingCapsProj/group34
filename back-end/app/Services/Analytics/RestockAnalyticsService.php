@@ -45,16 +45,30 @@ class RestockAnalyticsService
         $from90 = $asOf->copy()->subDays(self::WINDOW_LONG_DAYS - 1);
         $from30 = $asOf->copy()->subDays(self::WINDOW_SHORT_DAYS - 1)->toDateString();
 
-        $daily      = $this->dailyDemand($from90->toDateString(), $asOf->toDateString());
-        $stock      = $this->stockOnHand();
-        $onOrder    = $this->openPoQuantities();
-        $leads      = $this->leadTimes();
-        $received90 = $this->receivedQuantities($from90->toDateString());
+        $demandByLoc = $this->dailyDemandByLocation($from90->toDateString(), $asOf->toDateString());
+        $stockByWh   = $this->stockByWarehouse();
+        $stockTotal  = $this->stockOnHandTotal();
+        $openByWh    = $this->openPoByWarehouse();
+        $leads       = $this->leadTimes();
+        $received90  = $this->receivedQuantities($from90->toDateString());
 
-        $warehouseId = Location::query()
+        // Org-wide daily demand per product (sum across locations) — feeds the
+        // product-level Stock Parameter suggestions, which tune global columns.
+        $demandTotal = [];
+        foreach ($demandByLoc as $prods) {
+            foreach ($prods as $pid => $series) {
+                foreach ($series as $day => $qty) {
+                    $demandTotal[$pid][$day] = ($demandTotal[$pid][$day] ?? 0) + $qty;
+                }
+            }
+        }
+
+        $warehouseIds = Location::query()
             ->where('location_type', 'warehouse')
             ->orderBy('location_id')
-            ->value('location_id');
+            ->pluck('location_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
         $products = Product::query()
             ->where(fn ($q) => $q->whereNull('status_id')
@@ -65,74 +79,72 @@ class RestockAnalyticsService
         $suggestions     = [];
 
         foreach ($products as $p) {
-            $pid    = (int) $p->product_id;
-            $series = $daily[$pid] ?? [];
-
-            $total90 = array_sum($series);
-            $total30 = 0;
-            foreach ($series as $day => $qty) {
-                if ($day >= $from30) {
-                    $total30 += $qty;
-                }
-            }
-            $v30        = $total30 / self::WINDOW_SHORT_DAYS;
-            $v90        = $total90 / self::WINDOW_LONG_DAYS;
-            $trend      = $v90 > 0 ? $v30 / $v90 : null;
-            $demandDays = count(array_filter($series, fn ($q) => $q > 0));
-            $sigma      = $this->dailyStdDev($series, self::WINDOW_LONG_DAYS);
+            $pid = (int) $p->product_id;
 
             $lead = $leads['product'][$pid]
                 ?? $leads['supplier'][$leads['productSupplier'][$pid] ?? -1]
                 ?? self::DEFAULT_LEAD_TIME;
             $lead = max(self::LEAD_TIME_MIN, min(self::LEAD_TIME_MAX, $lead));
 
-            $computedSafety = $demandDays >= self::SPARSE_DEMAND_DAYS
-                ? (int) ceil(self::SERVICE_FACTOR * $sigma * sqrt($lead))
-                : (int) ceil(0.5 * $v30 * $lead);
-            $computedReorder = (int) ceil($v30 * $lead) + $computedSafety;
-            $computedTarget  = (int) ceil(self::WINDOW_SHORT_DAYS * $v30) + $computedSafety;
-
             $currentRecommended = (int) $p->recommended_stocks;
             $currentSafety      = $p->safety_stock !== null ? (int) $p->safety_stock : null;
             $currentMax         = $p->max_stock_level !== null ? (int) $p->max_stock_level : null;
 
-            $onHand = (int) ($stock[$pid] ?? 0);
-            $open   = (int) ($onOrder[$pid] ?? 0);
-            $cover  = $v30 > 0 ? round($onHand / $v30, 1) : null;
+            // ---- Restock recommendation, PER WAREHOUSE (per-warehouse demand) ----
+            foreach ($warehouseIds as $whId) {
+                // Only warehouses that actually carry the product (have an
+                // inventory row) are eligible; a warehouse that has never
+                // stocked it is not a restock target.
+                if (!isset($stockByWh[$whId][$pid])) {
+                    continue;
+                }
 
-            // Current product values act as a floor so hand-tuned thresholds keep working.
-            $effectiveSafety  = max($computedSafety, (int) ($currentSafety ?? 0));
-            $effectiveReorder = max($computedReorder, $currentRecommended);
-            $effectiveTarget  = max($computedTarget, (int) ($currentMax ?? 0), $currentRecommended);
+                // Demand velocity/trend/sigma from THIS warehouse's own outflow,
+                // so a busy warehouse gets higher targets than a quiet one. The
+                // global product values still act as a floor. Lead time is
+                // per-product (supplier-based), not per-warehouse.
+                $m       = $this->demandMetrics($demandByLoc[$whId][$pid] ?? [], $from30, $lead);
+                $v30     = $m['v30'];
+                $trend   = $m['trend'];
+                $total90 = $m['total90'];
 
-            // ---- Restock recommendation --------------------------------
-            $reasons = [];
-            if ($onHand <= 0) {
-                $reasons[] = 'OUT_OF_STOCK';
-            }
-            if ($onHand > 0 && $effectiveSafety > 0 && $onHand < $effectiveSafety) {
-                $reasons[] = 'BELOW_SAFETY_STOCK';
-            }
-            if ($onHand > 0 && $cover !== null && $cover < $lead) {
-                $reasons[] = 'STOCKOUT_RISK';
-            }
-            if ($effectiveReorder > 0 && $onHand <= $effectiveReorder) {
-                $reasons[] = 'LOW_STOCK';
-            }
-            if ($trend !== null && $trend >= self::TREND_FAST) {
-                $reasons[] = 'FAST_MOVING';
-            }
-            if (($received90[$pid] ?? 0) >= 1 && $total90 >= 3 * max(1, $onHand)) {
-                $reasons[] = 'HIGH_TURNOVER';
-            }
+                $effectiveSafety  = max($m['computedSafety'], (int) ($currentSafety ?? 0));
+                $effectiveReorder = max($m['computedReorder'], $currentRecommended);
+                $effectiveTarget  = max($m['computedTarget'], (int) ($currentMax ?? 0), $currentRecommended);
 
-            $triggered = $onHand <= 0
-                || ($effectiveSafety > 0 && $onHand < $effectiveSafety)
-                || ($effectiveReorder > 0 && $onHand <= $effectiveReorder);
+                $onHand = (int) $stockByWh[$whId][$pid];
+                $open   = (int) ($openByWh[$whId][$pid] ?? 0);
+                $cover  = $v30 > 0 ? round($onHand / $v30, 1) : null;
 
-            $qty = $effectiveTarget - $onHand - $open;
+                $reasons = [];
+                if ($onHand <= 0) {
+                    $reasons[] = 'OUT_OF_STOCK';
+                }
+                if ($onHand > 0 && $effectiveSafety > 0 && $onHand < $effectiveSafety) {
+                    $reasons[] = 'BELOW_SAFETY_STOCK';
+                }
+                if ($onHand > 0 && $cover !== null && $cover < $lead) {
+                    $reasons[] = 'STOCKOUT_RISK';
+                }
+                if ($effectiveReorder > 0 && $onHand <= $effectiveReorder) {
+                    $reasons[] = 'LOW_STOCK';
+                }
+                if ($trend !== null && $trend >= self::TREND_FAST) {
+                    $reasons[] = 'FAST_MOVING';
+                }
+                if (($received90[$pid] ?? 0) >= 1 && $total90 >= 3 * max(1, $onHand)) {
+                    $reasons[] = 'HIGH_TURNOVER';
+                }
 
-            if ($triggered && $qty > 0) {
+                $triggered = $onHand <= 0
+                    || ($effectiveSafety > 0 && $onHand < $effectiveSafety)
+                    || ($effectiveReorder > 0 && $onHand <= $effectiveReorder);
+
+                $qty = $effectiveTarget - $onHand - $open;
+                if (!$triggered || $qty <= 0) {
+                    continue;
+                }
+
                 $priority = 'MEDIUM';
                 if ($onHand <= 0 || ($cover !== null && $cover < $lead / 2)) {
                     $priority = 'CRITICAL';
@@ -143,6 +155,7 @@ class RestockAnalyticsService
 
                 $recommendations[] = [
                     'product_id'           => $pid,
+                    'location_id'          => $whId,
                     'current_stock'        => $onHand,
                     'reorder_level'        => $effectiveReorder,
                     'recommended_quantity' => $qty,
@@ -157,16 +170,23 @@ class RestockAnalyticsService
                 ];
             }
 
-            // ---- Parameter suggestion -----------------------------------
+            // ---- Parameter suggestion (PRODUCT-LEVEL, org-wide demand) --------
+            // These tune the product's GLOBAL recommended/safety/max columns, so
+            // they use org-wide demand (summed across every location), not one
+            // warehouse's slice.
+            $mt          = $this->demandMetrics($demandTotal[$pid] ?? [], $from30, $lead);
+            $onHandTotal = (int) ($stockTotal[$pid] ?? 0);
+            $coverTotal  = $mt['v30'] > 0 ? round($onHandTotal / $mt['v30'], 1) : null;
+
             $hasParams = $currentRecommended > 0
                 || ($currentSafety ?? 0) > 0
                 || ($currentMax ?? 0) > 0;
 
-            if ($total90 <= 0 && !$hasParams) {
+            if ($mt['total90'] <= 0 && !$hasParams) {
                 continue; // nothing learned, nothing to shrink
             }
 
-            if ($total90 <= 0) {
+            if ($mt['total90'] <= 0) {
                 $sReasons  = ['NO_MOVEMENT'];
                 $suggested = [
                     'recommended' => (int) floor($currentRecommended / 2),
@@ -175,19 +195,19 @@ class RestockAnalyticsService
                 ];
             } else {
                 $sReasons = [];
-                if ($trend !== null && $trend >= self::TREND_FAST) {
+                if ($mt['trend'] !== null && $mt['trend'] >= self::TREND_FAST) {
                     $sReasons[] = 'FAST_MOVING';
                 }
-                if ($trend !== null && $trend <= self::TREND_SLOW) {
+                if ($mt['trend'] !== null && $mt['trend'] <= self::TREND_SLOW) {
                     $sReasons[] = 'SLOW_MOVING';
                 }
                 if ($sReasons === []) {
                     $sReasons[] = 'DEMAND_SHIFT';
                 }
                 $suggested = [
-                    'recommended' => $computedReorder,
-                    'safety'      => $computedSafety,
-                    'max'         => $computedTarget,
+                    'recommended' => $mt['computedReorder'],
+                    'safety'      => $mt['computedSafety'],
+                    'max'         => $mt['computedTarget'],
                 ];
             }
 
@@ -205,16 +225,15 @@ class RestockAnalyticsService
                     'current_max'           => $currentMax,
                     'suggested_max'         => $suggested['max'],
                     'reason_codes'          => $sReasons,
-                    'summary'               => $this->summarize($v30, $trend, $cover, $lead, $onHand),
+                    'summary'               => $this->summarize($mt['v30'], $mt['trend'], $coverTotal, $lead, $onHandTotal),
                 ];
             }
         }
 
         return [
-            'run_at'                => $asOf,
-            'warehouse_location_id' => $warehouseId ? (int) $warehouseId : null,
-            'recommendations'       => $recommendations,
-            'suggestions'           => $suggestions,
+            'run_at'          => $asOf,
+            'recommendations' => $recommendations,
+            'suggestions'     => $suggestions,
         ];
     }
 
@@ -240,10 +259,7 @@ class RestockAnalyticsService
         DB::transaction(function () use ($result) {
             DB::table('restock_recommendations')->delete();
             foreach ($result['recommendations'] as $rec) {
-                RestockRecommendation::create($rec + [
-                    'location_id' => $result['warehouse_location_id'],
-                    'run_at'      => $result['run_at'],
-                ]);
+                RestockRecommendation::create($rec + ['run_at' => $result['run_at']]);
             }
 
             $suggestedIds = array_map(fn ($s) => $s['product_id'], $result['suggestions']);
@@ -284,10 +300,21 @@ class RestockAnalyticsService
     // Data gathering
     // -------------------------------------------------------------------
 
-    /** @return array<int, array<string, float>> product_id => [Y-m-d => qty out] */
-    private function dailyDemand(string $from, string $to): array
+    /**
+     * Per-location daily demand (issuances + sales), attributed to the location
+     * where the outflow was recorded. Rows with a NULL location land under key 0
+     * and so never match a warehouse id (excluded from per-warehouse demand) but
+     * are still summed into the org-wide total for suggestions.
+     *
+     * Public because DashboardAnalyticsService reuses it for the Movement tab —
+     * the dashboard and the restock engine must agree on what "demand" means, so
+     * there is exactly one definition and one query. Pure read, no side effects.
+     *
+     * @return array<int, array<int, array<string, float>>> locationId => productId => [Y-m-d => qty out]
+     */
+    public function dailyDemandByLocation(string $from, string $to): array
     {
-        $daily = [];
+        $byLoc = [];
 
         $issuances = DB::table('issuance_details as d')
             ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
@@ -295,42 +322,96 @@ class RestockAnalyticsService
             ->whereBetween('i.issuance_date', [$from, $to])
             ->where(fn ($q) => $q->whereNull('i.status_id')
                 ->orWhere('i.status_id', '!=', self::ISSUANCE_VOIDED_STATUS))
-            ->groupBy('d.product_id', 'i.issuance_date')
+            ->groupBy('i.location_id', 'd.product_id', 'i.issuance_date')
             ->selectRaw(
-                "d.product_id, i.issuance_date as day,
+                "i.location_id, d.product_id, i.issuance_date as day,
                  SUM(CASE WHEN p.product_type = 'installation_material' AND d.quantity_in_pieces > 0
                           THEN d.quantity_in_pieces ELSE d.quantity_issued END) as qty"
             )
             ->get();
 
         foreach ($issuances as $row) {
+            $loc = (int) $row->location_id;
             $day = (string) $row->day;
-            $daily[(int) $row->product_id][$day] =
-                ($daily[(int) $row->product_id][$day] ?? 0) + (float) $row->qty;
+            $byLoc[$loc][(int) $row->product_id][$day] =
+                ($byLoc[$loc][(int) $row->product_id][$day] ?? 0) + (float) $row->qty;
         }
 
         $sales = DB::table('sales_details as sd')
             ->join('sales as s', 's.sales_id', '=', 'sd.sales_id')
             ->whereRaw('COALESCE(s.sale_date, s.order_date, DATE(s.created_at)) BETWEEN ? AND ?', [$from, $to])
-            ->groupBy('sd.product_id', DB::raw('COALESCE(s.sale_date, s.order_date, DATE(s.created_at))'))
+            ->groupBy('s.location_id', 'sd.product_id', DB::raw('COALESCE(s.sale_date, s.order_date, DATE(s.created_at))'))
             ->selectRaw(
-                'sd.product_id,
+                's.location_id, sd.product_id,
                  COALESCE(s.sale_date, s.order_date, DATE(s.created_at)) as day,
                  SUM(sd.quantity) as qty'
             )
             ->get();
 
         foreach ($sales as $row) {
+            $loc = (int) $row->location_id;
             $day = (string) $row->day;
-            $daily[(int) $row->product_id][$day] =
-                ($daily[(int) $row->product_id][$day] ?? 0) + (float) $row->qty;
+            $byLoc[$loc][(int) $row->product_id][$day] =
+                ($byLoc[$loc][(int) $row->product_id][$day] ?? 0) + (float) $row->qty;
         }
 
-        return $daily;
+        return $byLoc;
     }
 
-    /** @return array<int, int> product_id => org-wide quantity_on_hand */
-    private function stockOnHand(): array
+    /**
+     * Derive demand velocity + computed stock thresholds from one daily-demand
+     * series (a single warehouse's slice, or the org-wide total). Lead time is
+     * supplied by the caller (per-product, supplier-based).
+     *
+     * @param array<string, float> $series [Y-m-d => qty out]
+     * @return array{total90:float,total30:float,v30:float,v90:float,trend:?float,demandDays:int,sigma:float,computedSafety:int,computedReorder:int,computedTarget:int}
+     */
+    private function demandMetrics(array $series, string $from30, float $lead): array
+    {
+        $total90 = array_sum($series);
+        $total30 = 0.0;
+        foreach ($series as $day => $qty) {
+            if ($day >= $from30) {
+                $total30 += $qty;
+            }
+        }
+        $v30        = $total30 / self::WINDOW_SHORT_DAYS;
+        $v90        = $total90 / self::WINDOW_LONG_DAYS;
+        $trend      = $v90 > 0 ? $v30 / $v90 : null;
+        $demandDays = count(array_filter($series, fn ($q) => $q > 0));
+        $sigma      = $this->dailyStdDev($series, self::WINDOW_LONG_DAYS);
+
+        $computedSafety = $demandDays >= self::SPARSE_DEMAND_DAYS
+            ? (int) ceil(self::SERVICE_FACTOR * $sigma * sqrt($lead))
+            : (int) ceil(0.5 * $v30 * $lead);
+        $computedReorder = (int) ceil($v30 * $lead) + $computedSafety;
+        $computedTarget  = (int) ceil(self::WINDOW_SHORT_DAYS * $v30) + $computedSafety;
+
+        return compact(
+            'total90', 'total30', 'v30', 'v90', 'trend', 'demandDays', 'sigma',
+            'computedSafety', 'computedReorder', 'computedTarget'
+        );
+    }
+
+    /** @return array<int, array<int,int>> locationId => [productId => qty], warehouses only */
+    private function stockByWarehouse(): array
+    {
+        $rows = DB::table('inventory as inv')
+            ->join('locations as l', 'l.location_id', '=', 'inv.location_id')
+            ->where('l.location_type', 'warehouse')
+            ->groupBy('inv.location_id', 'inv.product_id')
+            ->selectRaw('inv.location_id, inv.product_id, SUM(inv.quantity_on_hand) as qty')
+            ->get();
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(int) $r->location_id][(int) $r->product_id] = (int) $r->qty;
+        }
+        return $out;
+    }
+
+    /** @return array<int,int> productId => org-wide quantity_on_hand (all locations) */
+    private function stockOnHandTotal(): array
     {
         return DB::table('inventory')
             ->groupBy('product_id')
@@ -340,31 +421,52 @@ class RestockAnalyticsService
             ->all();
     }
 
-    /** @return array<int, int> product_id => open-PO qty not yet received */
-    private function openPoQuantities(): array
+    /** @return array<int, array<int,int>> locationId => [productId => open-PO qty not yet received] */
+    private function openPoByWarehouse(): array
     {
+        // quantity_ordered means PACKAGES for installation materials and units
+        // (pieces) for appliances. Received quantities are always pieces, so
+        // convert ordered -> pieces before netting.
         $ordered = DB::table('purchase_order_details as pod')
             ->join('purchase_orders as po', 'po.po_id', '=', 'pod.po_id')
+            ->join('products as p', 'p.product_id', '=', 'pod.product_id')
+            ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'pod.product_id')
             ->whereIn('po.status_id', self::OPEN_PO_STATUSES)
             ->whereNull('po.deleted_at')
-            ->groupBy('pod.product_id')
-            ->selectRaw('pod.product_id, SUM(pod.quantity_ordered) as qty')
-            ->pluck('qty', 'product_id');
+            ->whereNotNull('pod.location_id')
+            ->groupBy('pod.location_id', 'pod.product_id')
+            ->selectRaw(
+                "pod.location_id, pod.product_id,
+                 SUM(CASE WHEN p.product_type = 'installation_material'
+                          THEN pod.quantity_ordered * GREATEST(COALESCE(imd.pieces_per_package, 1), 1)
+                          ELSE pod.quantity_ordered END) as qty"
+            )
+            ->get();
 
         $received = DB::table('receiving_details as rd')
             ->join('receivings as r', 'r.receiving_id', '=', 'rd.receiving_id')
             ->join('purchase_orders as po', 'po.po_id', '=', 'r.po_id')
             ->whereIn('po.status_id', self::OPEN_PO_STATUSES)
             ->whereNull('po.deleted_at')
-            ->groupBy('rd.product_id')
-            ->selectRaw('rd.product_id, SUM(rd.quantity_amount) as qty')
-            ->pluck('qty', 'product_id');
+            ->whereNotNull('r.location_id')
+            ->groupBy('r.location_id', 'rd.product_id')
+            ->selectRaw('r.location_id, rd.product_id, SUM(rd.quantity_amount) as qty')
+            ->get();
 
-        $open = [];
-        foreach ($ordered as $pid => $qty) {
-            $open[(int) $pid] = max(0, (int) $qty - (int) ($received[$pid] ?? 0));
+        $recvMap = [];
+        foreach ($received as $r) {
+            $recvMap[(int) $r->location_id][(int) $r->product_id] = (int) $r->qty;
         }
-        return $open;
+
+        // Nets received against ordered per warehouse; assumes a PO line's delivery
+        // destination (pod.location_id) is where it is received (receivings.location_id).
+        $out = [];
+        foreach ($ordered as $o) {
+            $loc = (int) $o->location_id;
+            $pid = (int) $o->product_id;
+            $out[$loc][$pid] = max(0, (int) $o->qty - (int) ($recvMap[$loc][$pid] ?? 0));
+        }
+        return $out;
     }
 
     /**

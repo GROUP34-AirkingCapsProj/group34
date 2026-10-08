@@ -244,7 +244,7 @@ const WarehouseManagement = () => {
               <tbody>
                 {warehouses.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>
+                    <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-label)', padding: 24 }}>
                       {loading ? <Loader /> : 'No warehouses found'}
                     </td>
                   </tr>

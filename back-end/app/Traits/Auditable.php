@@ -128,7 +128,7 @@ trait Auditable
             // user FK fields → full name
             if (in_array($key, ['approved_by', 'created_by', 'received_by', 'issued_by',
                                  'transferred_by', 'adjusted_by', 'requested_by', 'returned_by',
-                                 'user_id'])) {
+                                 'verified_by', 'scanned_by', 'user_id'])) {
                 $user = \App\Models\User::find($id);
                 if ($user) {
                     $name = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));

@@ -4,14 +4,42 @@ namespace Tests\Feature\Budget;
 
 use App\Models\BudgetTransaction;
 use App\Services\BudgetService;
+use Illuminate\Support\Facades\DB;
 
 class RebuildBudgetTotalsTest extends BudgetTestCase
 {
+    private function anyProductId(): int
+    {
+        return (int) (DB::table('products')->value('product_id')
+            ?? DB::table('products')->insertGetId([
+                'product_name' => 'Budget Test Product ' . uniqid(),
+                'product_code' => 'BTP-' . strtoupper(substr(uniqid(), -6)),
+                'product_type' => 'installation_material',
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ], 'product_id'));
+    }
+
+    private function commitPoOf(\App\Models\BudgetAllocation $budget, float $amount): void
+    {
+        $pr = $this->makePr($budget, 0, 14);
+        $po = $this->makePo($pr, $amount, 7);
+        DB::table('purchase_order_details')->insert([
+            'po_id'            => $po->po_id,
+            'product_id'       => $this->anyProductId(),
+            'quantity_ordered' => 1,
+            'unit_price'       => $amount,
+            'subtotal'         => $amount,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+        app(BudgetService::class)->commitPo($po->fresh()->load('details'));
+    }
+
     public function test_rebuild_recomputes_cached_columns_from_ledger(): void
     {
         $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        app(BudgetService::class)->commit($pr);
+        $this->commitPoOf($budget, 4000);
 
         // Corrupt the cached columns to simulate historical drift.
         $budget->forceFill(['committed' => 9999, 'spent' => 123])->save();
@@ -44,8 +72,7 @@ class RebuildBudgetTotalsTest extends BudgetTestCase
     public function test_backfill_skips_budgets_that_already_have_ledger_rows(): void
     {
         $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
-        app(BudgetService::class)->commit($pr);
+        $this->commitPoOf($budget, 4000);
         $before = BudgetTransaction::where('budget_id', $budget->budget_id)->count();
 
         $this->artisan('budget:rebuild-totals --backfill')->assertSuccessful();

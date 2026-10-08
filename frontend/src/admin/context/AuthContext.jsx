@@ -7,7 +7,6 @@ import {
   clearCachedPermissions,
   PERMISSIONS_TTL_MS,
 } from '../utils/permissionCache';
-import { disconnectEcho } from '../utils/echo';
 
 const AuthContext = createContext(null);
 
@@ -34,7 +33,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const clearSession = useCallback(() => {
-    disconnectEcho();
+    // Dynamic import so laravel-echo/pusher stay out of the initial JS bundle.
+    import('../utils/echo').then((m) => m.disconnectEcho()).catch(() => {});
     updateUser(null);
     clearCachedPermissions();
     lastPermFetchRef.current = null;
@@ -91,7 +91,13 @@ export const AuthProvider = ({ children }) => {
       setPermissions(null);
       return;
     }
-    refreshPermissions({ force: true });
+    // Prefer warm session cache on first paint; only force-refresh when stale.
+    const cached = readCachedPermissions();
+    if (cached?.map && permissions == null) {
+      setPermissions(cached.map);
+      lastPermFetchRef.current = cached.at ?? Date.now();
+    }
+    refreshPermissions({ force: !cached?.map });
     const onFocus = () => refreshPermissions();
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);

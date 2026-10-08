@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Issuance;
 use App\Models\WarrantyRecord;
+use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -20,11 +21,44 @@ class CustomerController extends Controller
     private const STATUS_WARRANTY_EXPIRED  = 34;
     private const STATUS_WARRANTY_CLAIMED  = 35;
 
+    /**
+     * Per-customer counts, constrained to the locations the caller may see.
+     *
+     * Customers themselves are global (no location column, and every role must
+     * see all of them). Their counts are not: issuances and warranty_claims
+     * both carry a location_id, so an unscoped count reported how much business
+     * a customer did at branches the viewer cannot see. warrantyRecords has no
+     * location column and stays global.
+     */
+    private function scopedCounts(?User $user): array
+    {
+        $limit = static function ($q) use ($user) {
+            if ($user === null || $user->isCentralized()) {
+                return;
+            }
+
+            $locationId = $user->scopedLocationId();
+
+            if ($locationId === null) {
+                $q->whereRaw('1 = 0');
+                return;
+            }
+
+            $q->where('location_id', $locationId);
+        };
+
+        return [
+            'issuances'      => $limit,
+            'warrantyRecords',
+            'warrantyClaims' => $limit,
+        ];
+    }
+
     // GET /api/customers
     public function index(Request $request)
     {
         $query = Customer::with('status')
-                         ->withCount(['issuances', 'warrantyRecords', 'warrantyClaims'])
+                         ->withCount($this->scopedCounts($request->user()))
                          ->orderBy('customer_name');
 
         if ($request->filled('search')) {
@@ -78,10 +112,10 @@ class CustomerController extends Controller
     }
 
     // GET /api/customers/{id}
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $customer = Customer::with('status')
-            ->withCount(['issuances', 'warrantyRecords', 'warrantyClaims'])
+            ->withCount($this->scopedCounts($request->user()))
             ->find($id);
 
         if (! $customer) {
@@ -101,7 +135,7 @@ class CustomerController extends Controller
 
         $issuances = Issuance::with([
             'details.product.applianceDetail.brand',
-            'details.product.consumableDetail.unit',
+            'details.product.installationMaterialDetail.unit',
             'details.warrantyRecord.status',
             'location',
             'issuedByUser',
@@ -129,7 +163,7 @@ class CustomerController extends Controller
                 'items' => $iss->details->map(function ($d) {
                     $p  = $d->product;
                     $ad = $p?->applianceDetail;
-                    $cd = $p?->consumableDetail;
+                    $cd = $p?->installationMaterialDetail;
                     $wr = $d->warrantyRecord;
 
                     $warrantyLabel = null;
@@ -187,7 +221,16 @@ class CustomerController extends Controller
             'warranty_duration_label' => $w->warranty_duration_label,
             'days_remaining'          => $w->days_remaining,
             'is_expired'              => $w->is_expired,
-            'status_name'             => $w->status?->status_name,
+            // Derived, like is_expired directly above it. Read off the stored
+            // column these two contradicted each other: a warranty that lapsed
+            // before anyone last opened the warranty list came back as
+            // "Active" with is_expired true in the same row.
+            'status_name'             => match ($w->effective_status_id) {
+                WarrantyRecord::STATUS_ACTIVE  => 'Active',
+                WarrantyRecord::STATUS_EXPIRED => 'Expired',
+                WarrantyRecord::STATUS_CLAIMED => 'Claimed',
+                default                        => $w->status?->status_name,
+            },
         ]);
 
         $claims = \App\Models\WarrantyClaim::with(['details.product', 'status'])
@@ -349,7 +392,7 @@ class CustomerController extends Controller
     public function export(Request $request)
     {
         $customers = Customer::with('status')
-            ->withCount('issuances')
+            ->withCount(['issuances' => $this->scopedCounts($request->user())['issuances']])
             ->when(
                 $request->filled('customer_type'),
                 fn($q) => $q->where('customer_type', $request->string('customer_type'))

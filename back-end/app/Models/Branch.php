@@ -239,12 +239,6 @@ class Branch extends Model
         return $this->hasMany(Inventory::class, 'location_id', 'location_id');
     }
 
-    /** Transactions at this branch */
-    public function transactions()
-    {
-        return $this->hasMany(Transaction::class, 'branch_id', 'location_id');
-    }
-
     /** Users assigned to this branch (legacy: branch_id on users table) */
     public function users()
     {

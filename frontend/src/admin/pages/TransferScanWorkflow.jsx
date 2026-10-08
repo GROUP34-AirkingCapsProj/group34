@@ -213,7 +213,7 @@ const TransferScanWorkflow = () => {
           </button>
         </div>
 
-        <p style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
+        <p style={{ fontSize: 13, color: 'var(--ink-blue-500)', marginBottom: 12 }}>
           {mode === 'out'
             ? 'Pick your warehouse. Lists transfers that are in transit (stock has left this site; showroom has not fully received yet).'
             : 'Pick your showroom / destination. Scan barcodes to pull stock into this location when the truck arrives.'}
@@ -236,7 +236,7 @@ const TransferScanWorkflow = () => {
               ? 'Shipment in transit (from this warehouse)'
               : 'In-transit transfer (receiving at this showroom)'}
           </label>
-          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 8px', lineHeight: 1.45 }}>
+          <p style={{ fontSize: 12, color: 'var(--ink-blue-500)', margin: '0 0 8px', lineHeight: 1.45 }}>
             {mode === 'out'
               ? 'You do not create the warehouse shipment here. Choose an existing transfer that is already In Transit (created in Stock Transfer with “Ship first”) to open the checklist and print a DR.'
               : 'Choose the shipment arriving at this showroom, then scan barcodes below to record receipt into stock.'}
@@ -254,7 +254,7 @@ const TransferScanWorkflow = () => {
         {loading ? (
           <Loader label="Loading transfers" />
         ) : filtered.length === 0 ? (
-          <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, color: '#64748b', fontSize: 14 }}>
+          <div style={{ background: 'var(--bg-muted)', borderRadius: 10, padding: 16, color: 'var(--ink-blue-500)', fontSize: 14 }}>
             No in-transit transfers for this location. Create one from{' '}
             <button type="button" className="btn-link" style={{ padding: 0 }} onClick={() => navigate('/admin/transfers')}>
               Stock Transfer
@@ -264,11 +264,11 @@ const TransferScanWorkflow = () => {
         ) : null}
 
         {selected && (
-          <div style={{ background: '#fef2f2', borderRadius: 12, padding: 16, marginBottom: 16, border: '1px solid #fecaca' }}>
+          <div style={{ background: 'var(--danger-soft-bg)', borderRadius: 12, padding: 16, marginBottom: 16, border: '1px solid var(--line-red)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <div>
-                <strong style={{ color: '#991b1b' }}>Product scan checklist</strong>
-                <div style={{ fontSize: 12, color: '#7f1d1d', marginTop: 4 }}>
+                <strong style={{ color: 'var(--ink-red-600)' }}>Product scan checklist</strong>
+                <div style={{ fontSize: 12, color: 'var(--ink-red-700)', marginTop: 4 }}>
                   {selected.from_location?.location_name || '—'} → {selected.to_location?.location_name || '—'}
                 </div>
               </div>
@@ -281,9 +281,9 @@ const TransferScanWorkflow = () => {
                 <span>
                   {totals.received}/{totals.shipped} units {mode === 'in' ? 'received' : 'received at destination'}
                 </span>
-                <span style={{ color: '#b91c1c' }}>{pendingUnits} pending</span>
+                <span style={{ color: 'var(--ink-red)' }}>{pendingUnits} pending</span>
               </div>
-              <div style={{ height: 8, background: '#fee2e2', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ height: 8, background: 'var(--tint-red)', borderRadius: 4, overflow: 'hidden' }}>
                 <div
                   style={{
                     height: '100%',
@@ -308,12 +308,12 @@ const TransferScanWorkflow = () => {
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       padding: '10px 0',
-                      borderBottom: i < selected.details.length - 1 ? '1px solid #fecaca' : 'none',
+                      borderBottom: i < selected.details.length - 1 ? '1px solid var(--line-red)' : 'none',
                       fontSize: 14,
                     }}
                   >
                     <span>{d.product?.product_name || 'Product'}</span>
-                    <span style={{ fontSize: 12, color: pend > 0 ? '#b45309' : '#059669' }}>
+                    <span style={{ fontSize: 12, color: pend > 0 ? 'var(--ink-amber)' : 'var(--ink-teal-700)' }}>
                       {rc}/{tr} units
                     </span>
                   </li>
@@ -324,7 +324,7 @@ const TransferScanWorkflow = () => {
         )}
 
         {mode === 'in' && selected && pendingUnits > 0 && (
-          <form onSubmit={handleReceive} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16 }}>
+          <form onSubmit={handleReceive} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 16 }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>Scan or enter barcode</h3>
             <input
               className="search-input"
@@ -345,7 +345,7 @@ const TransferScanWorkflow = () => {
         )}
 
         {mode === 'in' && selected && pendingUnits === 0 && totals.shipped > 0 && (
-          <p style={{ color: '#059669', fontWeight: 600 }}>Fully received — showroom stock is up to date for this transfer.</p>
+          <p style={{ color: 'var(--ink-teal-700)', fontWeight: 600 }}>Fully received — showroom stock is up to date for this transfer.</p>
         )}
 
         <div style={{ marginTop: 20 }}>

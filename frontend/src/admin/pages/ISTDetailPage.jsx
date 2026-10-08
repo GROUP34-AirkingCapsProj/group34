@@ -23,15 +23,15 @@ const userName = (u) =>
   u ? ((`${u.first_name || ''} ${u.last_name || ''}`).trim() || u.username || '—') : '—';
 
 const STATUS_CFG = {
-  'Approved':           { label: 'APPROVED',           color: '#16a34a', bg: '#dcfce7' },
-  'In Transit':         { label: 'IN TRANSIT',         color: '#2563eb', bg: '#dbeafe' },
-  'Partially Received': { label: 'PARTIALLY RECEIVED', color: '#d97706', bg: '#fef3c7' },
-  'Received':           { label: 'RECEIVED',           color: '#16a34a', bg: '#dcfce7' },
-  'Rejected':           { label: 'REJECTED',           color: '#dc2626', bg: '#fee2e2' },
+  'Approved':           { label: 'APPROVED',           color: 'var(--text-success)', bg: '#dcfce7' },
+  'In Transit':         { label: 'IN TRANSIT',         color: 'var(--text-info)', bg: '#dbeafe' },
+  'Partially Received': { label: 'PARTIALLY RECEIVED', color: 'var(--ink-orange-600)', bg: '#fef3c7' },
+  'Received':           { label: 'RECEIVED',           color: 'var(--text-success)', bg: '#dcfce7' },
+  'Rejected':           { label: 'REJECTED',           color: 'var(--text-danger)', bg: '#fee2e2' },
 };
 
 const StatusBadge = ({ name }) => {
-  const cfg = STATUS_CFG[name] || { label: name || 'UNKNOWN', color: '#64748b', bg: '#f1f5f9' };
+  const cfg = STATUS_CFG[name] || { label: name || 'UNKNOWN', color: 'var(--ink-blue-500)', bg: '#f1f5f9' };
   return (
     <span style={{
       display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11,
@@ -165,7 +165,7 @@ const ISTDetailPage = () => {
                   <button
                     type="button"
                     className="po-btn"
-                    style={{ background: '#1e293b', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
+                    style={{ background: 'var(--bg-contrast)', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
                     onClick={() => navigate(`/admin/ist/${id}/dispatch`)}
                   >
                     Scan / Dispatch
@@ -175,7 +175,7 @@ const ISTDetailPage = () => {
                   <button
                     type="button"
                     className="po-btn"
-                    style={{ background: '#1e293b', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
+                    style={{ background: 'var(--bg-contrast)', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
                     onClick={() => navigate(`/admin/ist/${id}/receive`)}
                   >
                     Confirm Receipt
@@ -186,7 +186,7 @@ const ISTDetailPage = () => {
                     <button
                       type="button"
                       className="po-btn"
-                      style={{ background: '#1e293b', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
+                      style={{ background: 'var(--bg-contrast)', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
                       onClick={() => navigate(`/admin/ist/${id}/receipt`)}
                     >
                       Print Receipt
@@ -242,7 +242,7 @@ const ISTDetailPage = () => {
                 ].map(({ label, value, bold }) => (
                   <div key={label} className="po-field">
                     <span className="po-field-label">{label}</span>
-                    <span style={{ fontSize: 14, color: '#1e293b', fontWeight: bold ? 700 : 500 }}>{value}</span>
+                    <span style={{ fontSize: 14, color: 'var(--ink-blue-800-3)', fontWeight: bold ? 700 : 500 }}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -282,24 +282,24 @@ const ISTDetailPage = () => {
                           <tr key={d.transfer_detail_id}>
                             <td>
                               <div style={{ fontWeight: 600 }}>{name}</div>
-                              {model !== '—' && <div style={{ fontSize: 11, color: '#94a3b8' }}>{model}</div>}
+                              {model !== '—' && <div style={{ fontSize: 11, color: 'var(--ink-blue-300)' }}>{model}</div>}
                             </td>
                             <td style={{ textAlign: 'center' }}>{d.quantity_requested ?? 0}</td>
                             <td style={{ textAlign: 'center' }}>
-                              <span style={{ fontWeight: 600, color: (d.quantity_transferred || 0) > 0 ? '#16a34a' : '#64748b' }}>
+                              <span style={{ fontWeight: 600, color: (d.quantity_transferred || 0) > 0 ? 'var(--text-success)' : 'var(--ink-blue-500)' }}>
                                 {d.quantity_transferred ?? 0}
                               </span>
                             </td>
                             <td style={{ textAlign: 'center' }}>{d.quantity_received ?? 0}</td>
                             <td>
                               {serials.length === 0 ? (
-                                <span style={{ color: '#94a3b8', fontSize: 12 }}>—</span>
+                                <span style={{ color: 'var(--ink-blue-300)', fontSize: 12 }}>—</span>
                               ) : (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                   {serials.map((sn) => (
                                     <span key={sn} style={{
                                       fontSize: 11, padding: '2px 6px', borderRadius: 4,
-                                      background: '#f1f5f9', color: '#475569', fontFamily: 'monospace',
+                                      background: 'var(--bg-hover)', color: 'var(--ink-blue-700)', fontFamily: 'monospace',
                                     }}>{sn}</span>
                                   ))}
                                 </div>
@@ -331,24 +331,24 @@ const ISTDetailPage = () => {
                   {timeline.map((entry, idx) => (
                     <div key={entry.tracking_id ?? idx} style={{
                       display: 'flex', gap: 14, padding: '10px 16px',
-                      borderBottom: idx < timeline.length - 1 ? '1px solid #f1f5f9' : 'none',
+                      borderBottom: idx < timeline.length - 1 ? '1px solid var(--border-soft)' : 'none',
                       alignItems: 'flex-start',
                     }}>
                       <div style={{
                         width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                        background: '#f8fafc', border: '1px solid #e2e8f0',
+                        background: 'var(--bg-muted)', border: '1px solid var(--border-color)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
                         <TrackingIcon note={entry.status_note} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 2 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-blue-800-3)', marginBottom: 2 }}>
                           {entry.status_note || '—'}
                         </div>
-                        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#64748b' }}>
+                        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--ink-blue-500)' }}>
                           <span>{fmtDateTime(entry.recorded_at)}</span>
                           {entry.recorded_by && (
-                            <span>by <strong style={{ color: '#475569' }}>{userName(entry.recorded_by)}</strong></span>
+                            <span>by <strong style={{ color: 'var(--ink-blue-700)' }}>{userName(entry.recorded_by)}</strong></span>
                           )}
                         </div>
                       </div>

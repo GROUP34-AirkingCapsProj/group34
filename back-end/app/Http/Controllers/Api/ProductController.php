@@ -6,17 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Models\ApplianceDetail;
 use App\Models\BrandLookup;
 use App\Models\CategoryLookup;
-use App\Models\ConsumableDetail;
+use App\Models\InstallationMaterialDetail;
 use App\Models\Product;
-use App\Models\ProductIssuableUnit;
 use App\Traits\ApiResponse;
+use App\Traits\SumsStockForUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
-    use ApiResponse;
+    use ApiResponse, SumsStockForUser;
 
     private const CAPACITY_RATINGS = ['1HP', '1.5HP', '2HP', '2.5HP', '3HP', '5HP'];
 
@@ -27,9 +27,9 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $query = Product::with(['category', 'status'])
-            ->with(['applianceDetail' => fn($q) => $q->with(['brand'])])
-            ->with(['consumableDetail' => fn($q) => $q->with('unit')])
-            ->withSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
+            ->with(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
+            ->with(['installationMaterialDetail' => fn($q) => $q->with('unit')])
+            ->withSum(['inventories as stock_on_hand_total' => $this->stockSumForUser($request->user())], 'quantity_on_hand');
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -72,12 +72,12 @@ class ProductController extends Controller
     // SHOW
     // -----------------------------------------------------------------------
 
-    public function show(Product $product)
+    public function show(Request $request, Product $product)
     {
         $product->load(['category', 'status'])
-                ->load(['applianceDetail' => fn($q) => $q->with(['brand'])])
-                ->load(['consumableDetail' => fn($q) => $q->with('unit')])
-                ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
+                ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
+                ->load(['installationMaterialDetail' => fn($q) => $q->with('unit')])
+                ->loadSum(['inventories as stock_on_hand_total' => $this->stockSumForUser($request->user())], 'quantity_on_hand');
 
         $product->setAttribute('quantity', (int) ($product->stock_on_hand_total ?? 0));
         $this->flattenExtension($product);
@@ -86,7 +86,7 @@ class ProductController extends Controller
     }
 
     // -----------------------------------------------------------------------
-    // STORE (appliance or consumable in one transaction)
+    // STORE (appliance or installation material in one transaction)
     // -----------------------------------------------------------------------
 
     public function store(Request $request)
@@ -94,7 +94,7 @@ class ProductController extends Controller
         try {
             $input = $request->all();
 
-            // Normalize naming aliases (PORecommendation caller uses code/name/category/brand)
+            // Normalize naming aliases (some callers use code/name/category/brand)
             if (!isset($input['product_code']) && isset($input['code'])) {
                 $input['product_code'] = $input['code'];
             }
@@ -107,14 +107,21 @@ class ProductController extends Controller
 
             // Resolve category string → ID
             if (empty($input['category_id']) && !empty($input['category'])) {
+                // Derive the type from the product being imported. Hardcoding
+                // 'product' created categories that matched neither Item Master
+                // dropdown filter, so the product could never be re-categorised.
+                $categoryType = ($input['product_type'] ?? null) === 'installation_material'
+                    ? 'installation_material'
+                    : 'appliance';
+
                 $cat = CategoryLookup::firstOrCreate(
                     ['category_name' => trim($input['category'])],
-                    ['category_type' => 'product']
+                    ['category_type' => $categoryType]
                 );
                 $input['category_id'] = $cat->category_id;
             }
 
-            // Resolve brand string → ID (used by PORecommendation)
+            // Resolve brand string → ID
             if (empty($input['brand_id']) && !empty($input['brand'])) {
                 $brand = BrandLookup::firstOrCreate(['brand_name' => trim($input['brand'])]);
                 $input['brand_id'] = $brand->brand_id;
@@ -131,6 +138,8 @@ class ProductController extends Controller
                 'description'        => 'nullable|string',
                 'barcode'            => 'nullable|string|max:100',
                 'category_id'        => 'nullable|exists:category_lookup,category_id',
+                'ac_type_id'         => 'nullable|exists:ac_type_lookup,ac_type_id',
+                'unit_role'          => 'nullable|in:indoor,outdoor,complete',
                 'unit_price'         => 'nullable|numeric|min:0',
                 'cost_price'         => 'nullable|numeric|min:0',
                 'recommended_stocks' => 'nullable|integer|min:0',
@@ -159,6 +168,8 @@ class ProductController extends Controller
                         'capacity_rating'        => $request->input('capacity_rating') ?: null,
                         'variant'                => $request->input('variant') ?: null,
                         'color'                  => $request->input('color') ?: null,
+                        'ac_type_id'             => $request->input('ac_type_id') ?: null,
+                        'unit_role'              => $request->input('unit_role') ?: null,
                         'warranty_value'         => $wValue,
                         'warranty_unit'          => $wUnit,
                         'warranty_period_months' => $wMonths,
@@ -169,7 +180,7 @@ class ProductController extends Controller
                     $wUnit  = in_array($request->input('warranty_unit'), ['year', 'month'])
                         ? $request->input('warranty_unit') : 'month';
 
-                    ConsumableDetail::create([
+                    InstallationMaterialDetail::create([
                         'product_id'         => $product->product_id,
                         'unit_id'            => $request->input('unit_id') ?: null,
                         'pieces_per_package' => $request->input('pieces_per_package') ? (int) $request->input('pieces_per_package') : null,
@@ -184,8 +195,8 @@ class ProductController extends Controller
             });
 
             $product->load(['category', 'status'])
-                    ->load(['applianceDetail' => fn($q) => $q->with(['brand'])])
-                    ->load(['consumableDetail' => fn($q) => $q->with('unit')]);
+                    ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
+                    ->load(['installationMaterialDetail' => fn($q) => $q->with('unit')]);
 
             $product->setAttribute('quantity', 0);
             $this->flattenExtension($product);
@@ -213,6 +224,8 @@ class ProductController extends Controller
                 'description'        => 'nullable|string',
                 'barcode'            => 'nullable|string|max:100',
                 'category_id'        => 'nullable|exists:category_lookup,category_id',
+                'ac_type_id'         => 'nullable|exists:ac_type_lookup,ac_type_id',
+                'unit_role'          => 'nullable|in:indoor,outdoor,complete',
                 'unit_price'         => 'nullable|numeric|min:0',
                 'cost_price'         => 'nullable|numeric|min:0',
                 'recommended_stocks' => 'nullable|integer|min:0',
@@ -232,6 +245,11 @@ class ProductController extends Controller
                         ? $request->input('warranty_unit') : 'month';
                     $wMonths = $wUnit === 'year' ? $wValue * 12 : $wValue;
 
+                    // Every field here is rewritten on each call, so a caller
+                    // sending only one of them nulls the rest. Long-standing
+                    // behaviour for brand_id/model_code/capacity_rating; the
+                    // AC fields inherit it. Any client doing a partial edit
+                    // must resend the whole appliance-detail set.
                     $product->applianceDetail()->updateOrCreate(
                         ['product_id' => $product->product_id],
                         [
@@ -240,6 +258,8 @@ class ProductController extends Controller
                             'capacity_rating'        => $request->input('capacity_rating') ?: null,
                             'variant'                => $request->input('variant') ?: null,
                             'color'                  => $request->input('color') ?: null,
+                            'ac_type_id'             => $request->input('ac_type_id') ?: null,
+                            'unit_role'              => $request->input('unit_role') ?: null,
                             'warranty_value'         => $wValue,
                             'warranty_unit'          => $wUnit,
                             'warranty_period_months' => $wMonths,
@@ -251,7 +271,7 @@ class ProductController extends Controller
                     $wUnit  = in_array($request->input('warranty_unit'), ['year', 'month'])
                         ? $request->input('warranty_unit') : 'month';
 
-                    $product->consumableDetail()->updateOrCreate(
+                    $product->installationMaterialDetail()->updateOrCreate(
                         ['product_id' => $product->product_id],
                         [
                             'unit_id'            => $request->input('unit_id') ?: null,
@@ -267,9 +287,9 @@ class ProductController extends Controller
 
             $fresh = $product->fresh();
             $fresh->load(['category', 'status'])
-                  ->load(['applianceDetail' => fn($q) => $q->with(['brand'])])
-                  ->load(['consumableDetail' => fn($q) => $q->with('unit')])
-                  ->loadSum(['inventories as stock_on_hand_total'], 'quantity_on_hand');
+                  ->load(['applianceDetail' => fn($q) => $q->with(['brand', 'acType'])])
+                  ->load(['installationMaterialDetail' => fn($q) => $q->with('unit')])
+                  ->loadSum(['inventories as stock_on_hand_total' => $this->stockSumForUser($request->user())], 'quantity_on_hand');
 
             $fresh->setAttribute('quantity', (int) ($fresh->stock_on_hand_total ?? 0));
             $this->flattenExtension($fresh);
@@ -294,7 +314,7 @@ class ProductController extends Controller
     public function archived(Request $request)
     {
         $query = Product::onlyTrashed()
-            ->with(['category', 'applianceDetail.brand', 'consumableDetail.unit']);
+            ->with(['category', 'applianceDetail.brand', 'applianceDetail.acType', 'installationMaterialDetail.unit']);
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -331,83 +351,6 @@ class ProductController extends Controller
     }
 
     // -----------------------------------------------------------------------
-    // ISSUABLE UNITS CRUD
-    // -----------------------------------------------------------------------
-
-    // GET /api/products/{id}/issuable-units
-    public function issuableUnits($productId)
-    {
-        $product = Product::with('issuableUnits.unit')->find($productId);
-        if (! $product) {
-            return $this->notFound('Product not found');
-        }
-        return $this->success($product->issuableUnits, 'Issuable units retrieved');
-    }
-
-    // POST /api/products/{id}/issuable-units
-    public function storeIssuableUnit(Request $request, $productId)
-    {
-        $product = Product::find($productId);
-        if (! $product) {
-            return $this->notFound('Product not found');
-        }
-
-        try {
-            $validated = $request->validate([
-                'unit_id'              => 'required|exists:unit_lookup,unit_id',
-                'label'                => 'required|string|max:100',
-                'conversion_factor'    => 'required|numeric|min:0.000001',
-                'is_whole_package'     => 'boolean',
-                'sort_order'           => 'integer|min:0',
-                'show_as_quick_action' => 'boolean',
-            ]);
-
-            $iu = ProductIssuableUnit::create(
-                array_merge($validated, ['product_id' => $productId])
-            );
-
-            return $this->success($iu->load('unit'), 'Issuable unit added', 201);
-        } catch (ValidationException $e) {
-            return $this->validationError($e->errors());
-        }
-    }
-
-    // PUT /api/products/issuable-units/{issuable_unit_id}
-    public function updateIssuableUnit(Request $request, $iuId)
-    {
-        $iu = ProductIssuableUnit::find($iuId);
-        if (! $iu) {
-            return $this->notFound('Issuable unit not found');
-        }
-
-        try {
-            $validated = $request->validate([
-                'label'                => 'sometimes|string|max:100',
-                'conversion_factor'    => 'sometimes|numeric|min:0.000001',
-                'is_whole_package'     => 'sometimes|boolean',
-                'sort_order'           => 'sometimes|integer|min:0',
-                'show_as_quick_action' => 'sometimes|boolean',
-            ]);
-
-            $iu->update($validated);
-            return $this->success($iu->load('unit'), 'Updated');
-        } catch (ValidationException $e) {
-            return $this->validationError($e->errors());
-        }
-    }
-
-    // DELETE /api/products/issuable-units/{issuable_unit_id}
-    public function destroyIssuableUnit($iuId)
-    {
-        $iu = ProductIssuableUnit::find($iuId);
-        if (! $iu) {
-            return $this->notFound('Issuable unit not found');
-        }
-        $iu->delete();
-        return $this->success(null, 'Removed');
-    }
-
-    // -----------------------------------------------------------------------
     // EXPORT
     // -----------------------------------------------------------------------
 
@@ -417,7 +360,8 @@ class ProductController extends Controller
             'category',
             'status',
             'applianceDetail.brand',
-            'consumableDetail.unit',
+            'applianceDetail.acType',
+            'installationMaterialDetail.unit',
         ])->orderBy('product_id')->get();
 
         $filename = 'item-master-' . now()->format('Ymd-His') . '.csv';
@@ -428,7 +372,7 @@ class ProductController extends Controller
 
         $columns = [
             'Product Code', 'Product Name', 'Type', 'Category', 'Status',
-            'Brand', 'Model', 'Capacity', 'Variant', 'Color', 'Warranty',
+            'Brand', 'Model', 'Capacity', 'Variant', 'AC Type', 'Unit Role', 'Color', 'Warranty',
             'Unit', 'Unit Abbreviation', 'Pieces/Package', 'Package Unit',
             'Cost Price', 'Unit Price',
             'Recommended Stock', 'Safety Stock', 'Max Stock Level',
@@ -442,7 +386,7 @@ class ProductController extends Controller
 
             foreach ($products as $p) {
                 $ad = $p->applianceDetail;
-                $cd = $p->consumableDetail;
+                $cd = $p->installationMaterialDetail;
 
                 fputcsv($handle, [
                     $p->product_code,
@@ -454,6 +398,8 @@ class ProductController extends Controller
                     $ad?->model_code                            ?? '',
                     $ad?->capacity_rating                       ?? '',
                     $ad?->variant                               ?? '',
+                    $ad?->acType?->ac_type_name                 ?? '',
+                    $ad?->unit_role                             ?? '',
                     $ad?->color                                 ?? '',
                     $ad?->warranty_display ?? ($cd?->warranty_display ?? 'No Warranty'),
                     $cd?->unit?->unit_name                      ?? '',
@@ -492,6 +438,9 @@ class ProductController extends Controller
             $p->setAttribute('capacity_rating',        $ad->capacity_rating);
             $p->setAttribute('variant',                $ad->variant);
             $p->setAttribute('color',                  $ad->color);
+            $p->setAttribute('ac_type_id',             $ad->ac_type_id);
+            $p->setAttribute('unit_role',              $ad->unit_role);
+            $p->setAttribute('ac_type_name',           $ad->acType?->ac_type_name);
             $p->setAttribute('warranty_period_months', $ad->warranty_period_months);
             $p->setAttribute('warranty_value',         $ad->warranty_value);
             $p->setAttribute('warranty_unit',          $ad->warranty_unit ?? 'month');
@@ -500,8 +449,8 @@ class ProductController extends Controller
             $p->setRelation('brand',       $ad->brand);
         }
 
-        if ($p->consumableDetail) {
-            $cd = $p->consumableDetail;
+        if ($p->installationMaterialDetail) {
+            $cd = $p->installationMaterialDetail;
             $p->setAttribute('unit_id',            $cd->unit_id);
             $p->setAttribute('unit_name',          $cd->unit?->unit_name);
             $p->setAttribute('unit_abbreviation',  $cd->unit?->unit_abbreviation);

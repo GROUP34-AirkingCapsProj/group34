@@ -1,0 +1,58 @@
+# Build context trimming. Everything here is either huge, machine-specific, or
+# a secret; none of it belongs in the image.
+
+# --- Secrets ---------------------------------------------------------------
+.env
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.production.example
+
+# --- Dependencies (reinstalled inside the image) ---------------------------
+node_modules
+**/node_modules
+back-end/vendor
+frontend/build
+frontend/dist
+
+# --- Not part of the API image ---------------------------------------------
+frontend
+apache
+supabase
+scripts
+docs
+images
+backups
+*.sql
+setup-deploy.bat
+
+# ...but the PostgreSQL baseline MUST ship. `migrate` loads it on a database
+# with no applied migrations; without it Laravel falls through to the 133
+# historical migrations, which are MySQL-only and would fail against Aiven.
+# Stated explicitly rather than relying on `*.sql` not crossing a slash.
+!back-end/database/schema/*.sql
+
+# --- Machine-specific / generated ------------------------------------------
+back-end/public/storage
+back-end/storage/framework/cache/*
+back-end/storage/framework/sessions/*
+back-end/storage/framework/views/*
+back-end/storage/logs/*
+back-end/storage/db-backups
+back-end/bootstrap/cache/*.php
+back-end/.phpunit.result.cache
+back-end/.phpunit.cache
+
+# --- Dev tooling / VCS -----------------------------------------------------
+.git
+.gitignore
+.gitattributes
+.github
+.claude
+**/.claude
+.idea
+.vscode
+Dockerfile
+.dockerignore
+*.md
+!README.md

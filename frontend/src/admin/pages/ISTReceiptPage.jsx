@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
-import { istAPI } from '../services/api';
+import { companySettingsAPI, istAPI } from '../services/api';
 
 const fmtDate = (v) => {
   if (!v) return '—';
@@ -21,6 +21,7 @@ const ISTReceiptPage = () => {
   const [ist,     setIst]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
+  const [paperSize, setPaperSize] = useState('a4');
 
   const fetchIst = useCallback(() => {
     setLoading(true);
@@ -31,14 +32,19 @@ const ISTReceiptPage = () => {
   }, [id]);
 
   useEffect(() => { fetchIst(); }, [fetchIst]);
+  useEffect(() => {
+    companySettingsAPI.get()
+      .then((settings) => setPaperSize(settings?.pdf_paper_size || 'a4'))
+      .catch(() => {});
+  }, []);
 
-  const pdfUrl = istAPI.receiptPdfUrl(id);
+  const pdfUrl = istAPI.receiptPdfUrl(id, paperSize);
 
   return (
     <>
       {/* ── Action bar (hidden on print) ── */}
       <div className="no-print" style={{
-        background: '#1e293b', padding: '10px 24px',
+        background: 'var(--bg-contrast)', padding: '10px 24px',
         display: 'flex', alignItems: 'center', gap: 12,
       }}>
         <button
@@ -58,12 +64,16 @@ const ISTReceiptPage = () => {
           type="button"
           onClick={() => window.print()}
           style={{
-            background: '#fff', color: '#1e293b', border: 'none',
+            background: 'var(--bg-card)', color: 'var(--ink-blue-800-3)', border: 'none',
             padding: '7px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 12,
           }}
         >
           Print
         </button>
+        <select value={paperSize} onChange={(e) => setPaperSize(e.target.value)} style={{ padding: '7px 10px', borderRadius: 6 }}>
+          <option value="a4">A4</option><option value="letter">Letter</option>
+          <option value="legal">Legal</option><option value="a5">A5</option>
+        </select>
         <a
           href={pdfUrl}
           target="_blank"
@@ -78,35 +88,35 @@ const ISTReceiptPage = () => {
       </div>
 
       {/* ── Receipt body ── */}
-      <div style={{ background: '#f8fafc', minHeight: '100vh', padding: '32px 0' }}>
+      <div style={{ background: 'var(--bg-muted)', minHeight: '100vh', padding: '32px 0' }}>
         {loading && (
           <Loader label="Loading receipt" />
         )}
         {error && (
-          <div style={{ maxWidth: 600, margin: '40px auto', background: '#fee2e2', color: '#dc2626', padding: 20, borderRadius: 8, textAlign: 'center' }}>
+          <div style={{ maxWidth: 600, margin: '40px auto', background: 'var(--tint-red)', color: 'var(--text-danger)', padding: 20, borderRadius: 8, textAlign: 'center' }}>
             {error}
           </div>
         )}
 
         {ist && !loading && (
           <div className="ist-receipt-page" style={{
-            maxWidth: 700, margin: '0 auto', background: '#fff',
+            maxWidth: 700, margin: '0 auto', background: 'var(--bg-card)',
             padding: '36px 40px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-            fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#111',
+            fontFamily: 'Arial, sans-serif', fontSize: 12, color: 'var(--ink-slate-900)',
           }}>
 
             {/* Company Header — centered letterhead; address reflects the SOURCE location */}
-            <div style={{ textAlign: 'center', borderBottom: '2px solid #111', paddingBottom: 10, marginBottom: 14 }}>
+            <div style={{ textAlign: 'center', borderBottom: '2px solid var(--line-slate-900)', paddingBottom: 10, marginBottom: 14 }}>
               <div style={{ fontWeight: 800, fontSize: 22, textTransform: 'uppercase', letterSpacing: 0.8 }}>
                 LGM Global Industries, Inc.
               </div>
               {ist.from_location?.location_name && (
-                <div style={{ fontSize: 11, color: '#333', marginTop: 3 }}>{ist.from_location.location_name}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-slate-800)', marginTop: 3 }}>{ist.from_location.location_name}</div>
               )}
               {ist.from_location?.address && (
-                <div style={{ fontSize: 11, color: '#333', marginTop: 1 }}>{ist.from_location.address}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-slate-800)', marginTop: 1 }}>{ist.from_location.address}</div>
               )}
-              <div style={{ fontSize: 10, color: '#666', marginTop: 1 }}>Vat Reg. TIN#: 771-347-425-000</div>
+              <div style={{ fontSize: 10, color: 'var(--ink-slate-600)', marginTop: 1 }}>Vat Reg. TIN#: 771-347-425-000</div>
             </div>
 
             {/* Title + IST Number */}
@@ -139,19 +149,19 @@ const ISTReceiptPage = () => {
               </tbody>
             </table>
 
-            <hr style={{ border: 'none', borderTop: '1px solid #bbb', margin: '8px 0' }} />
+            <hr style={{ border: 'none', borderTop: '1px solid var(--line-slate-300)', margin: '8px 0' }} />
 
             {/* Products Table */}
             <table style={{ width: '100%', borderCollapse: 'collapse', margin: '10px 0' }}>
               <thead>
                 <tr>
-                  <th style={{ background: '#1e293b', color: '#fff', padding: '6px 8px', textAlign: 'center', fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', border: '1px solid #1e293b', width: 80 }}>
+                  <th style={{ background: 'var(--bg-contrast)', color: '#fff', padding: '6px 8px', textAlign: 'center', fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', border: '1px solid #1e293b', width: 80 }}>
                     QUANTITY
                   </th>
-                  <th style={{ background: '#1e293b', color: '#fff', padding: '6px 8px', textAlign: 'left', fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', border: '1px solid #1e293b' }}>
+                  <th style={{ background: 'var(--bg-contrast)', color: '#fff', padding: '6px 8px', textAlign: 'left', fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', border: '1px solid #1e293b' }}>
                     MODEL / PRODUCT
                   </th>
-                  <th style={{ background: '#1e293b', color: '#fff', padding: '6px 8px', textAlign: 'left', fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', border: '1px solid #1e293b' }}>
+                  <th style={{ background: 'var(--bg-contrast)', color: '#fff', padding: '6px 8px', textAlign: 'left', fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', border: '1px solid #1e293b' }}>
                     SERIAL NO.
                   </th>
                 </tr>
@@ -165,14 +175,14 @@ const ISTReceiptPage = () => {
                   const serials = Array.isArray(d.item_serials) ? d.item_serials : [];
 
                   return (
-                    <tr key={d.transfer_detail_id} style={{ background: idx % 2 === 1 ? '#f8fafc' : '#fff' }}>
-                      <td style={{ padding: '5px 8px', border: '1px solid #d1d5db', textAlign: 'center', fontWeight: 600 }}>
+                    <tr key={d.transfer_detail_id} style={{ background: idx % 2 === 1 ? 'var(--bg-muted)' : 'var(--bg-card)' }}>
+                      <td style={{ padding: '5px 8px', border: '1px solid var(--border-strong)', textAlign: 'center', fontWeight: 600 }}>
                         {qty}
                       </td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #d1d5db' }}>
+                      <td style={{ padding: '5px 8px', border: '1px solid var(--border-strong)' }}>
                         {label}
                       </td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #d1d5db', fontSize: 10, color: '#374151' }}>
+                      <td style={{ padding: '5px 8px', border: '1px solid var(--border-strong)', fontSize: 10, color: 'var(--text-body)' }}>
                         {serials.length === 0 ? '—' : serials.join(', ')}
                       </td>
                     </tr>
@@ -180,7 +190,7 @@ const ISTReceiptPage = () => {
                 })}
                 {(!ist.details || ist.details.length === 0) && (
                   <tr>
-                    <td colSpan={3} style={{ textAlign: 'center', padding: 14, color: '#94a3b8', border: '1px solid #d1d5db' }}>
+                    <td colSpan={3} style={{ textAlign: 'center', padding: 14, color: 'var(--ink-blue-300)', border: '1px solid var(--border-strong)' }}>
                       No line items.
                     </td>
                   </tr>
@@ -188,22 +198,22 @@ const ISTReceiptPage = () => {
               </tbody>
             </table>
 
-            <hr style={{ border: 'none', borderTop: '1px solid #bbb', margin: '8px 0' }} />
+            <hr style={{ border: 'none', borderTop: '1px solid var(--line-slate-300)', margin: '8px 0' }} />
 
             {/* Signature block */}
             <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 14 }}>
               <tbody>
                 <tr>
                   <td style={{ padding: '3px 0', width: '50%' }}>
-                    <span style={{ fontWeight: 700, color: '#374151' }}>Prepared by:</span>&nbsp;{fullName(ist.prepared_by)}
+                    <span style={{ fontWeight: 700, color: 'var(--text-body)' }}>Prepared by:</span>&nbsp;{fullName(ist.prepared_by)}
                   </td>
                   <td style={{ padding: '3px 0' }}>
-                    <span style={{ fontWeight: 700, color: '#374151' }}>Approved by:</span>&nbsp;{fullName(ist.approved_by)}
+                    <span style={{ fontWeight: 700, color: 'var(--text-body)' }}>Approved by:</span>&nbsp;{fullName(ist.approved_by)}
                   </td>
                 </tr>
                 <tr>
                   <td style={{ padding: '3px 0' }}>
-                    <span style={{ fontWeight: 700, color: '#374151' }}>Received by:</span>&nbsp;{fullName(ist.received_by)}
+                    <span style={{ fontWeight: 700, color: 'var(--text-body)' }}>Received by:</span>&nbsp;{fullName(ist.received_by)}
                   </td>
                   <td></td>
                 </tr>
@@ -212,7 +222,7 @@ const ISTReceiptPage = () => {
 
             <div style={{ marginTop: 36 }}>
               <div style={{ borderBottom: '1px solid #374151', width: '60%', marginBottom: 4 }}></div>
-              <div style={{ fontSize: 10, color: '#64748b' }}>Receiver's Signature over Printed Name</div>
+              <div style={{ fontSize: 10, color: 'var(--ink-blue-500)' }}>Receiver's Signature over Printed Name</div>
             </div>
 
           </div>

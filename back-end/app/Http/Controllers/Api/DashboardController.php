@@ -64,6 +64,7 @@ class DashboardController extends Controller
                 'badge_count'          => $alert['badge_count']   ?? 0,
                 'unread_count'         => $alert['unread_count']  ?? 0,
                 'total_pending'        => $alert['total_pending'] ?? 0,
+                'pending_pr_count'     => $alert['pending_pr_count'] ?? 0,
                 'awaiting_fulfillment' => $awaiting['fulfillment'],
                 'awaiting_receipt'     => $awaiting['receipt'],
             ],
@@ -212,17 +213,20 @@ class DashboardController extends Controller
     {
         $chartDays = 7;
 
-        $inboundRows = DB::table('receivings')
-            ->selectRaw('COALESCE(DATE(receiving_date), DATE(created_at)) as day, SUM(total_quantity_received) as total')
-            ->whereRaw('COALESCE(DATE(receiving_date), DATE(created_at)) >= ?', [now()->subDays($chartDays - 1)->toDateString()])
+        $inboundRows = DB::table('receiving_details as rd')
+            ->join('receivings as r', 'r.receiving_id', '=', 'rd.receiving_id')
+            ->selectRaw('COALESCE(DATE(r.receiving_date), DATE(r.created_at)) as day, SUM(rd.quantity_amount) as total')
+            ->whereRaw('COALESCE(DATE(r.receiving_date), DATE(r.created_at)) >= ?', [now()->subDays($chartDays - 1)->toDateString()])
             ->groupBy('day')
             ->pluck('total', 'day')
             ->toArray();
 
-        $outboundRows = DB::table('sales_details as sd')
-            ->join('sales as s', 'sd.sales_id', '=', 's.sales_id')
-            ->selectRaw('COALESCE(s.sale_date, DATE(s.created_at)) as day, SUM(sd.quantity) as total')
-            ->whereRaw('COALESCE(s.sale_date, DATE(s.created_at)) >= ?', [now()->subDays($chartDays - 1)->toDateString()])
+        $outboundRows = DB::table('issuance_details as d')
+            ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
+            ->where('d.quantity_issued', '>', 0)
+            ->selectRaw('COALESCE(DATE(i.issuance_date), DATE(i.created_at)) as day, '
+                . 'SUM(COALESCE(d.quantity_in_pieces, d.quantity_issued, 0)) as total')
+            ->whereRaw('COALESCE(DATE(i.issuance_date), DATE(i.created_at)) >= ?', [now()->subDays($chartDays - 1)->toDateString()])
             ->groupBy('day')
             ->pluck('total', 'day')
             ->toArray();
@@ -239,30 +243,34 @@ class DashboardController extends Controller
         }
 
         // 30-day totals for the stat cards
-        $totalIn = (int) DB::table('receivings')
-            ->whereRaw('COALESCE(DATE(receiving_date), DATE(created_at)) >= ?', [now()->subDays(30)->toDateString()])
-            ->sum('total_quantity_received');
+        $totalIn = (int) DB::table('receiving_details as rd')
+            ->join('receivings as r', 'r.receiving_id', '=', 'rd.receiving_id')
+            ->whereRaw('COALESCE(DATE(r.receiving_date), DATE(r.created_at)) >= ?', [now()->subDays(30)->toDateString()])
+            ->sum('rd.quantity_amount');
 
-        $totalOut = (int) DB::table('sales_details as sd')
-            ->join('sales as s', 'sd.sales_id', '=', 's.sales_id')
-            ->whereRaw('COALESCE(s.sale_date, DATE(s.created_at)) >= ?', [now()->subDays(30)->toDateString()])
-            ->sum('sd.quantity');
+        $totalOut = (int) DB::table('issuance_details as d')
+            ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
+            ->where('d.quantity_issued', '>', 0)
+            ->whereRaw('COALESCE(DATE(i.issuance_date), DATE(i.created_at)) >= ?', [now()->subDays(30)->toDateString()])
+            ->sum(DB::raw('COALESCE(d.quantity_in_pieces, d.quantity_issued, 0)'));
 
         // Previous 30-day totals for period-over-period badges
-        $prevTotalIn = (int) DB::table('receivings')
-            ->whereRaw('COALESCE(DATE(receiving_date), DATE(created_at)) BETWEEN ? AND ?', [
+        $prevTotalIn = (int) DB::table('receiving_details as rd')
+            ->join('receivings as r', 'r.receiving_id', '=', 'rd.receiving_id')
+            ->whereRaw('COALESCE(DATE(r.receiving_date), DATE(r.created_at)) BETWEEN ? AND ?', [
                 now()->subDays(60)->toDateString(),
                 now()->subDays(31)->toDateString(),
             ])
-            ->sum('total_quantity_received');
+            ->sum('rd.quantity_amount');
 
-        $prevTotalOut = (int) DB::table('sales_details as sd')
-            ->join('sales as s', 'sd.sales_id', '=', 's.sales_id')
-            ->whereRaw('COALESCE(s.sale_date, DATE(s.created_at)) BETWEEN ? AND ?', [
+        $prevTotalOut = (int) DB::table('issuance_details as d')
+            ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
+            ->where('d.quantity_issued', '>', 0)
+            ->whereRaw('COALESCE(DATE(i.issuance_date), DATE(i.created_at)) BETWEEN ? AND ?', [
                 now()->subDays(60)->toDateString(),
                 now()->subDays(31)->toDateString(),
             ])
-            ->sum('sd.quantity');
+            ->sum(DB::raw('COALESCE(d.quantity_in_pieces, d.quantity_issued, 0)'));
 
         return response()->json([
             'success' => true,
@@ -603,7 +611,12 @@ class DashboardController extends Controller
             while ($d->lte($to)) {
                 $ds               = $d->toDateString();
                 $labels[]         = $d->format('M d');
-                $saleValues[]     = Sale::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereDate('created_at', $ds)->count();
+                $saleValues[]     = DB::table('issuances')
+                    ->when($locId !== null, fn ($q) => $q->where('location_id', $locId))
+                    ->whereExists(fn ($q) => $q->selectRaw('1')->from('issuance_details')
+                        ->whereColumn('issuance_details.issuance_id', 'issuances.issuance_id')
+                        ->where('quantity_issued', '>', 0))
+                    ->whereDate('issuance_date', $ds)->count();
                 $purchaseValues[] = PurchaseOrder::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereDate('created_at', $ds)->count();
                 $d->addDay();
             }
@@ -611,7 +624,12 @@ class DashboardController extends Controller
             $d = $from->copy()->startOfMonth();
             while ($d->lte($to)) {
                 $labels[]         = $d->format('M Y');
-                $saleValues[]     = Sale::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereYear('created_at', $d->year)->whereMonth('created_at', $d->month)->count();
+                $saleValues[]     = DB::table('issuances')
+                    ->when($locId !== null, fn ($q) => $q->where('location_id', $locId))
+                    ->whereExists(fn ($q) => $q->selectRaw('1')->from('issuance_details')
+                        ->whereColumn('issuance_details.issuance_id', 'issuances.issuance_id')
+                        ->where('quantity_issued', '>', 0))
+                    ->whereYear('issuance_date', $d->year)->whereMonth('issuance_date', $d->month)->count();
                 $purchaseValues[] = PurchaseOrder::when($locId !== null, fn ($q) => $q->where('location_id', $locId))->whereYear('created_at', $d->year)->whereMonth('created_at', $d->month)->count();
                 $d->addMonth();
             }
@@ -685,8 +703,10 @@ class DashboardController extends Controller
         $inStock = $lowStock = [];
         foreach ($locations as $loc) {
             $lid    = $loc->location_id;
-            $qIn    = DB::table('inventory as inv')->where('inv.location_id', $lid)->whereRaw('inv.quantity_on_hand > COALESCE(inv.reorder_level, 0)');
-            $qLow   = DB::table('inventory as inv')->where('inv.location_id', $lid)->whereRaw('inv.quantity_on_hand <= COALESCE(inv.reorder_level, 0)');
+            $threshold = 'COALESCE(NULLIF(inv.reorder_level, 0), '
+                . '(SELECT recommended_stocks FROM products WHERE products.product_id = inv.product_id), 0)';
+            $qIn    = DB::table('inventory as inv')->where('inv.location_id', $lid)->whereRaw("inv.quantity_on_hand > {$threshold}");
+            $qLow   = DB::table('inventory as inv')->where('inv.location_id', $lid)->whereRaw("inv.quantity_on_hand <= {$threshold}");
             $this->applyInventoryFilters($qIn,  $catId, $brandId, $productId, 'inv');
             $this->applyInventoryFilters($qLow, $catId, $brandId, $productId, 'inv');
             $inStock[]  = (int) $qIn->count();
