@@ -1,5 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * Vite replaces react-scripts for the dev server and the production build.
@@ -16,6 +18,9 @@ export default defineConfig(({ mode }) => {
   // Only REACT_APP_*, matching what CRA exposed to the bundle. Secrets without
   // that prefix (there are none today) stay server-side, as before.
   const env = loadEnv(mode, process.cwd(), 'REACT_APP_');
+
+  // Resolved in the sw-build-id plugin's configResolved, read in its closeBundle.
+  let swOutDir;
 
   return {
     plugins: [
@@ -51,6 +56,50 @@ export default defineConfig(({ mode }) => {
             )});`,
           },
         ],
+      },
+
+      /**
+       * Stamps a unique build id into public/service-worker.js.
+       *
+       * CACHE_NAME used to be a hand-written 'v2' that had to be bumped by hand
+       * whenever the cached shell changed. It never was, so every returning
+       * visitor kept serving the index.html from whichever deploy they first
+       * visited -- and because the cra-process-env-shim above writes the app's
+       * configuration INTO index.html, a stale shell means a stale API URL. A
+       * browser holding a shell from before the production API was configured
+       * sends every request to 127.0.0.1.
+       *
+       * Files in public/ are copied verbatim and never transformed, so the
+       * substitution happens on the emitted copy after the bundle is written.
+       * Dev is unaffected: the service worker is only registered when
+       * NODE_ENV === 'production' (see src/serviceWorkerRegistration.js), so the
+       * un-substituted placeholder is never reached there.
+       */
+      {
+        name: 'sw-build-id',
+        apply: 'build',
+        configResolved(resolved) {
+          // A closure variable, not `this`: Vite does not share a `this` between
+          // plugin hooks, so anything stashed on it in configResolved is gone by
+          // closeBundle.
+          swOutDir = resolve(resolved.root, resolved.build.outDir);
+        },
+        closeBundle() {
+          if (!swOutDir) return;
+          const file = resolve(swOutDir, 'service-worker.js');
+          if (!existsSync(file)) return;
+
+          const source = readFileSync(file, 'utf8');
+          if (!source.includes('__BUILD_ID__')) return;
+
+          // Time-based rather than content-hashed: the point is "this is a
+          // different deploy", and the shell's content is index.html, which the
+          // worker does not see at build time.
+          const buildId = Date.now().toString(36);
+          writeFileSync(file, source.replaceAll('__BUILD_ID__', buildId), 'utf8');
+          // eslint-disable-next-line no-console
+          console.log(`sw-build-id: cache busted as airking-pwa-shell-${buildId}`);
+        },
       },
     ],
 
