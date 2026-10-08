@@ -79,6 +79,16 @@ class IntegrityTest extends TestCase
      */
     public function test_a_real_php_dump_is_judged_complete(): void
     {
+        if (! in_array(\Illuminate\Support\Facades\DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            // runPhpDump() is the Windows-web-server fallback for mysqldump
+            // (TCP socket 10106 / Symfony Process temp-file issues under
+            // `php artisan serve`) and shells SHOW TABLES / SHOW CREATE TABLE,
+            // both MySQL-only. PostgreSQL has no equivalent fallback need: the
+            // deployed container always runs under a real CLI SAPI, where
+            // pg_dump is a subprocess like any other -- see runPgDumpDirect().
+            $this->markTestSkipped('runPhpDump() is the MySQL-only Windows web-server fallback.');
+        }
+
         $path = $this->dir . DIRECTORY_SEPARATOR . 'real_php_dump.sql';
 
         app(BackupService::class)->runPhpDumpTo($path);

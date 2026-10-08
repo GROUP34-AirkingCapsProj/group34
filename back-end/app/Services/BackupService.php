@@ -9,7 +9,9 @@ use App\Models\User;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 
@@ -93,6 +95,28 @@ class BackupService
      */
     private const TABLES_EXCLUDED_FROM_DUMP = ['backup_logs', 'cache_locks', 'cache', 'sessions'];
 
+    /**
+     * The connection the app actually serves requests from -- `database.default`,
+     * not a hardcoded 'mysql'. Every dump/restore/table-count call goes through
+     * this rather than naming a driver, so the same code runs correctly against
+     * the local MySQL/MariaDB database and the deployed PostgreSQL one.
+     */
+    private function activeConnectionName(): string
+    {
+        return (string) config('database.default');
+    }
+
+    /** @return array<string, mixed> */
+    private function activeDbConfig(): array
+    {
+        return (array) config('database.connections.' . $this->activeConnectionName());
+    }
+
+    private function activeDriver(): string
+    {
+        return (string) ($this->activeDbConfig()['driver'] ?? '');
+    }
+
     public function resolveStorageDir(): string
     {
         $schedule = SystemSetting::getValue(SystemSetting::KEY_BACKUP_SCHEDULE, []);
@@ -147,6 +171,13 @@ class BackupService
         return $this->withLock(function () use ($snapshot, $user) {
             $start = microtime(true);
 
+            // The expected state the first time anything restores from a
+            // backup taken before the most recent deploy: the row survived
+            // (it is in the database), the local file did not (Render wipes
+            // the container disk on every deploy), and the remote copy
+            // syncToRemote() made is what makes this recoverable at all.
+            $this->ensureLocalCopy($snapshot);
+
             if (! $snapshot->file_path || ! is_file($snapshot->file_path)) {
                 return $this->recordFailure('restore', 'manual', $user, 'Backup file no longer exists on disk', $start, $snapshot->log_id);
             }
@@ -172,8 +203,16 @@ class BackupService
                 );
             }
 
+            // PostgreSQL only: see captureExcludedTableRows() for why this has
+            // to happen around the restore rather than inside the dump itself.
+            $preserved = $this->activeDriver() === 'pgsql' ? $this->captureExcludedTableRows() : [];
+
             try {
-                $this->runMysqlClientImport($snapshot->file_path);
+                $this->runRestoreFromFile($snapshot->file_path);
+
+                if ($preserved !== []) {
+                    $this->replayExcludedTableRows($preserved);
+                }
             } catch (ProcessTimedOutException $e) {
                 return $this->recordFailure('restore', 'manual', $user, 'mysql restore timed out: ' . $e->getMessage(), $start, $snapshot->log_id);
             } catch (\Throwable $e) {
@@ -189,6 +228,126 @@ class BackupService
                 'duration_ms'          => (int) ((microtime(true) - $start) * 1000),
             ]);
         });
+    }
+
+    /**
+     * Snapshots the current rows of every table in TABLES_EXCLUDED_FROM_DUMP,
+     * immediately before a PostgreSQL restore begins.
+     *
+     * Exists because of a specific interaction, found by testing against a
+     * real restore rather than assumed: pg_dump's `--clean` drops objects in
+     * dependency order, but a table left out of the dump entirely
+     * (`--exclude-table`) is invisible to that ordering. backup_logs has a
+     * foreign key into users, so restoring failed trying to drop users' primary
+     * key while backup_logs' now-unmanaged constraint still depended on it --
+     * "cannot drop constraint users_pkey ... because other objects depend on
+     * it". MySQL's path never hits this: mysqldump's restore runs under
+     * `FOREIGN_KEY_CHECKS=0` for its whole duration, which sidesteps dependency
+     * ordering entirely regardless of which tables are excluded.
+     *
+     * The fix is `--exclude-table-data` instead (see runPgDumpDirect): the
+     * table's schema and constraints stay in the dump, so DROP ordering
+     * resolves correctly, but it is recreated with none of its own rows. That
+     * would silently empty backup_logs, sessions, cache and cache_locks on
+     * every restore -- exactly the bug TABLES_EXCLUDED_FROM_DUMP exists to
+     * prevent, confirmed by an earlier test: "a restore from an early snapshot
+     * wiped every row this table had gained since". Capturing here and
+     * replaying in replayExcludedTableRows() after the restore succeeds is
+     * what keeps that guarantee true under the new exclude strategy.
+     *
+     * Deliberately not done with a database-level trick instead (disabling
+     * triggers, or PostgreSQL's `session_replication_role = replica`): both
+     * need a superuser-ish privilege Aiven's `avnadmin` role does not hold --
+     * the same constraint `data:transfer` ran into and designed around
+     * (DATA-TRANSFER.md). This works under an ordinary application role.
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function captureExcludedTableRows(): array
+    {
+        $preserved = [];
+
+        foreach (self::TABLES_EXCLUDED_FROM_DUMP as $table) {
+            $preserved[$table] = DB::table($table)->get()
+                ->map(fn ($row) => (array) $row)
+                ->all();
+        }
+
+        return $preserved;
+    }
+
+    /**
+     * Replays rows captured by captureExcludedTableRows() after a successful
+     * PostgreSQL restore, which -- because of `--exclude-table-data` -- leaves
+     * these tables present but empty.
+     *
+     * Runs AFTER the restore, not inside the same transaction as the restore's
+     * own `--single-transaction` psql process: that transaction belongs to a
+     * separate subprocess and is already committed by the time control returns
+     * here. A failure in this step is still reported as the restore failing
+     * (restore()'s catch covers this call too) rather than succeeding with a
+     * silent gap, because an empty backup_logs or a logged-out-everyone
+     * sessions table is exactly the outcome TABLES_EXCLUDED_FROM_DUMP was
+     * written to prevent.
+     *
+     * @param  array<string, list<array<string, mixed>>>  $preserved
+     */
+    private function replayExcludedTableRows(array $preserved): void
+    {
+        foreach ($preserved as $table => $rows) {
+            if ($rows === []) {
+                continue;
+            }
+
+            // Chunked, not one insert: an unbounded single statement for a
+            // large audit_trail-sized table risks a packet/placeholder limit
+            // the same way any other bulk insert would.
+            foreach (array_chunk($rows, 500) as $chunk) {
+                DB::table($table)->insert($chunk);
+            }
+
+            // Explicit-value inserts never advance an identity column's
+            // sequence -- confirmed earlier in the PostgreSQL migration work
+            // (data:transfer, schema:export-pgsql hit the same thing). pg_dump
+            // restores the sequence to wherever it stood when the SNAPSHOT was
+            // taken, not where it stands now; this replay's rows have whatever
+            // ids they happened to hold at THAT point, and the very next insert
+            // into the table -- here, restore()'s own BackupLog::create() a few
+            // lines later -- would collide with one of them without this.
+            $this->resyncIdentitySequence($table);
+        }
+    }
+
+    /**
+     * `setval(pg_get_serial_sequence(...), max(id))` for one table's primary
+     * key. No-ops (rather than erroring) for a table with no identity column
+     * or no rows -- every table in TABLES_EXCLUDED_FROM_DUMP happens to have
+     * one today, but this is defensive against that changing.
+     */
+    private function resyncIdentitySequence(string $table): void
+    {
+        $pk = DB::selectOne(
+            "SELECT kcu.column_name
+               FROM information_schema.table_constraints tc
+               JOIN information_schema.key_column_usage kcu
+                 ON kcu.constraint_name = tc.constraint_name
+                AND kcu.table_schema = tc.table_schema
+              WHERE tc.table_schema = current_schema()
+                AND tc.table_name = ?
+                AND tc.constraint_type = 'PRIMARY KEY'",
+            [$table],
+        );
+
+        if (! $pk) {
+            return;
+        }
+
+        $column = $pk->column_name;
+
+        DB::statement(
+            "SELECT setval(pg_get_serial_sequence(?, ?), COALESCE((SELECT MAX(\"{$column}\") FROM \"{$table}\"), 1), true)",
+            [$table, $column],
+        );
     }
 
     /**
@@ -259,7 +418,7 @@ class BackupService
         $protectedIds = $this->protectedSnapshotIds();
 
         BackupLog::query()
-            ->select(['log_id', 'file_path', 'created_at', 'status', 'action'])
+            ->select(['log_id', 'file_path', 'remote_disk', 'remote_path', 'created_at', 'status', 'action'])
             ->where('action', 'backup')
             ->where('status', 'success')
             ->whereNotNull('file_path')
@@ -298,7 +457,19 @@ class BackupService
 
                         $deleted++;
 
-                        $log->forceFill(['status' => 'pruned', 'file_path' => null])->save();
+                        // Retention means retention everywhere: a policy of
+                        // "keep 14 days" should not quietly mean "keep
+                        // forever" the moment a remote copy exists. Best-effort
+                        // and never blocks the local prune above, which is the
+                        // part a human is actually waiting on disk space for.
+                        $this->deleteRemoteCopy($log);
+
+                        $log->forceFill([
+                            'status'      => 'pruned',
+                            'file_path'   => null,
+                            'remote_disk' => null,
+                            'remote_path' => null,
+                        ])->save();
 
                         continue;
                     }
@@ -306,7 +477,8 @@ class BackupService
                     // The file is genuinely gone (the directory is reachable, the file is
                     // not). Reconcile the row but KEEP the path: `status` already marks it
                     // unusable, and the path is what a human needs to go looking.
-                    $log->forceFill(['status' => 'pruned'])->save();
+                    $this->deleteRemoteCopy($log);
+                    $log->forceFill(['status' => 'pruned', 'remote_disk' => null, 'remote_path' => null])->save();
                 }
             }, 'log_id', 'log_id');
 
@@ -470,9 +642,13 @@ class BackupService
             fclose($handle);
         }
 
-        // mysqldump writes the first; runPhpDump() writes the second.
+        // mysqldump writes the first; runPhpDump() writes the second; pg_dump
+        // writes the third -- its own real footer comment, not a marker this
+        // app adds, so no equivalent of runPhpDump()'s synthetic trailer was
+        // needed for Postgres.
         return str_contains($tail, 'Dump completed')
-            || str_contains($tail, 'AirKing dump completed');
+            || str_contains($tail, 'AirKing dump completed')
+            || str_contains($tail, 'PostgreSQL database dump complete');
     }
 
     /** SHA-256 of the file on disk, lowercase hex. */
@@ -536,7 +712,7 @@ class BackupService
         $filePath = $dir . DIRECTORY_SEPARATOR . $fileName;
 
         try {
-            $this->runMysqldumpToFile($filePath);
+            $this->runDumpToFile($filePath);
         } catch (ProcessTimedOutException $e) {
             return $this->recordFailure('backup', $trigger, $user, 'mysqldump timed out: ' . $e->getMessage(), $start);
         } catch (\Throwable $e) {
@@ -581,7 +757,137 @@ class BackupService
             'ran_at' => now()->toIso8601String(),
         ]);
 
+        // Best-effort and after the fact: the local backup above is already a
+        // complete, valid, checksummed success by this point. A remote sync
+        // failure is real information -- the row stays remote_disk=null so the
+        // panel shows it -- but it must never turn an already-successful
+        // backup into a reported failure.
+        $this->syncToRemote($log);
+
         return $log;
+    }
+
+    /**
+     * Copies a just-created backup to the configured remote disk, if one is
+     * configured. Exists because Render wipes the container disk on every
+     * deploy (docs/DEPLOY-RENDER.md), so a local-only backup is real
+     * protection only until the next one.
+     *
+     * Streamed, not `Storage::put($path, file_get_contents($path))`: a dump
+     * can be tens of megabytes, and reading the whole thing into a PHP string
+     * before handing it to Flysystem doubles the memory a large backup needs
+     * for no benefit.
+     */
+    private function syncToRemote(BackupLog $log): void
+    {
+        $disk = trim((string) config('backup.remote_disk', ''));
+        if ($disk === '' || ! $log->file_path) {
+            return;
+        }
+
+        $remotePath = 'backups/' . $log->file_name;
+        $stream = fopen($log->file_path, 'rb');
+
+        if ($stream === false) {
+            Log::warning('backup.remote_sync could not open local file', ['log_id' => $log->log_id]);
+
+            return;
+        }
+
+        try {
+            Storage::disk($disk)->writeStream($remotePath, $stream);
+            $log->update(['remote_disk' => $disk, 'remote_path' => $remotePath]);
+        } catch (\Throwable $e) {
+            // Deliberately not recordFailure(): the backup this row describes
+            // already succeeded. Losing offsite redundancy is worth logging,
+            // not worth reporting as "your backup failed" when it did not.
+            Log::warning('backup.remote_sync failed', [
+                'log_id' => $log->log_id,
+                'disk'   => $disk,
+                'error'  => $e->getMessage(),
+            ]);
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
+    }
+
+    /**
+     * Mirror of the local branch in performPrune(): best-effort, never blocks
+     * the prune run it is called from. A failure here leaves an orphaned
+     * object on the remote disk -- wasted space, not a correctness problem --
+     * rather than leaving the local prune (what a human is actually waiting
+     * on disk space for) stuck behind a network call to a disk that happens to
+     * be unreachable.
+     */
+    private function deleteRemoteCopy(BackupLog $log): void
+    {
+        if (! $log->remote_disk || ! $log->remote_path) {
+            return;
+        }
+
+        try {
+            Storage::disk($log->remote_disk)->delete($log->remote_path);
+        } catch (\Throwable $e) {
+            Log::warning('backup.remote_sync delete failed', [
+                'log_id' => $log->log_id,
+                'disk'   => $log->remote_disk,
+                'error'  => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Downloads a backup's remote copy back to its recorded local path if the
+     * local file is missing -- the expected state the first time anything
+     * touches a backup row after a Render deploy, since the container disk
+     * that held it is gone but backup_logs (database-backed) is not.
+     *
+     * A no-op, not an error, when there is nothing to recover from: no remote
+     * copy recorded (remote sync was never configured, or failed at backup
+     * time), or the local file is already there. Callers still get a normal
+     * "file not found" failure from whatever they do next in that case --
+     * this only fills the gap it can actually fill.
+     */
+    public function ensureLocalCopy(BackupLog $log): void
+    {
+        if ($log->file_path && is_file($log->file_path)) {
+            return;
+        }
+
+        if (! $log->remote_disk || ! $log->remote_path) {
+            return;
+        }
+
+        $disk = Storage::disk($log->remote_disk);
+        if (! $disk->exists($log->remote_path)) {
+            return;
+        }
+
+        $targetDir = dirname((string) $log->file_path);
+        if (! is_dir($targetDir)) {
+            mkdir($targetDir, 0755, true);
+        }
+
+        $remote = $disk->readStream($log->remote_path);
+        if ($remote === null) {
+            return;
+        }
+
+        $local = fopen($log->file_path, 'wb');
+        if ($local === false) {
+            fclose($remote);
+
+            return;
+        }
+
+        try {
+            stream_copy_to_stream($remote, $local);
+        } finally {
+            fclose($remote);
+            fclose($local);
+        }
     }
 
     /**
@@ -644,8 +950,131 @@ class BackupService
         }
     }
 
-    private function runMysqldumpToFile(string $filePath): void
+    /**
+     * PostgreSQL's dump/restore pair for a plain-SQL dump are two different
+     * binaries, not one: pg_dump writes plain SQL with `--format=plain` (the
+     * default), but pg_restore can only read the archive formats produced by
+     * `-Fc`/`-Ft`/`-Fd` -- never plain SQL. A plain dump is restored the same
+     * way any other .sql file is, by piping it into psql. This mirrors
+     * mysqldump+mysql exactly: one binary writes SQL, the other replays it.
+     *
+     * Plain format (not custom) is deliberate, not a default left alone: it
+     * keeps every assumption the rest of this file already makes about a
+     * dump -- dumpLooksComplete()'s trailing-text check, download as a
+     * human-readable/diffable .sql, "restore == replay this SQL" -- true for
+     * both database engines, rather than forking the whole file around a
+     * second binary format.
+     *
+     * --clean --if-exists makes pg_dump emit `DROP ... IF EXISTS` before each
+     * CREATE, the same shape mysqldump produces by default (it adds
+     * DROP TABLE IF EXISTS unless told not to) -- so a restore replaces
+     * existing objects instead of erroring into them or silently appending to
+     * them with duplicate-key failures partway through.
+     */
+    public function runPgDumpDirect(string $filePath): void
     {
+        $db = $this->activeDbConfig();
+        $binary = $this->resolveBinary('pg_dump');
+
+        // --exclude-table-data, not --exclude-table: the latter drops the table
+        // from the dump's object graph entirely, which sounds like the same
+        // thing but is not. --clean orders its DROPs by dependency, and a table
+        // excluded entirely is invisible to that ordering -- confirmed by
+        // testing, this breaks exactly when an excluded table (backup_logs) has
+        // a foreign key into a table the dump DOES manage (users): restoring
+        // then fails trying to drop users_pkey while backup_logs' now-unmanaged
+        // FK still depends on it. --exclude-table-data keeps the table's
+        // schema and constraints in the dump -- so DROP ordering resolves
+        // correctly -- while omitting its rows, which restore() separately
+        // captures and replays around the restore (see captureExcludedTableRows)
+        // so this exclusion still means what the constant's docblock says: a
+        // restore cannot revert these tables' live rows.
+        $excludeFlags = array_map(
+            fn ($table) => "--exclude-table-data={$table}",
+            self::TABLES_EXCLUDED_FROM_DUMP,
+        );
+
+        $args = array_merge([
+            $binary,
+            '-h', $db['host'],
+            '-p', (string) $db['port'],
+            '-U', $db['username'],
+            '--no-password',
+            '--no-owner',
+            '--no-privileges',
+            '--clean',
+            '--if-exists',
+        ], $excludeFlags, [
+            '-f', $filePath,
+            $db['database'],
+        ]);
+
+        $result = $this->runProcess($args, $this->pgEnv($db));
+
+        if (! $result->successful()) {
+            throw new \RuntimeException(trim($result->errorOutput()) ?: 'pg_dump failed');
+        }
+
+        if (! is_file($filePath) || filesize($filePath) === 0) {
+            throw new \RuntimeException('pg_dump produced no output file');
+        }
+    }
+
+    /**
+     * `-v ON_ERROR_STOP=1` is load-bearing, not a nicety: psql's default is to
+     * print an error and KEEP GOING through the rest of the script, so without
+     * it a restore that fails on statement 4 of 400 reports success and
+     * silently leaves the database half old, half new. `--single-transaction`
+     * makes that failure mode rollback instead: either the whole dump applies
+     * or none of it does, matching what `mysql < dump.sql` already gives the
+     * MySQL path for free (a single mysqldump connection round-trips as one
+     * implicit unit there).
+     *
+     * `-f`, not stdin: a multi-megabyte dump piped through PHP's own memory
+     * (as the mysql path does via file_get_contents()) is unnecessary when
+     * psql can read the file itself.
+     */
+    public function runPsqlRestoreDirect(string $filePath): void
+    {
+        $db = $this->activeDbConfig();
+        $binary = $this->resolveBinary('psql');
+
+        $args = [
+            $binary,
+            '-h', $db['host'],
+            '-p', (string) $db['port'],
+            '-U', $db['username'],
+            '-v', 'ON_ERROR_STOP=1',
+            '--single-transaction',
+            '-f', $filePath,
+            $db['database'],
+        ];
+
+        $result = $this->runProcess($args, $this->pgEnv($db));
+
+        if (! $result->successful()) {
+            throw new \RuntimeException(trim($result->errorOutput()) ?: 'psql restore failed');
+        }
+    }
+
+    /**
+     * Dispatches by `database.default`'s driver. Renamed from
+     * runMysqldumpToFile now that it also handles PostgreSQL -- the name was
+     * only ever an implementation detail of the two private callers.
+     */
+    private function runDumpToFile(string $filePath): void
+    {
+        if ($this->activeDriver() === 'pgsql') {
+            // No PHP-fallback branch here: the Windows/`php artisan serve`
+            // problem the mysql fallback below exists for is specific to that
+            // environment. The deployed PostgreSQL target always runs under a
+            // real CLI SAPI in the Linux container, where pg_dump is simply a
+            // subprocess like any other.
+            $this->runPgDumpDirect($filePath);
+
+            return;
+        }
+
         // Windows web / `php artisan serve` cannot reliably spawn mysqldump
         // (TCP socket 10106) or even Symfony Process temp files (C:\WINDOWS
         // permission denied). Dump through the already-open Laravel PDO instead.
@@ -663,8 +1092,15 @@ class BackupService
         }
     }
 
-    private function runMysqlClientImport(string $filePath): void
+    /** Dispatches by `database.default`'s driver. Renamed from runMysqlClientImport. */
+    private function runRestoreFromFile(string $filePath): void
     {
+        if ($this->activeDriver() === 'pgsql') {
+            $this->runPsqlRestoreDirect($filePath);
+
+            return;
+        }
+
         if ($this->shouldUsePhpMysqlClient()) {
             $this->runPhpRestore($filePath);
 
@@ -877,6 +1313,27 @@ class BackupService
         $env = [];
         if (! empty($db['password'])) {
             $env['MYSQL_PWD'] = $db['password'];
+        }
+
+        return $env;
+    }
+
+    /**
+     * PGPASSWORD is pg_dump/psql's equivalent of MYSQL_PWD -- env, not argv, so
+     * the password never shows up in `ps` output or a process list on a
+     * shared host. PGSSLMODE is forwarded too: Aiven (and most managed
+     * Postgres) refuses a plaintext connection, and without this pg_dump
+     * would default to 'prefer', which downgrades silently on a server that
+     * actually requires TLS rather than failing loudly.
+     */
+    private function pgEnv(array $db): array
+    {
+        $env = [];
+        if (! empty($db['password'])) {
+            $env['PGPASSWORD'] = $db['password'];
+        }
+        if (! empty($db['sslmode'])) {
+            $env['PGSSLMODE'] = $db['sslmode'];
         }
 
         return $env;

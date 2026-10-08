@@ -201,6 +201,8 @@ CREATE TABLE "backup_logs" (
     "triggered_by_user_id" bigint,
     "status" varchar(10) NOT NULL DEFAULT 'success',
     "file_path" varchar(500),
+    "remote_disk" varchar(50),
+    "remote_path" varchar(500),
     "file_name" varchar(255),
     "file_size_bytes" bigint,
     "checksum_sha256" char(64),
@@ -3535,7 +3537,8 @@ INSERT INTO "migrations" ("migration", "batch") VALUES
     ('2026_10_03_000002_note_pruned_backup_status', 99),
     ('2026_10_03_000001_add_checksum_to_backup_logs', 100),
     ('2026_10_04_000001_note_missing_backup_status', 101),
-    ('2026_10_07_000001_add_audit_evidence_permission', 102);
+    ('2026_10_07_000001_add_audit_evidence_permission', 102),
+    ('2026_10_08_000001_add_remote_sync_to_backup_logs', 103);
 
 SELECT setval(pg_get_serial_sequence('migrations', 'id'), (SELECT MAX(id) FROM "migrations"));
 

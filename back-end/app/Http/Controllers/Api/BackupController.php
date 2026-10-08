@@ -29,9 +29,23 @@ class BackupController extends Controller
             'schedule' => $schedule,
             'stats'    => $this->buildStats($schedule),
             'database' => [
-                'name'         => (string) config('database.connections.mysql.database'),
+                // DB::connection()->getDatabaseName() reads whichever connection
+                // database.default actually points at -- MySQL locally, Postgres
+                // in production -- rather than a hardcoded 'mysql' that silently
+                // returned null in production and showed an empty database name.
+                'name'         => (string) \Illuminate\Support\Facades\DB::connection()->getDatabaseName(),
                 'table_count'  => $this->tableCount(),
                 'storage_path' => $this->resolvedStoragePath($schedule),
+            ],
+            // Read-only: which disk a backup gets copied to is an
+            // environment-level decision (BACKUP_REMOTE_DISK + credentials in
+            // config/filesystems.php), the same pattern SCHEDULER_RUN_TOKEN
+            // already uses. This exists so the panel can SHOW whether offsite
+            // protection is active without a form that would just be
+            // re-displaying server config a form field cannot safely hold.
+            'remote' => [
+                'configured' => trim((string) config('backup.remote_disk', '')) !== '',
+                'disk'       => trim((string) config('backup.remote_disk', '')) ?: null,
             ],
         ], 'Backup settings retrieved');
     }
@@ -91,6 +105,14 @@ class BackupController extends Controller
     public function download(Request $request, int $id)
     {
         $log = BackupLog::find($id);
+
+        if ($log) {
+            // No-op unless the local file is actually missing and a remote
+            // copy exists to pull it back from -- see
+            // BackupService::ensureLocalCopy() for why this is the normal
+            // state for anything backed up before the most recent deploy.
+            $this->service->ensureLocalCopy($log);
+        }
 
         if (! $log || ! $log->file_path || ! is_file($log->file_path)) {
             return $this->notFound('Backup file not found');
@@ -225,14 +247,28 @@ class BackupController extends Controller
     private function tableCount(): ?int
     {
         try {
-            $db = config('database.connections.mysql.database');
+            $connection = \Illuminate\Support\Facades\DB::connection();
+            $db = $connection->getDatabaseName();
             if (! $db) {
                 return null;
             }
-            $row = \Illuminate\Support\Facades\DB::selectOne(
-                'SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = ?',
-                [$db]
-            );
+
+            // MySQL's information_schema.tables scopes table_schema to the
+            // DATABASE name. PostgreSQL's table_schema is the SCHEMA
+            // (normally 'public'), not the database -- filtering by $db there
+            // would silently return 0 whatever the real count is, since no
+            // schema is ever named after the database.
+            if ($connection->getDriverName() === 'pgsql') {
+                $row = $connection->selectOne(
+                    "SELECT COUNT(*) AS c FROM information_schema.tables
+                      WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'"
+                );
+            } else {
+                $row = $connection->selectOne(
+                    'SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = ?',
+                    [$db]
+                );
+            }
 
             return isset($row->c) ? (int) $row->c : null;
         } catch (\Throwable) {
@@ -254,6 +290,12 @@ class BackupController extends Controller
             // Enough to eyeball against a recomputed hash; the full 64 chars are
             // in backup_logs for anyone who needs to compare properly.
             'checksum_short'   => $log->checksum_sha256 ? substr($log->checksum_sha256, 0, 12) : null,
+            // Whether THIS backup specifically has an offsite copy -- not just
+            // whether remote sync is configured generally. A row can predate
+            // BACKUP_REMOTE_DISK being set, or the sync attempt for it could
+            // have failed (see BackupService::syncToRemote), so "configured"
+            // and "this one actually made it" are genuinely different facts.
+            'synced_to_remote' => $log->remote_disk !== null,
             'restored_from_log_id' => $log->restored_from_log_id,
             'triggered_by_name' => $user
                 ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))
