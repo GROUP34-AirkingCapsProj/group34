@@ -220,10 +220,14 @@ class ArchivedAccountLifecycleTest extends TestCase
     }
 
     /**
-     * users.report_runs.generated_by is ON DELETE RESTRICT, so permanently
-     * deleting an account that ever generated a report throws at the database.
-     * Unhandled, that surfaced as a generic 500 while the audit trail had
-     * already recorded a permanent deletion that never happened.
+     * report_runs.generated_by is ON DELETE RESTRICT, so this delete used to
+     * throw at the database and surface as a generic 500 -- while the audit
+     * trail had already recorded a permanent deletion that never happened.
+     *
+     * The attribution guard now refuses it first, in terms the operator can act
+     * on. The database-level catch stays behind it as a backstop for the
+     * modules that have no guard of their own, which is why this asserts the
+     * reported conflict rather than the crash.
      */
     public function test_blocked_permanent_delete_explains_itself_and_leaves_no_audit_row(): void
     {
@@ -249,8 +253,9 @@ class ArchivedAccountLifecycleTest extends TestCase
 
         $this->assertSame(409, $response->status(), 'Expected a reported conflict, not a crash.');
         $this->assertStringContainsStringIgnoringCase(
-            'record',
-            (string) $response->json('message')
+            'generated report',
+            (string) $response->json('message'),
+            'The refusal does not say what history would have been destroyed.'
         );
 
         // Still archived, and no "permanently_deleted" claim in the trail.
@@ -291,5 +296,87 @@ class ArchivedAccountLifecycleTest extends TestCase
                 'status_id'      => 1,
             ])
             ->assertStatus(201);
+    }
+    /**
+     * Archiving has to end the sessions that are already open, not just refuse
+     * new ones -- otherwise an employee who was just let go keeps working from
+     * the tab they already have until the token expires on its own.
+     */
+    public function test_a_live_accounts_token_authenticates(): void
+    {
+        $user  = $this->makeUser();
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->getJson('/api/user')
+            ->assertStatus(200);
+    }
+
+    /**
+     * One request only, deliberately: the Sanctum guard caches the user it
+     * resolved for the lifetime of the application instance, and the test app
+     * is shared across requests within a test. Asserting the 200 first and the
+     * 401 second in one test would read the cached user and pass whatever the
+     * code did.
+     */
+    public function test_an_archived_accounts_existing_token_stops_authenticating(): void
+    {
+        $user  = $this->makeUser();
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        $user->delete();
+
+        $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->getJson('/api/user')
+            ->assertStatus(401);
+    }
+
+    /**
+     * Archiving must also take the token row away, not merely stop it
+     * resolving. A token that is still in the table comes back to life the
+     * moment the account is restored -- handing a session back to whoever held
+     * it, long after the account was supposedly shut.
+     */
+    public function test_archiving_revokes_the_accounts_tokens(): void
+    {
+        $user = $this->makeUser();
+        $user->createToken('auth-token');
+
+        $this->assertSame(1, $user->tokens()->count());
+
+        $user->delete();
+
+        $this->assertSame(0, $user->tokens()->count());
+    }
+
+    /**
+     * Deactivating is the other way an account is shut, and login refuses it --
+     * but the sessions already open were untouched, so the person kept working
+     * from the tab they already had until the token expired on its own.
+     */
+    public function test_deactivating_revokes_the_accounts_tokens(): void
+    {
+        $admin = $this->makeUser();
+        $user  = $this->makeUser();
+        $user->createToken('auth-token');
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson('/api/users/' . $user->user_id . '/status', ['status_id' => 2])
+            ->assertStatus(200);
+
+        $this->assertSame(0, $user->tokens()->count());
+    }
+
+    public function test_reactivating_does_not_revoke_tokens(): void
+    {
+        $admin = $this->makeUser();
+        $user  = $this->makeUser(['status_id' => 2]);
+        $user->createToken('auth-token');
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson('/api/users/' . $user->user_id . '/status', ['status_id' => 1])
+            ->assertStatus(200);
+
+        $this->assertSame(1, $user->tokens()->count());
     }
 }

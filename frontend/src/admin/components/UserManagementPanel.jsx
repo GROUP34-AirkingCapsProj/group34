@@ -174,7 +174,7 @@ const UserManagementPanel = () => {
       // a recreate.
       toast.success(
         `User ${getUserName(user)} archived. Their username and email addresses stay reserved `
-        + 'until the account is restored or permanently deleted in Archive Management.'
+        + 'until the account is restored, or released in Archive Management.'
       );
       await fetchUsers(currentPage);
     } catch (err) { toast.error(err.message || 'Failed to archive user.'); }

@@ -149,6 +149,40 @@ const ArchiveManagement = () => {
     }
   };
 
+  // ── Release identifiers (users only) ──────────────────────────────────────
+  /**
+   * Frees an archived account's login email, username and recovery address for
+   * a new account without deleting the account. This is what "Delete
+   * Permanently" was being used for, and it is the safe way to do it: the row
+   * and everything attributed to it stay put.
+   */
+  const handleReleaseIdentifiers = async (id, displayName) => {
+    if (!(await confirmAction({
+      title: "Release this account's email and username?",
+      text: `${displayName}'s login email, username and recovery email will be retired so a `
+        + 'new account can use them. The account stays archived and keeps its history. '
+        + 'This cannot be undone.',
+      confirmText: 'Release',
+      tone: 'danger',
+    }))) return;
+
+    try {
+      const res = await fetch(
+        apiUrl(`/users/${id}/release-identifiers`),
+        { method: 'POST', headers: authHeaders() }
+      );
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'Email and username released.');
+        loadRecords();
+      } else {
+        toast.error(data.message ?? 'Release failed.');
+      }
+    } catch {
+      toast.error('Network error. Please try again.');
+    }
+  };
+
   // ── Restore all ───────────────────────────────────────────────────────────
   const handleRestoreAll = async () => {
     if (!(await confirmAction({ title: `Restore all ${totalItems} archived ${activeModule} records?`, confirmText: 'Restore all', tone: 'primary' }))) return;
@@ -379,11 +413,28 @@ const ArchiveManagement = () => {
                           Restore
                         </button>
                       )}
+                      {canForceDelete && item.module === 'users' && (
+                        <button
+                          type="button"
+                          className="archive-release-btn"
+                          onClick={() => handleReleaseIdentifiers(item.id, item.display_name)}
+                          disabled={!!item.record?.identifiers_released_at}
+                          title={item.record?.identifiers_released_at
+                            ? 'Already released'
+                            : 'Free this email and username for a new account, keeping the history'}
+                        >
+                          {item.record?.identifiers_released_at ? 'Released' : 'Release Email & Username'}
+                        </button>
+                      )}
                       {canForceDelete && (
                         <button
                           type="button"
                           className="archive-force-delete-btn"
                           onClick={() => handleForceDelete(item.module, item.id)}
+                          title={item.module === 'users'
+                            ? 'Only possible for an account that has never been used — anything '
+                              + 'it is credited on would lose its owner'
+                            : undefined}
                         >
                           Delete Permanently
                         </button>

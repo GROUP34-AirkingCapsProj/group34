@@ -191,6 +191,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:user_account_management,archive')->group(function () {
         Route::delete('/users/{user}', [UserController::class, 'destroy']);
         Route::delete('/users/{id}/force', [UserController::class, 'forceDestroy']);
+        // Frees an archived account's email and username for a new account
+        // without destroying the account -- same permission as deleting it,
+        // since it is the non-destructive half of the same intent.
+        Route::post('/users/{id}/release-identifiers', [UserController::class, 'releaseIdentifiers']);
     });
 
     // Current user's own effective permissions (any authenticated user)

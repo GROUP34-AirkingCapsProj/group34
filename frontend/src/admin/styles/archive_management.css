@@ -746,6 +746,31 @@
   background: var(--danger-soft-bg);
 }
 
+/* Sits between Restore and Delete Permanently in both placement and weight:
+   it is not reversible, but it keeps the record, so it should not read as
+   loudly as the destructive action next to it. */
+.archive-release-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-label);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.archive-release-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.archive-release-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* ===============================
    EMPTY STATE
 ================================ */

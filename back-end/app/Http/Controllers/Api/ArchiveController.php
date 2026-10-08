@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\UserAttributionAudit;
 use App\Traits\ApiResponse;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -232,6 +233,19 @@ class ArchiveController extends Controller
         $table = $record->getTable();
         $key   = $record->getKey();
         $name  = $record->{$config['name_col']};
+
+        // A user account is not a product or a purchase order: almost every
+        // foreign key pointing at `users` is ON DELETE SET NULL, so deleting a
+        // person who has history does not fail -- it anonymises their work.
+        // That rule lives in one place, shared with DELETE /users/{id}/force.
+        if ($module === 'users') {
+            $attribution = app(UserAttributionAudit::class);
+            $blockers    = $attribution->blockers($record);
+
+            if ($blockers !== []) {
+                return $this->error($attribution->refusalMessage($blockers), 409);
+            }
+        }
 
         // Several tables reference these rows with ON DELETE RESTRICT (a user
         // who filed an incident report or generated a report, for instance), so

@@ -93,6 +93,36 @@ class User extends Authenticatable
     protected $appends = ['avatar_url'];
 
     /**
+     * Shutting an account has to end the sessions it already has.
+     *
+     * Login refuses an archived or inactive account, but that is a check on the
+     * way IN -- the API tokens already issued were left in place, so someone
+     * who had just been archived or deactivated kept working from the tab they
+     * already had until their token expired on its own. The soft-delete scope
+     * stops an archived user's token from resolving, but the row survived, so
+     * restoring the account handed the session back to whoever still held it.
+     *
+     * Hooked on the model rather than in the controllers because an account can
+     * be archived from two routes and deactivated from a third, and a revocation
+     * that only covers some of them is not a revocation.
+     */
+    protected static function booted(): void
+    {
+        // Fires for both soft deletes and force deletes. personal_access_tokens
+        // is a polymorphic table with no foreign key to users, so a force delete
+        // would otherwise leave the rows orphaned rather than cascading.
+        static::deleting(function (self $user) {
+            $user->tokens()->delete();
+        });
+
+        static::updated(function (self $user) {
+            if ($user->wasChanged('status_id') && (int) $user->status_id !== 1) {
+                $user->tokens()->delete();
+            }
+        });
+    }
+
+    /**
      * Get the password attribute for authentication.
      */
     public function getAuthPassword(): string

@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
+use App\Models\AuditTrail;
 use App\Models\User;
 use App\Services\PasswordAuditLogger;
 use App\Services\TemporaryCredentialIssuer;
+use App\Services\UserAttributionAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
@@ -228,9 +231,13 @@ class UserController extends Controller
             $label = $field === 'username' ? 'username' : 'email address';
             $name  = trim($holder->first_name . ' ' . $holder->last_name) ?: $holder->username;
 
+            // Points at Release rather than permanent deletion on purpose:
+            // deletion is refused for any account that has history, so naming
+            // it here would send the admin to a button that cannot help them.
             return 'This ' . $label . ' still belongs to the archived account "' . $name
-                . '". Open Archive Management and either restore that account, or permanently '
-                . 'delete the record there to free the ' . $label . ', then try again.';
+                . '". Open Archive Management and either restore that account, or use '
+                . '"Release Email & Username" on it to free the ' . $label
+                . ' while keeping its history, then try again.';
         }
 
         return null;
@@ -475,8 +482,116 @@ class UserController extends Controller
         if (! $user) {
             return $this->notFound('Archived user not found');
         }
+
+        // Nearly every foreign key to `users` is ON DELETE SET NULL, so this
+        // would not fail on a person with history -- it would succeed and strip
+        // their name off everything they ever approved. Allowed only for
+        // accounts that have none, which is the case this route exists for: an
+        // account created by mistake and never used.
+        $audit    = app(UserAttributionAudit::class);
+        $blockers = $audit->blockers($user);
+
+        if ($blockers !== []) {
+            return $this->error($audit->refusalMessage($blockers), 409);
+        }
+
         $user->forceDelete();
         return $this->success(null, 'User permanently deleted');
+    }
+
+    /**
+     * Retire an archived account's login email, username and recovery address
+     * so a new account can take them -- without deleting the account.
+     *
+     * This is the answer to the question permanent deletion was being used for.
+     * A person leaves, their replacement needs their address, and the only way
+     * to free it was to destroy the row, which anonymised every approval and
+     * adjustment the first person ever made. Here the row stays, every
+     * attribution stays, and only the three identifiers -- the ones carrying
+     * UNIQUE indexes that survive a soft delete -- are moved aside.
+     *
+     * Irreversible by design: the originals live on in the audit trail for the
+     * record, but nothing restores them, because the whole point is that
+     * another account may now be using them.
+     */
+    public function releaseIdentifiers(Request $request, $id)
+    {
+        $user = User::onlyTrashed()->find($id);
+
+        if (! $user) {
+            // Deliberately archive-only. Retiring a live account's login would
+            // lock out someone who is still working.
+            return $this->notFound('Archived user not found');
+        }
+
+        if ($user->identifiers_released_at) {
+            return $this->error("This account's email and username have already been released.", 422);
+        }
+
+        $original = [
+            'email'          => $user->email,
+            'username'       => $user->username,
+            'recovery_email' => $user->recovery_email,
+        ];
+
+        $suffix = '.released-' . $user->user_id;
+
+        $released = [
+            'email'          => $this->retire($user->email, $suffix, 255),
+            'username'       => $this->retire($user->username, $suffix, 255),
+            // Null stays null: accounts predating the column have none, and
+            // MySQL allows many NULLs under a unique index anyway.
+            'recovery_email' => $user->recovery_email
+                ? $this->retire($user->recovery_email, $suffix, 100)
+                : null,
+        ];
+
+        $user->forceFill(array_merge($released, [
+            'identifiers_released_at' => now(),
+            // If this row is ever restored it comes back with a retired login,
+            // so it must not come back usable on an old credential either.
+            'must_change_password'    => true,
+        ]))->save();
+
+        // The audit trail is the only place the original addresses survive, so
+        // this write is part of the operation rather than a nice-to-have.
+        try {
+            AuditTrail::create([
+                'user_id'    => $request->user()->user_id,
+                'action'     => 'identifiers_released',
+                'table_name' => 'users',
+                'record_id'  => $user->user_id,
+                'old_values' => $original,
+                'new_values' => $released,
+                'ip_address' => $request->ip(),
+                'user_agent' => Str::limit((string) $request->userAgent(), 500, ''),
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return $this->success(
+            $user->fresh(),
+            'Email address and username released. They are free for a new account; this '
+            . 'account stays archived with its history intact.'
+        );
+    }
+
+    /**
+     * Move a value aside within the length its column allows.
+     *
+     * Suffixing rather than blanking keeps the archive list readable -- an
+     * operator can still see whose row it was -- and keeps the value unique,
+     * since the suffix carries the user_id. The truncation matters:
+     * recovery_email is varchar(100), and an address already near that limit
+     * would otherwise fail to save on exactly the accounts this is most needed
+     * for.
+     */
+    private function retire(string $value, string $suffix, int $max): string
+    {
+        $room = $max - strlen($suffix);
+
+        return substr($value, 0, max(1, $room)) . $suffix;
     }
 
     /**

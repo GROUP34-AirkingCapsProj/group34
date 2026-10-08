@@ -1620,6 +1620,7 @@ CREATE TABLE "users" (
     "otp_attempts" smallint NOT NULL DEFAULT 0,
     "alerts_last_seen_at" timestamp(0) without time zone,
     "deleted_at" timestamp(0) without time zone,
+    "identifiers_released_at" timestamp(0) without time zone,
     CONSTRAINT "users_pkey" PRIMARY KEY ("user_id")
 );
 COMMENT ON COLUMN "users"."location_id" IS 'Primary assigned location';
@@ -3538,7 +3539,8 @@ INSERT INTO "migrations" ("migration", "batch") VALUES
     ('2026_10_03_000001_add_checksum_to_backup_logs', 100),
     ('2026_10_04_000001_note_missing_backup_status', 101),
     ('2026_10_07_000001_add_audit_evidence_permission', 102),
-    ('2026_10_08_000001_add_remote_sync_to_backup_logs', 103);
+    ('2026_10_08_000001_add_remote_sync_to_backup_logs', 103),
+    ('2026_10_09_000000_add_identifiers_released_at_to_users', 104);
 
 SELECT setval(pg_get_serial_sequence('migrations', 'id'), (SELECT MAX(id) FROM "migrations"));
 
