@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, startTransition } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, useUserLocation } from '../context/AuthContext';
 import { authAPI, layoutAPI, resolveStorageUrl } from '../services/api';
@@ -12,8 +12,6 @@ import LocationBadge from '../components/LocationBadge';
 import ThemeToggle from '../components/ThemeToggle';
 import '../styles/dashboard_air.css';
 import '../styles/airking_ds.css';
-import '../styles/global_overrides.css';
-import '../styles/responsive.css';
 import '../styles/theme_dark.css';
 
 const AdminLayout = ({ children }) => {
@@ -254,9 +252,7 @@ const AdminLayout = ({ children }) => {
     (item) => {
       setActiveItemName(item.name);
       sessionStorage.setItem('activeNavItem', item.name);
-      // startTransition keeps the current page visible while the
-      // new page's lazy chunk + data load — no spinner flash.
-      startTransition(() => { navigate(item.path); });
+      navigate(item.path);
       if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
         setMobileNavOpen(false);
       }
@@ -501,15 +497,7 @@ const AdminLayout = ({ children }) => {
           </div>
         </header>
 
-        <main className="page-content">
-          <Suspense fallback={
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320, flexDirection: 'column', gap: 14 }}>
-              <div style={{ width: 36, height: 36, border: '3px solid #f0f0f0', borderTopColor: '#dc143c', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-            </div>
-          }>
-            {children}
-          </Suspense>
-        </main>
+        <main className="page-content">{children}</main>
       </div>
     </div>
   );

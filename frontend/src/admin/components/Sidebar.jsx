@@ -567,5 +567,5 @@ const Sidebar = ({
   );
 };
 
-export { adminMenuSections, prefetchRoute, routePrefetchMap, avatarColor, renderIcon };
+export { adminMenuSections, prefetchRoute, avatarColor, renderIcon };
 export default Sidebar;

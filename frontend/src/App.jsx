@@ -1,6 +1,5 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './admin/context/AuthContext';
 import { SupabaseAuthProvider } from './pwa/context/SupabaseAuthContext';
 import RoleRoute from './admin/components/RoleRoute';
@@ -90,14 +89,6 @@ function App() {
     <AuthProvider>
     <SupabaseAuthProvider>
     <Router>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          style: { fontSize: 14, borderRadius: 10, padding: '12px 16px', maxWidth: 380 },
-          success: { style: { background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0' } },
-          error:   { style: { background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' } },
-        }}
-      />
       <SessionIdleGuard />
       <Suspense fallback={<Loader variant="page" />}>
         <Routes>

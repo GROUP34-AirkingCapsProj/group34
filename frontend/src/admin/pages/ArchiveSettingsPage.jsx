@@ -126,12 +126,11 @@ function ModuleRow({ moduleKey, config: initialConfig, onSaved }) {
         pinnable:             cfg.pinnable,
       };
       await archiveSettingsAPI.updateModule(moduleKey, payload);
-      toast.success((MODULE_LABELS[moduleKey] ?? moduleKey) + ' settings saved.');
       setSaved(true);
       if (onSaved) onSaved(moduleKey, payload);
       setTimeout(() => setSaved(false), 3000);
     } catch {
-      toast.error('Failed to save settings for ' + (MODULE_LABELS[moduleKey] ?? moduleKey));
+      alert('Failed to save settings for ' + (MODULE_LABELS[moduleKey] ?? moduleKey));
     } finally {
       setSaving(false);
     }
@@ -304,11 +303,10 @@ const ArchiveSettingsPage = () => {
     setSavedSched(false);
     try {
       await archiveSettingsAPI.updateSchedule(scheduleForm);
-      toast.success('Schedule settings saved.');
       setSavedSched(true);
       setTimeout(() => setSavedSched(false), 3000);
     } catch {
-      toast.error('Failed to save schedule settings.');
+      alert('Failed to save schedule settings.');
     } finally {
       setSavingSched(false);
     }
@@ -329,7 +327,7 @@ const ArchiveSettingsPage = () => {
       });
       loadLogs(logsPage);
     } catch {
-      toast.error('Preview failed. Check console for details.');
+      alert('Preview failed. Check console for details.');
     } finally {
       setRunning('');
     }
@@ -373,7 +371,7 @@ const ArchiveSettingsPage = () => {
       });
       loadLogs(logsPage);
     } catch {
-      toast.error('Cleanup preview failed.');
+      alert('Cleanup preview failed.');
     } finally {
       setRunning('');
     }

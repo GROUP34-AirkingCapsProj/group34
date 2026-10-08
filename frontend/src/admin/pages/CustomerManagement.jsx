@@ -5,7 +5,6 @@ import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import ArchiveButton from '../components/ArchiveButton';
 import { customersAPI, getApiBaseUrl, getToken } from '../services/api';
-import { toast } from '../utils/toast';
 import '../styles/dashboard_air.css';
 import '../styles/customer_registry.css';
 import '../styles/archive_management.css';
@@ -129,20 +128,18 @@ const CustomerManagement = () => {
   const handleArchive = async (id) => {
     try {
       await customersAPI.delete(id);
-      toast.success('Customer archived.');
       fetchCustomers(currentPage);
     } catch (err) {
-      toast.error(err.message || 'Failed to archive customer');
+      alert(err.message || 'Failed to archive customer');
     }
   };
 
   const handleRestore = async (id) => {
     try {
       await customersAPI.restore(id);
-      toast.success('Customer restored.');
       fetchCustomers(currentPage);
     } catch (err) {
-      toast.error(err.message || 'Failed to restore customer');
+      alert(err.message || 'Failed to restore customer');
     }
   };
 
@@ -183,11 +180,9 @@ const CustomerManagement = () => {
       };
       if (editingCustomer) {
         await customersAPI.update(editingCustomer.customer_id, payload);
-        toast.success('Customer updated.');
         setEditingCustomer(null);
       } else {
         await customersAPI.create(payload);
-        toast.success('Customer created.');
         setAddModalOpen(false);
       }
       await fetchCustomers(currentPage);
