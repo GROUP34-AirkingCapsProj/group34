@@ -1,9 +1,15 @@
 // Resolve at request time (not module load) so the same bundle works on desktop and on mobile
 // when opened via LAN IP. REACT_APP_API_URL often points at 127.0.0.1 — on a phone that is wrong.
+//
+// Read via readEnv(), not process.env.X directly — see runtimeEnv.js for why a
+// bare process.env.X in this file compiles to a permanent `undefined` no
+// environment variable can override.
+import { readEnv } from '../../runtimeEnv';
+
 const trimSlash = (u) => String(u || '').replace(/\/+$/, '');
-const rawEnvApi = process.env.REACT_APP_API_URL && String(process.env.REACT_APP_API_URL).trim();
-const publicApiOverride = process.env.REACT_APP_API_PUBLIC_URL && String(process.env.REACT_APP_API_PUBLIC_URL).trim();
-const apiPort = String(process.env.REACT_APP_API_PORT || '80').replace(/^:+/, '');
+const rawEnvApi = readEnv('REACT_APP_API_URL') && String(readEnv('REACT_APP_API_URL')).trim();
+const publicApiOverride = readEnv('REACT_APP_API_PUBLIC_URL') && String(readEnv('REACT_APP_API_PUBLIC_URL')).trim();
+const apiPort = String(readEnv('REACT_APP_API_PORT') || '80').replace(/^:+/, '');
 
 function isLoopbackHost(h) {
   return (
@@ -55,7 +61,7 @@ export const getApiBaseUrl = () => {
     // getUserMedia requires a secure context and localhost is exempt, LAN IPs
     // are not). Following the page means one build serves both ports.
     // REACT_APP_API_HTTPS still forces https: for an API that is HTTPS-only.
-    const proto = String(process.env.REACT_APP_API_HTTPS || '').toLowerCase() === 'true'
+    const proto = String(readEnv('REACT_APP_API_HTTPS') || '').toLowerCase() === 'true'
       ? 'https:'
       : (window.location.protocol === 'https:' ? 'https:' : 'http:');
     const portSuffix = (apiPort === '80' || apiPort === '') ? '' : `:${apiPort}`;
