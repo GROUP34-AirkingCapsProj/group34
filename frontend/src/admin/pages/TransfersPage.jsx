@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
@@ -39,6 +39,7 @@ const fmtDate = (v) => {
 
 const TransfersPage = () => {
   const navigate = useNavigate();
+  const { search } = useLocation();
   const { user, can } = useAuth();
   const roleKey = getRoleKey(user);
   const isAdmin = roleKey === ROLES.ADMIN;
@@ -112,6 +113,20 @@ const TransfersPage = () => {
   };
 
   const closeDrawer = () => setSelected(null);
+  useEffect(() => {
+    const query = new URLSearchParams(search);
+    const tab = query.get('tab');
+    if (['mine', 'send', 'receive', 'done'].includes(tab)) setActiveTab(tab);
+    const focus = /^transfer:(\d+)$/.exec(query.get('focus') || '');
+    if (!focus) return;
+    let mounted = true;
+    setDrawerLoading(true);
+    transfersAPI.getById(focus[1])
+      .then((res) => { if (mounted) setSelected(res?.data ?? res); })
+      .catch((e) => { if (mounted) toast.error('Could not open transfer', e?.message); })
+      .finally(() => { if (mounted) setDrawerLoading(false); });
+    return () => { mounted = false; };
+  }, [search]);
   const afterAction = () => { closeDrawer(); load(); };
 
   const handleCancel = async (t) => {

@@ -529,7 +529,7 @@ export const dashboardAPI = {
   getLowStock: async () => apiRequest('/dashboard/low-stock'),
   getRecentMovements: async () => apiRequest('/dashboard/recent-movements'),
   getStockMovementTrends: async () => apiRequest('/dashboard/stock-movement-trends'),
-  getPendingApprovals: async () => apiRequest('/dashboard/pending-approvals'),
+  getPendingApprovals: async (includeHistory = false) => apiRequest(`/dashboard/pending-approvals${includeHistory ? '?include_history=1' : ''}`),
   getCharts: async (params = {}) => {
     const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString();
     return apiRequest(`/dashboard/charts${qs ? '?' + qs : ''}`);
@@ -1918,12 +1918,17 @@ export const incidentReportsAPI = {
 
 /**
  * The register of stock held out of inventory by an incident — quarantined,
- * scrapped, returned or missing. Read-only: the old Dispose action is gone,
+ * scrapped, returned or missing. Completed repairs can return to inventory;
+ * the old Dispose action is gone,
  * because the inspection replaced it.
  *
  * `status` defaults to `quarantined` server-side; pass `all` for history.
  */
 export const incidentItemsAPI = {
+  completeRepair: (incidentId, itemId, note) => apiRequest(
+    `/incident-reports/${incidentId}/items/${itemId}/complete-repair`,
+    { method: 'POST', body: JSON.stringify({ note }) },
+  ),
   list: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/incident-items?${query}` : '/incident-items');

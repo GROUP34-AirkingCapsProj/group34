@@ -1,4 +1,4 @@
-/** Frontend mirror of NavBundleSeeder. Keep in sync. A page is visible iff ALL `required` perms are granted. */
+/** Frontend navigation permissions. Combined pages may accept anyRequired; each tab enforces its own permission. */
 export const NAV_BUNDLES = [
   { name: 'Dashboard',             routePath: '/admin/dashboard',        required: ['dashboard_access.read'] },
   { name: 'Analytics Dashboard',   routePath: '/admin/analytics',        required: ['analytics_dashboard.read'] },
@@ -29,7 +29,7 @@ export const NAV_BUNDLES = [
   { name: 'Warranty Records',      routePath: '/admin/warranties',       required: ['warranty_records.read'] },
   { name: 'Audit Trail',           routePath: '/admin/audit',            required: ['audit_trail_viewing.read'] },
   { name: 'Audit & Evidence',     routePath: '/admin/audit-evidence',   required: ['audit_evidence.read'] },
-  { name: 'System Reports',        routePath: '/admin/reports',          required: ['report_viewing.read'] },
+  { name: 'Reports & Analytics',   routePath: '/admin/reports',          required: ['report_viewing.read'], anyRequired: ['report_viewing.read', 'analytics_dashboard.read'] },
   { name: 'Alerts & Notices',      routePath: '/admin/alerts',           required: ['notification_panel.read'] },
 ];
 
@@ -54,6 +54,7 @@ export const PERMISSION_GATED_ROUTES = {
 const granted = (perms, key) => perms != null && perms[key] === true;
 
 export function bundleVisible(bundle, perms) {
+  if (bundle?.anyRequired?.length) return bundle.anyRequired.some((k) => granted(perms, k));
   if (!bundle || !bundle.required || bundle.required.length === 0) return false;
   return bundle.required.every((k) => granted(perms, k));
 }

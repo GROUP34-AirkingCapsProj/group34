@@ -9,25 +9,22 @@ use Illuminate\Support\Facades\DB;
 /**
  * Read-only analytics for the Analytics Dashboard page.
  *
- * Each public method returns arrays shaped exactly like the page's existing
- * tabData sub-objects, so the React page binds to them without transformation.
- * Aggregation happens in SQL, which is why this replaced the old client-side
- * computation: the browser was working from a 500-row page of inventory and
- * silently under-reporting every org-wide total.
+ * Each response includes complete supporting records alongside its summaries.
+ * Stock valuation and thresholds share StockSnapshotService with generated
+ * reports; charts never aggregate a truncated browser page of inventory.
  */
 class DashboardAnalyticsService
 {
-    public function __construct(private RestockAnalyticsService $restock)
+    public function __construct(private RestockAnalyticsService $restock, private StockSnapshotService $stock)
     {
     }
 
     /**
-     * Per-piece price expression. unit_price/cost_price are per PACKAGE for
+     * Per-piece cost expression. cost_price is per PACKAGE for
      * installation materials; appliances have no details row so the LEFT JOIN
      * yields NULL and the divisor falls back to 1.
      */
-    private const PIECE_PRICE = 'p.unit_price / GREATEST(COALESCE(imd.pieces_per_package, 1), 1)';
-    private const PIECE_COST  = 'p.cost_price / GREATEST(COALESCE(imd.pieces_per_package, 1), 1)';
+    private const PIECE_COST = StockSnapshotService::PIECE_COST;
 
     /**
      * The reorder point for a row: the location's own tuning when set, else the
@@ -35,7 +32,7 @@ class DashboardAnalyticsService
      * "not configured here" and must fall through — hence NULLIF, not COALESCE
      * alone.
      */
-    private const REORDER_POINT = 'COALESCE(NULLIF(i.reorder_level, 0), p.recommended_stocks, 0)';
+    private const REORDER_POINT = StockSnapshotService::REORDER_POINT;
 
     /** Trailing window, in days, for consumption and turnover. */
     private const MOVEMENT_WINDOW_DAYS = 30;
@@ -46,16 +43,10 @@ class DashboardAnalyticsService
 
     private function inventoryQuery(?int $locationId, ?int $categoryId): Builder
     {
-        return DB::table('inventory as i')
-            ->join('products as p', 'p.product_id', '=', 'i.product_id')
-            ->join('locations as l', 'l.location_id', '=', 'i.location_id')
-            ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'p.product_id')
-            ->leftJoin('category_lookup as c', 'c.category_id', '=', 'p.category_id')
-            ->when($locationId, fn (Builder $q) => $q->where('i.location_id', $locationId))
-            ->when($categoryId, fn (Builder $q) => $q->where('p.category_id', $categoryId));
+        return $this->stock->query($locationId, $categoryId);
     }
 
-    /** Bucket expression shared by the Stock Level and Location Performance tabs. */
+    /** Same stock buckets as StockSnapshotService, used by movement queries. */
     private function bucketExpression(): string
     {
         $reorder = self::REORDER_POINT;
@@ -70,106 +61,44 @@ class DashboardAnalyticsService
 
     public function stockLevel(?int $locationId, ?int $categoryId): array
     {
-        $bucket = $this->bucketExpression();
-        $price  = self::PIECE_PRICE;
-
-        // MySQL's ONLY_FULL_GROUP_BY rejects grouping by a CASE expression
-        // while aggregating columns not functionally dependent on it, so the
-        // bucket is computed in a derived table and the outer query only
-        // groups by the resulting alias.
-        $bucketed = $this->inventoryQuery($locationId, $categoryId)
-            ->selectRaw("{$bucket} AS bucket,
-                         i.quantity_on_hand AS quantity_on_hand,
-                         i.quantity_on_hand * ({$price}) AS row_value");
-
-        $rows = DB::query()
-            ->fromSub($bucketed, 'b')
-            ->selectRaw('bucket, COUNT(*) AS row_count,
-                         SUM(quantity_on_hand) AS units,
-                         SUM(row_value) AS value')
-            ->groupBy('bucket')
-            ->get()
-            ->keyBy('bucket');
-
-        $count = fn (string $b) => (int) ($rows->get($b)?->row_count ?? 0);
-
-        $critical  = $count('critical');
-        $low       = $count('low');
-        $optimal   = $count('optimal');
+        // Derive both summaries and supporting records from this one snapshot.
+        $records = $this->stock->rows($locationId, $categoryId);
+        $count = fn ($status) => $records->where('status', $status)->count();
+        $critical = $count('critical');
+        $low = $count('low');
+        $optimal = $count('optimal');
         $overstock = $count('overstock');
-        $total     = $critical + $low + $optimal + $overstock;
-
-        $totalUnits = (int) $rows->sum('units');
-        $totalValue = (float) $rows->sum('value');
-
-        $pct = static fn (int $n) => $total > 0 ? (int) round(($n / $total) * 100) : 0;
-
-        $belowReorder = $critical + $low;
-        $aboveSafety  = $optimal + $overstock;
+        $total = $records->count();
+        $pct = fn ($n) => $total > 0 ? (int) round($n / $total * 100) : 0;
+        $attention = $records->filter(fn ($r) => in_array($r['status'], ['critical', 'low'], true));
 
         return [
             'statsData' => [
-                'totalStockValue' => round($totalValue, 2),
-                'totalUnits'      => $totalUnits,
-                'lowStockItems'   => $low,
-                'criticalItems'   => $critical,
+                'totalStockValue' => round((float) $records->sum('stock_value'), 2),
+                'totalUnits' => (int) $records->sum('quantity_on_hand'),
+                'lowStockItems' => $low, 'criticalItems' => $critical,
             ],
             'stockDistribution' => [
-                'optimal'   => ['count' => $optimal,   'percentage' => $pct($optimal)],
-                'lowStock'  => ['count' => $low,       'percentage' => $pct($low)],
-                'critical'  => ['count' => $critical,  'percentage' => $pct($critical)],
+                'optimal' => ['count' => $optimal, 'percentage' => $pct($optimal)],
+                'lowStock' => ['count' => $low, 'percentage' => $pct($low)],
+                'critical' => ['count' => $critical, 'percentage' => $pct($critical)],
                 'overstock' => ['count' => $overstock, 'percentage' => $pct($overstock)],
             ],
             'reorderCompliance' => [
-                'rate'               => $total > 0 ? (int) round((($total - $belowReorder) / $total) * 100) : 0,
-                'belowReorderPoint'  => $belowReorder,
-                'aboveSafetyStock'   => $aboveSafety,
+                'rate' => $pct($optimal + $overstock),
+                'belowReorderPoint' => $critical + $low,
+                'aboveSafetyStock' => $optimal + $overstock,
             ],
-            'criticalItems'  => $this->attentionItems($locationId, $categoryId),
-            'overstockItems' => $this->overstockItems($locationId, $categoryId),
+            'criticalItems' => $attention->sortBy('quantity_on_hand')->values()->map(fn ($r) => [
+                'name' => $r['product'], 'location' => $r['location'],
+                'current' => $r['quantity_on_hand'], 'max' => $r['threshold'],
+            ])->all(),
+            'overstockItems' => $records->where('status', 'overstock')->sortByDesc('quantity_on_hand')->values()->map(fn ($r) => [
+                'name' => $r['product'], 'location' => $r['location'],
+                'current' => $r['quantity_on_hand'], 'optimal' => $r['max_stock_level'],
+            ])->all(),
+            'stockRecords' => $records->all(),
         ];
-    }
-
-    /** Critical + low rows for the "needs attention" list, worst first. */
-    private function attentionItems(?int $locationId, ?int $categoryId): array
-    {
-        $reorder = self::REORDER_POINT;
-
-        return $this->inventoryQuery($locationId, $categoryId)
-            ->whereRaw("i.quantity_on_hand <= {$reorder}")
-            ->selectRaw("p.product_name, l.location_name,
-                         i.quantity_on_hand AS current_qty,
-                         {$reorder} AS reorder_point")
-            ->orderBy('i.quantity_on_hand')
-            ->limit(6)
-            ->get()
-            ->map(static fn ($r) => [
-                'name'     => $r->product_name,
-                'location' => $r->location_name ?? 'N/A',
-                'current'  => (int) $r->current_qty,
-                'max'      => (int) $r->reorder_point,
-            ])
-            ->all();
-    }
-
-    private function overstockItems(?int $locationId, ?int $categoryId): array
-    {
-        return $this->inventoryQuery($locationId, $categoryId)
-            ->whereNotNull('p.max_stock_level')
-            ->whereRaw('i.quantity_on_hand > p.max_stock_level')
-            ->selectRaw('p.product_name, l.location_name,
-                         i.quantity_on_hand AS current_qty,
-                         p.max_stock_level')
-            ->orderByDesc('i.quantity_on_hand')
-            ->limit(6)
-            ->get()
-            ->map(static fn ($r) => [
-                'name'     => $r->product_name,
-                'location' => $r->location_name ?? 'N/A',
-                'current'  => (int) $r->current_qty,
-                'optimal'  => (int) $r->max_stock_level,
-            ])
-            ->all();
     }
 
     public function movement(?int $locationId, ?int $categoryId): array
@@ -201,6 +130,12 @@ class DashboardAnalyticsService
             ->groupBy('i.product_id', 'p.product_name', 'c.category_name')
             ->get();
 
+        // Charts and tables must use the same active products and category.
+        $allowed = array_fill_keys($stockRows->pluck('product_id')->map(fn ($id) => (int) $id)->all(), true);
+        foreach ($demand as $locId => $products) {
+            $demand[$locId] = array_intersect_key($products, $allowed);
+        }
+
         $items = $stockRows->map(function ($r) use ($consumed) {
             $productId = (int) $r->product_id;
             $onHand    = (int) $r->on_hand;
@@ -215,8 +150,8 @@ class DashboardAnalyticsService
                 'unitsOut'     => $units,
                 // Turnover: units consumed per unit of stock held. With no stock
                 // but real consumption the ratio is undefined, so fall back to the
-                // raw consumed count rather than dividing by zero.
-                'turnover'     => $onHand > 0 ? round($units / $onHand, 1) : $units,
+                // null when stock is zero so consumption is never mislabeled as a ratio.
+                'turnover'     => $onHand > 0 ? round($units / $onHand, 1) : ($units > 0 ? null : 0.0),
             ];
         })->values();
 
@@ -225,9 +160,9 @@ class DashboardAnalyticsService
         $peak = (float) max(1, $items->max('unitsOut') ?? 1);
 
         $sorted    = $items->sortByDesc('turnover')->values();
-        $fast      = $sorted->where('turnover', '>=', 6)->take(5)->values();
-        $slow      = $sorted->where('turnover', '>', 0)->where('turnover', '<=', 3)->take(4)->values();
-        $moved     = $items->where('unitsOut', '>', 0);
+        $fast      = $sorted->where('turnover', '>=', 6)->values();
+        $slow      = $sorted->where('turnover', '>', 0)->where('turnover', '<=', 3)->values();
+        $moved     = $items->where('unitsOut', '>', 0)->filter(fn ($i) => $i['turnover'] !== null);
         $avgTurn   = $moved->count() > 0 ? (int) round($moved->avg('turnover')) : 0;
 
         $optimalCount = (int) $this->inventoryQuery($locationId, $categoryId)
@@ -249,7 +184,7 @@ class DashboardAnalyticsService
             ],
             'fastMovingItems' => $fast->map($toRateShape)->all(),
             'slowMovingItems' => $slow->map($toRateShape)->all(),
-            'consumptionData' => $items->sortByDesc('unitsOut')->take(10)->values()
+            'consumptionData' => $items->sortByDesc('unitsOut')->values()
                 ->map(static function ($i) use ($peak) {
                     // Status reflects stock level against the reorder point,
                     // the same definition the Stock Level tab uses — not
@@ -266,11 +201,25 @@ class DashboardAnalyticsService
                         'name'            => $i['name'],
                         'currentStock'    => $i['onHand'],
                         'consumptionRate' => (int) round(($i['unitsOut'] / $peak) * 100),
-                        'turnover'        => ((int) round($i['turnover'])) . 'x/mo',
+                        'turnover'        => $i['turnover'] === null ? 'N/A' : $i['turnover'] . 'x/mo',
                         'status'          => $status,
                     ];
                 })->all(),
             'weeklyMovement' => $this->weeklyBuckets($demand, $locationId),
+            'movementRecords' => $items->map(function ($i) use ($demand, $locationId) {
+                $productDemand = [];
+                foreach ($demand as $locId => $products) {
+                    $productDemand[$locId] = [$i['productId'] => $products[$i['productId']] ?? []];
+                }
+                $weeks = $this->weeklyBuckets($productDemand, $locationId);
+                return $i + ['week1' => $weeks[0], 'week2' => $weeks[1], 'week3' => $weeks[2], 'week4' => $weeks[3]];
+            })->all(),
+            'movementPeriod' => ['from' => $from, 'to' => $to, 'labels' => [
+                now()->subDays(29)->format('M d') . ' to ' . now()->subDays(21)->format('M d'),
+                now()->subDays(20)->format('M d') . ' to ' . now()->subDays(14)->format('M d'),
+                now()->subDays(13)->format('M d') . ' to ' . now()->subDays(7)->format('M d'),
+                now()->subDays(6)->format('M d') . ' to ' . now()->format('M d'),
+            ]],
         ];
     }
 
@@ -293,7 +242,11 @@ class DashboardAnalyticsService
             foreach ($products as $series) {
                 foreach ($series as $day => $qty) {
                     $daysAgo = \Carbon\Carbon::parse($day)->startOfDay()->diffInDays($today);
-                    $index   = 3 - intdiv($daysAgo, 7);
+                    if ($daysAgo < 0 || $daysAgo >= self::MOVEMENT_WINDOW_DAYS) {
+                        continue;
+                    }
+                    // Oldest bucket includes days 21?29, so all 30 days reconcile.
+                    $index = max(0, 3 - intdiv((int) $daysAgo, 7));
                     if ($index >= 0 && $index <= 3) {
                         $buckets[$index] += (float) $qty;
                     }
@@ -320,15 +273,19 @@ class DashboardAnalyticsService
         $rows = DB::table('restock_recommendations as r')
             ->join('products as p', 'p.product_id', '=', 'r.product_id')
             ->join('locations as l', 'l.location_id', '=', 'r.location_id')
+            ->whereNull('p.deleted_at')
+            ->whereNull('l.deleted_at')
             ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'p.product_id')
             ->when($locationId, fn (Builder $q) => $q->where('r.location_id', $locationId))
             ->when($categoryId, fn (Builder $q) => $q->where('p.category_id', $categoryId))
             ->selectRaw("r.product_id, p.product_name, l.location_name,
-                         r.current_stock, r.reorder_level, r.recommended_quantity,
+                         r.current_stock, r.reorder_level, r.recommended_quantity, r.created_at AS computed_at,
                          LOWER(r.priority) AS priority, r.days_of_cover, r.avg_daily_demand,
                          COALESCE(p.safety_stock, 0) AS safety_stock,
                          r.recommended_quantity * ({$cost}) AS est_cost")
             ->get();
+
+        $rows->each(function ($row) { $row->est_cost = round((float) $row->est_cost, 2); });
 
         $priorityRank = ['critical' => 0, 'high' => 1, 'medium' => 2, 'low' => 3];
 
@@ -350,20 +307,18 @@ class DashboardAnalyticsService
             ],
             'stockoutTimeline' => $stockouts
                 ->sortBy(static fn ($r) => (float) $r->days_of_cover)
-                ->take(10)
                 ->values()
                 ->map(static fn ($r) => [
                     'name'           => $r->product_name,
                     'branch'         => $r->location_name ?? 'Unknown Location',
                     'currentStock'   => (int) $r->current_stock,
-                    'consumptionPct' => (int) round((float) $r->avg_daily_demand),
+                    'consumptionPct' => round((float) $r->avg_daily_demand, 2),
                     'reorderLevel'   => (int) $r->reorder_level,
                     'suggestedQty'   => (int) $r->recommended_quantity,
                     'daysLeft'       => (int) round((float) $r->days_of_cover),
                 ])->all(),
             'restockRecommendations' => $rows
                 ->sortBy(static fn ($r) => $priorityRank[$r->priority] ?? 9)
-                ->take(10)
                 ->values()
                 ->map(static fn ($r) => [
                     'priority'     => $r->priority,
@@ -374,11 +329,16 @@ class DashboardAnalyticsService
                     'safetyStock'  => (int) $r->safety_stock,
                     'suggestedQty' => (int) $r->recommended_quantity,
                     'estCost'      => round((float) $r->est_cost, 2),
+                    'daysOfCover'  => $r->days_of_cover === null ? null : round((float) $r->days_of_cover, 2),
+                    'dailyDemand'  => round((float) $r->avg_daily_demand, 2),
+                    'computedAt'   => $r->computed_at,
+                    'stockoutRisk' => $r->days_of_cover !== null && (float) $r->days_of_cover <= self::STOCKOUT_HORIZON_DAYS ? 'Yes' : 'No',
                 ])->all(),
             'prioritySummary' => [
                 'critical' => $summaryFor('critical'),
                 'high'     => $summaryFor('high'),
                 'medium'   => $summaryFor('medium'),
+                'low'      => $summaryFor('low'),
             ],
         ];
     }
@@ -409,6 +369,8 @@ class DashboardAnalyticsService
             ->leftJoin('locations as l', 'l.location_id', '=', 'a.location_id')
             ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'p.product_id')
             ->leftJoin('category_lookup as c', 'c.category_id', '=', 'p.category_id')
+            ->whereNull('a.deleted_at')
+            ->whereNull('p.deleted_at')
             ->whereNotNull('ir.adjustment_id')
             ->where('ad.deduct_quantity', '>', 0)
             ->when($locationId, fn (Builder $q) => $q->where('a.location_id', $locationId))
@@ -420,31 +382,31 @@ class DashboardAnalyticsService
         $cost  = self::PIECE_COST;
         $value = "ad.deduct_quantity * ({$cost})";
 
-        $totals = $this->confirmedLossQuery($locationId, $categoryId)
-            ->selectRaw("a.adjustment_type,
-                         SUM(ad.deduct_quantity) AS units,
-                         SUM({$value}) AS amount")
-            ->groupBy('a.adjustment_type')
-            ->get()
-            ->keyBy('adjustment_type');
-
-        $byLocation = $this->confirmedLossQuery($locationId, $categoryId)
-            ->selectRaw("COALESCE(l.location_name, 'Unknown Location') AS name, SUM({$value}) AS amount")
-            ->groupBy('l.location_name')
-            ->orderByDesc('amount')
-            ->get()
-            ->map(static fn ($r) => ['name' => $r->name, 'amount' => round((float) $r->amount, 2)])
-            ->all();
-
-        $byCategory = $this->confirmedLossQuery($locationId, $categoryId)
-            ->selectRaw("COALESCE(c.category_name, 'Uncategorized') AS name, SUM({$value}) AS amount")
-            ->groupBy('c.category_name')
-            ->orderByDesc('amount')
-            ->get();
-
+        $records = $this->confirmedLossQuery($locationId, $categoryId)
+            ->selectRaw("ir.incident_id AS id, ir.created_at AS date, p.product_name AS itemName,
+                COALESCE(l.location_name, 'Unknown Location') AS branchName,
+                COALESCE(c.category_name, 'Uncategorized') AS itemCategory,
+                a.adjustment_type AS lossType, ad.deduct_quantity AS qty,
+                {$value} AS lossValue, ir.narrative AS reason")
+            ->orderByDesc('ir.created_at')->get()->map(fn ($r) => [
+                'id' => (int) $r->id, 'date' => $r->date, 'itemName' => $r->itemName,
+                'branchName' => $r->branchName, 'itemCategory' => $r->itemCategory,
+                'lossType' => $r->lossType, 'qty' => (int) $r->qty,
+                'lossValue' => round((float) $r->lossValue, 2), 'reason' => $r->reason,
+                'status' => 'approved',
+            ]);
+        $byLocation = $records->groupBy('branchName')->map(fn ($group, $name) => [
+            'name' => $name, 'amount' => round((float) $group->sum('lossValue'), 2),
+        ])->sortByDesc('amount')->values()->all();
+        $byCategory = $records->groupBy('itemCategory')->map(fn ($group, $name) => (object) [
+            'name' => $name, 'amount' => round((float) $group->sum('lossValue'), 2),
+        ])->sortByDesc('amount')->values();
         $maxCategory = (float) ($byCategory->max('amount') ?: 1);
 
         $pendingCount = (int) DB::table('incident_reports as ir')
+            ->join('products as p', 'p.product_id', '=', 'ir.product_id')
+            ->whereNull('p.deleted_at')
+            ->when($categoryId, fn ($q) => $q->where('p.category_id', $categoryId))
             ->where('ir.status_id', \App\Models\IncidentReport::statusId('Open'))
             ->whereIn('ir.reason', [
                 \App\Models\IncidentReport::REASON_DEFECTIVE,
@@ -453,14 +415,13 @@ class DashboardAnalyticsService
             ->when($locationId, fn (Builder $q) => $q->where('ir.location_id', $locationId))
             ->count();
 
-        $damaged = $totals->get('damage');
-        $stolen  = $totals->get('loss');
+
 
         return [
             'profitLossStats' => [
-                'totalProfitLoss' => round((float) $totals->sum('amount'), 2),
-                'stolenUnits'     => (int) ($stolen?->units ?? 0),
-                'damagedUnits'    => (int) ($damaged?->units ?? 0),
+                'totalProfitLoss' => round((float) $records->sum('lossValue'), 2),
+                'stolenUnits'     => (int) $records->where('lossType', 'loss')->sum('qty'),
+                'damagedUnits'    => (int) $records->where('lossType', 'damage')->sum('qty'),
                 'pendingReports'  => $pendingCount,
             ],
             'lossByBranch'   => $byLocation,
@@ -469,61 +430,9 @@ class DashboardAnalyticsService
                 'amount'     => round((float) $r->amount, 2),
                 'percentage' => (int) round(((float) $r->amount / $maxCategory) * 100),
             ])->all(),
-            'recentLossIncidents' => $this->recentLossIncidents($locationId, $categoryId),
+            'recentLossIncidents' => $records->map(fn ($r) => array_merge($r, ['lossType' => $r['lossType'] === 'damage' ? 'damaged' : 'missing']))->all(),
+            'lossRecords' => $records->all(),
         ];
-    }
-
-    /**
-     * Confirmed write-offs plus still-open defective/missing reports.
-     *
-     * Open rows show the quantity and value that WOULD be lost if confirmed, so
-     * reviewers can see what is at stake, but they are excluded from the header
-     * total above — the status badge is what distinguishes them.
-     */
-    private function recentLossIncidents(?int $locationId, ?int $categoryId): array
-    {
-        $cost = self::PIECE_COST;
-
-        return DB::table('incident_reports as ir')
-            ->leftJoin('adjustments as a', 'a.adjustment_id', '=', 'ir.adjustment_id')
-            ->leftJoin('adjustment_details as ad', function ($join) {
-                $join->on('ad.adjustment_id', '=', 'ir.adjustment_id')
-                     ->on('ad.product_id', '=', 'ir.product_id');
-            })
-            ->join('products as p', 'p.product_id', '=', 'ir.product_id')
-            ->leftJoin('locations as l', 'l.location_id', '=', 'ir.location_id')
-            ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'p.product_id')
-            ->leftJoin('category_lookup as c', 'c.category_id', '=', 'p.category_id')
-            ->whereIn('ir.reason', [
-                \App\Models\IncidentReport::REASON_DEFECTIVE,
-                \App\Models\IncidentReport::REASON_MISSING,
-            ])
-            ->where(function ($q) {
-                $q->whereNotNull('ir.adjustment_id')
-                  ->orWhere('ir.status_id', \App\Models\IncidentReport::statusId('Open'));
-            })
-            ->when($locationId, fn (Builder $q) => $q->where('ir.location_id', $locationId))
-            ->when($categoryId, fn (Builder $q) => $q->where('p.category_id', $categoryId))
-            ->selectRaw("ir.created_at, ir.reason, ir.narrative, ir.adjustment_id,
-                         p.product_name,
-                         COALESCE(l.location_name, 'Unknown Location') AS location_name,
-                         COALESCE(c.category_name, 'Uncategorized') AS category_name,
-                         COALESCE(ad.deduct_quantity, ir.quantity) AS qty,
-                         COALESCE(ad.deduct_quantity, ir.quantity) * ({$cost}) AS loss_value")
-            ->orderByDesc('ir.created_at')
-            ->limit(10)
-            ->get()
-            ->map(static fn ($r) => [
-                'date'         => $r->created_at,
-                'itemName'     => $r->product_name,
-                'branchName'   => $r->location_name,
-                'itemCategory' => $r->category_name,
-                'lossType'     => $r->reason === \App\Models\IncidentReport::REASON_DEFECTIVE ? 'damaged' : 'stolen',
-                'qty'          => (int) $r->qty,
-                'lossValue'    => round((float) $r->loss_value, 2),
-                'reason'       => $r->narrative ?? 'Incident report',
-                'status'       => $r->adjustment_id !== null ? 'approved' : 'pending',
-            ])->all();
     }
 
     /**
@@ -534,47 +443,31 @@ class DashboardAnalyticsService
      */
     public function locationPerformance(?int $locationId, ?int $categoryId): array
     {
-        $bucket  = $this->bucketExpression();
-        $price   = self::PIECE_PRICE;
-        $cost    = self::PIECE_COST;
-        $reorder = self::REORDER_POINT;
-
-        // Restock target: the configured ceiling, else the reorder point. Without
-        // the fallback every product with a null max_stock_level would contribute
-        // zero restock cost and understate the location's true need.
-        $target = "COALESCE(p.max_stock_level, {$reorder})";
-
-        $rows = $this->inventoryQuery($locationId, $categoryId)
-            ->selectRaw("i.location_id,
-                         l.location_name,
-                         COUNT(*) AS items,
-                         SUM(i.quantity_on_hand * ({$price})) AS total_value,
-                         SUM(CASE WHEN {$bucket} IN ('low', 'critical') THEN 1 ELSE 0 END) AS low_stock_count,
-                         SUM(CASE WHEN i.quantity_on_hand <= 0 THEN 1 ELSE 0 END) AS critical_count,
-                         SUM(CASE WHEN i.quantity_on_hand <= {$reorder} THEN 1 ELSE 0 END) AS restock_needed,
-                         SUM(CASE WHEN i.quantity_on_hand <= {$reorder}
-                                  THEN GREATEST({$target} - i.quantity_on_hand, 0) * ({$cost})
-                                  ELSE 0 END) AS restock_cost")
-            ->groupBy('i.location_id', 'l.location_name')
-            ->get();
+        $snapshot = $this->stock->rows($locationId, $categoryId);
+        $rows = $snapshot->groupBy('locationId')->map(function ($stock, $id) {
+            $attention = $stock->filter(fn ($r) => in_array($r['status'], ['critical', 'low'], true));
+            return (object) [
+                'location_id' => $id, 'location_name' => $stock->first()['location'],
+                'items' => $stock->count(), 'total_value' => $stock->sum('stock_value'),
+                'low_stock_count' => $attention->count(), 'critical_count' => $stock->where('status', 'critical')->count(),
+                'restock_needed' => $attention->count(),
+                'restock_cost' => $attention->sum(fn ($r) => max(0, ($r['max_stock_level'] ?? $r['threshold']) - $r['quantity_on_hand']) * $r['cost_price']),
+            ];
+        })->values();
 
         $to   = now()->toDateString();
         $from = now()->subDays(self::MOVEMENT_WINDOW_DAYS - 1)->toDateString();
 
         $demand = $this->restock->dailyDemandByLocation($from, $to);
 
-        // Per-(location, product) on-hand, needed to turn raw demand into a
-        // turnover RATIO. Grouped separately from the aggregate above because
-        // ONLY_FULL_GROUP_BY won't let a per-product breakdown coexist with the
-        // location-level SUMs in one query.
+        // Use the same stock snapshot as the location summaries.
         $onHandByLocation = [];
-        $this->inventoryQuery($locationId, $categoryId)
-            ->selectRaw('i.location_id, i.product_id, SUM(i.quantity_on_hand) AS on_hand')
-            ->groupBy('i.location_id', 'i.product_id')
-            ->get()
-            ->each(function ($r) use (&$onHandByLocation) {
-                $onHandByLocation[(int) $r->location_id][(int) $r->product_id] = (float) $r->on_hand;
-            });
+        foreach ($snapshot as $record) {
+            $locId = $record['locationId'];
+            $productId = $record['productId'];
+            $onHandByLocation[$locId][$productId] =
+                ($onHandByLocation[$locId][$productId] ?? 0) + $record['quantity_on_hand'];
+        }
 
         $performance = $rows->map(function ($r) use ($demand, $onHandByLocation) {
             $items      = (int) $r->items;
@@ -592,12 +485,11 @@ class DashboardAnalyticsService
             $onHand        = $onHandByLocation[$locId] ?? [];
             $ratios        = [];
             foreach ($onHand as $productId => $qty) {
-                if ($qty <= 0) {
-                    continue;
-                }
                 $consumed = array_sum($productDemand[$productId] ?? []);
                 if ($consumed > 0) {
-                    $ratios[] = $consumed / $qty;
+                    if ($qty > 0) {
+                        $ratios[] = round($consumed / $qty, 1);
+                    }
                 }
             }
             $avgTurnover = count($ratios) > 0 ? (int) round(array_sum($ratios) / count($ratios)) : 0;
@@ -661,6 +553,7 @@ class DashboardAnalyticsService
     {
         return [
             'locations' => DB::table('locations')
+                ->whereNull('deleted_at')
                 ->when($locationId, fn ($q) => $q->where('location_id', $locationId))
                 ->orderBy('location_name')
                 ->get(['location_id', 'location_name', 'location_type'])

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
+import AnalyticsRecords from '../components/reports/AnalyticsRecords';
 import { analyticsAPI } from '../services/api';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -14,10 +15,14 @@ import '../styles/analytics_dashboard.css';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
-const AnalyticsDashboard = () => {
+const AnalyticsDashboard = ({ embedded = false, initialFilters = {}, onFiltersChange, onViewChange, onReadyChange }) => {
+  const Layout = embedded ? React.Fragment : AdminLayout;
+  const [loadedKey, setLoadedKey] = useState(null);
+  const [snapshotAt, setSnapshotAt] = useState(null);
+  const [stockStatus, setStockStatus] = useState('');
   const [activeTab, setActiveTab] = useState('stock-level');
-  const [selectedBranch, setSelectedBranch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedBranch, setSelectedBranch] = useState(initialFilters.location_id || '');
+  const [selectedCategory, setSelectedCategory] = useState(initialFilters.category_id || '');
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -42,6 +47,7 @@ const AnalyticsDashboard = () => {
     slowMovingItems: [],
     consumptionData: [],
     weeklyMovement: [0, 0, 0, 0],
+    stockRecords: [], movementRecords: [], lossRecords: [], movementPeriod: null,
     // Predictions
     predictionsStats: { predictedStockouts: 0, restockNeeded: 0, criticalPriority: 0, estRestockCost: 0 },
     stockoutTimeline: [],
@@ -49,7 +55,8 @@ const AnalyticsDashboard = () => {
     prioritySummary: {
       critical: { count: 0, units: 0, cost: 0 },
       high: { count: 0, units: 0, cost: 0 },
-      medium: { count: 0, units: 0, cost: 0 }
+      medium: { count: 0, units: 0, cost: 0 },
+      low: { count: 0, units: 0, cost: 0 }
     },
     // Profit Loss
     profitLossStats: { totalProfitLoss: 0, stolenUnits: 0, damagedUnits: 0, pendingReports: 0 },
@@ -99,12 +106,19 @@ const AnalyticsDashboard = () => {
     return () => { cancelled = true; };
   }, []);
 
+  const requestKey = `${activeTab}:${selectedBranch}:${selectedCategory}`;
+  const ready = loadedKey === requestKey && !refreshing && !initialLoading && !error;
+  useEffect(() => { onViewChange?.(activeTab); }, [activeTab, onViewChange]);
+  useEffect(() => { onReadyChange?.(ready); }, [ready, onReadyChange]);
+
   // Refetch whenever the tab or either filter changes.
   useEffect(() => {
     let cancelled = false;
     const fetcher = TAB_FETCHERS[activeTab];
     if (!fetcher) return undefined;
 
+    setLoadedKey(null);
+    setError(null);
     const isFirstLoad = !hasLoadedOnce.current;
     if (isFirstLoad) setInitialLoading(true);
     else setRefreshing(true);
@@ -113,6 +127,8 @@ const AnalyticsDashboard = () => {
       .then((res) => {
         if (cancelled) return;
         setTabData((prev) => ({ ...prev, ...(res?.data ?? {}) }));
+        setLoadedKey(requestKey);
+        setSnapshotAt(res?.generated_at || new Date().toISOString());
         hasLoadedOnce.current = true;
         setError(null);
       })
@@ -128,20 +144,21 @@ const AnalyticsDashboard = () => {
       });
 
     return () => { cancelled = true; };
-  }, [TAB_FETCHERS, activeTab, selectedBranch, selectedCategory]);
+  }, [TAB_FETCHERS, activeTab, selectedBranch, selectedCategory, requestKey]);
 
 
 
   // Memoized chart data — only recalculates when underlying data changes
   const movementChartData = useMemo(() => ({
-    labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+    labels: tabData.movementPeriod?.labels || ['Oldest period', 'Week 2', 'Week 3', 'Latest week'],
     datasets: [{
+      label: 'Units consumed',
       data: weeklyMovement,
-      backgroundColor: 'var(--bg-sunken)',
+      backgroundColor: '#3b82f6',
       borderRadius: 4,
       barThickness: 40,
     }],
-  }), [weeklyMovement]);
+  }), [weeklyMovement, tabData.movementPeriod]);
 
   const movementChartOptions = useMemo(() => ({
     responsive: true,
@@ -149,15 +166,16 @@ const AnalyticsDashboard = () => {
     plugins: { legend: { display: false }, tooltip: { enabled: true } },
     scales: {
       x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', font: { size: 12 } } },
-      y: { display: false, grid: { display: false } },
+      y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Units consumed' } },
     },
   }), []);
 
   const branchChartData = useMemo(() => ({
     labels: branchPerformanceData.map(b => b.name),
     datasets: [{
+      label: 'Reorder compliance (%)',
       data: branchPerformanceData.map(b => b.efficiencyScore),
-      backgroundColor: 'var(--bg-sunken)',
+      backgroundColor: '#3b82f6',
       borderRadius: 4,
       barThickness: 40,
     }],
@@ -191,7 +209,7 @@ const AnalyticsDashboard = () => {
             </svg>
           </div>
           <div className="stat-details">
-            <span className="stat-label">Total Stock Value</span>
+            <span className="stat-label">Stock Value at Cost</span>
             <span className="stat-value">₱{statsData.totalStockValue.toLocaleString()}</span>
           </div>
         </div>
@@ -299,7 +317,7 @@ const AnalyticsDashboard = () => {
                 <span className="compliance-stat-value">{reorderCompliance.belowReorderPoint}</span>
               </div>
               <div className="compliance-stat above">
-                <span className="compliance-stat-label">Above Safety Stock</span>
+                <span className="compliance-stat-label">Above Reorder Point</span>
                 <span className="compliance-stat-value">{reorderCompliance.aboveSafetyStock}</span>
               </div>
             </div>
@@ -312,13 +330,13 @@ const AnalyticsDashboard = () => {
         {/* Critical & Low Stock Items */}
         <div className="analytics-card">
           <h3>Critical & Low Stock Items</h3>
-          <p className="card-subtitle">{criticalItems.length} items need attention</p>
+          <p className="card-subtitle">{criticalItems.length} items need attention (showing up to 10)</p>
 
           <div className="items-list">
             {criticalItems.length === 0 ? (
               <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No critical or low stock items</p>
             ) : (
-              criticalItems.map((item, index) => (
+              criticalItems.slice(0, 10).map((item, index) => (
                 <div key={index} className="item-row critical-item">
                   <div className="item-indicator warning"></div>
                   <div className="item-details">
@@ -339,13 +357,13 @@ const AnalyticsDashboard = () => {
         {/* Overstock Items */}
         <div className="analytics-card">
           <h3>Overstock Items</h3>
-          <p className="card-subtitle">{overstockItems.length} items exceed optimal levels</p>
+          <p className="card-subtitle">{overstockItems.length} items exceed optimal levels (showing up to 10)</p>
 
           <div className="items-list">
             {overstockItems.length === 0 ? (
               <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No overstock items</p>
             ) : (
-              overstockItems.map((item, index) => (
+              overstockItems.slice(0, 10).map((item, index) => (
                 <div key={index} className="item-row overstock-item">
                   <div className="item-indicator overstock"></div>
                   <div className="item-details">
@@ -425,7 +443,7 @@ const AnalyticsDashboard = () => {
       {/* Stock Movement Trends */}
       <div className="analytics-card" style={{ marginBottom: '24px' }}>
         <h3>Stock Movement Trends</h3>
-        <p className="card-subtitle">Last 4 weeks</p>
+        <p className="card-subtitle">Last 30 days; the oldest period covers 9 days</p>
         <div className="movement-chart-container">
           <Bar data={movementChartData} options={movementChartOptions} />
         </div>
@@ -436,13 +454,13 @@ const AnalyticsDashboard = () => {
         {/* Fast-Moving Items */}
         <div className="analytics-card">
           <h3>Fast-Moving Items</h3>
-          <p className="card-subtitle">High turnover rate (&gt;6x/month)</p>
+          <p className="card-subtitle">Turnover of at least 6x/month (showing up to 10)</p>
 
           <div className="movement-items-list">
             {fastMovingItems.length === 0 ? (
               <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No fast-moving items detected</p>
             ) : (
-              fastMovingItems.map((item, index) => (
+              fastMovingItems.slice(0, 10).map((item, index) => (
                 <div key={index} className="movement-item-row">
                   <div className="movement-rank fast">{index + 1}</div>
                   <div className="movement-item-details">
@@ -462,13 +480,13 @@ const AnalyticsDashboard = () => {
         {/* Slow-Moving Items */}
         <div className="analytics-card slow-moving-card">
           <h3>Slow-Moving Items</h3>
-          <p className="card-subtitle">Low turnover rate (&lt;3x/month)</p>
+          <p className="card-subtitle">Turnover above 0 and up to 3x/month (showing up to 10)</p>
 
           <div className="movement-items-list">
             {slowMovingItems.length === 0 ? (
               <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No slow-moving items detected</p>
             ) : (
-              slowMovingItems.map((item, index) => (
+              slowMovingItems.slice(0, 10).map((item, index) => (
                 <div key={index} className="movement-item-row">
                   <div className="movement-rank slow">{index + 1}</div>
                   <div className="movement-item-details">
@@ -510,7 +528,7 @@ const AnalyticsDashboard = () => {
                   </td>
                 </tr>
               ) : (
-                consumptionData.map((item, index) => (
+                consumptionData.slice(0, 10).map((item, index) => (
                   <tr key={index}>
                     <td className="consumption-item-name">{item.name}</td>
                     <td className="consumption-stock">{item.currentStock}</td>
@@ -604,13 +622,13 @@ const AnalyticsDashboard = () => {
       {/* Projected Stock-Out Timeline */}
       <div className="analytics-card pred-timeline-card">
         <h3>Projected Stock-Out Timeline</h3>
-        <p className="card-subtitle">Warehouse replenishment &mdash; items predicted to run out within 30 days</p>
+        <p className="card-subtitle">Warehouse replenishment - predicted stockouts within 30 days (showing up to 10)</p>
 
         <div className="pred-timeline-list">
           {stockoutTimeline.length === 0 ? (
             <p style={{ color: 'var(--ink-slate-400)', textAlign: 'center', padding: '20px' }}>No items predicted to stock out within 30 days</p>
           ) : (
-            stockoutTimeline.map((item, index) => (
+            stockoutTimeline.slice(0, 10).map((item, index) => (
               <div key={index} className="pred-timeline-item">
                 <div className="pred-timeline-item-content">
                   <div className="pred-timeline-item-header">
@@ -618,7 +636,7 @@ const AnalyticsDashboard = () => {
                   </div>
                   <span className="pred-timeline-item-branch">{item.branch} &bull; Current: {item.currentStock} units</span>
                   <div className="pred-timeline-item-meta">
-                    <span>Consumption <strong>{item.consumptionPct > 0 ? '-' : ''}{item.consumptionPct}%</strong></span>
+                    <span>Daily demand <strong>{item.consumptionPct} units/day</strong></span>
                     <span>Reorder Level <strong>{item.reorderLevel}</strong></span>
                     <span>Suggested <strong className="pred-suggested">{item.suggestedQty} units</strong></span>
                   </div>
@@ -636,7 +654,7 @@ const AnalyticsDashboard = () => {
       {/* Restocking Recommendation List */}
       <div className="analytics-card pred-restock-card">
         <h3>Restocking Recommendation List</h3>
-        <p className="card-subtitle">{restockRecommendations.length} items require restocking</p>
+        <p className="card-subtitle">{restockRecommendations.length} items require restocking (showing up to 10)</p>
 
         <div className="consumption-table-wrapper">
           <table className="consumption-table pred-restock-table">
@@ -660,7 +678,7 @@ const AnalyticsDashboard = () => {
                   </td>
                 </tr>
               ) : (
-                restockRecommendations.map((item, index) => (
+                restockRecommendations.slice(0, 10).map((item, index) => (
                   <tr key={index}>
                     <td>
                       <span className={`pred-priority-badge ${item.priority}`}>
@@ -734,6 +752,22 @@ const AnalyticsDashboard = () => {
             </div>
           </div>
         </div>
+        {prioritySummary.low && <div className="pred-priority-card low">
+          <div className="pred-priority-card-header">
+            <h4>Low Priority</h4>
+            <span className="pred-priority-count">{prioritySummary.low.count} items</span>
+          </div>
+          <div className="pred-priority-card-body">
+            <div className="pred-priority-metric">
+              <span className="pred-priority-metric-label">Total Units Needed</span>
+              <span className="pred-priority-metric-value">{prioritySummary.low.units}</span>
+            </div>
+            <div className="pred-priority-metric">
+              <span className="pred-priority-metric-label">Estimated Cost</span>
+              <span className="pred-priority-metric-value">₱{prioritySummary.low.cost.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>}
       </div>
     </>
   );
@@ -750,7 +784,7 @@ const AnalyticsDashboard = () => {
             </svg>
           </div>
           <div className="stat-details">
-            <span className="stat-label">Total Profit Loss</span>
+            <span className="stat-label">Confirmed Stock Loss</span>
             <span className="stat-value">₱{profitLossStats.totalProfitLoss.toLocaleString()}</span>
           </div>
         </div>
@@ -764,7 +798,7 @@ const AnalyticsDashboard = () => {
             </svg>
           </div>
           <div className="stat-details">
-            <span className="stat-label">Stolen Units</span>
+            <span className="stat-label">Missing Units</span>
             <span className="stat-value">{profitLossStats.stolenUnits}</span>
           </div>
         </div>
@@ -804,7 +838,7 @@ const AnalyticsDashboard = () => {
         {/* Loss by Branch */}
         <div className="analytics-card">
         <h3>Loss by Location</h3>
-          <p className="card-subtitle">Profit impact across Mindanao</p>
+          <p className="card-subtitle">Confirmed stock loss by location</p>
 
           <div className="loss-branch-list">
             {lossByBranch.length === 0 ? (
@@ -826,7 +860,7 @@ const AnalyticsDashboard = () => {
         {/* Loss by Category */}
         <div className="analytics-card">
           <h3>Loss by Category</h3>
-          <p className="card-subtitle">Items most prone to damage/theft</p>
+          <p className="card-subtitle">Confirmed losses by product category</p>
 
           <div className="loss-category-list">
             {lossByCategory.length === 0 ? (
@@ -851,10 +885,10 @@ const AnalyticsDashboard = () => {
         </div>
       </div>
 
-      {/* Recent Loss Incidents */}
+      {/* Confirmed Loss Records */}
       <div className="analytics-card">
-        <h3>Recent Loss Incidents</h3>
-        <p className="card-subtitle">Audit trail of stock adjustments</p>
+        <h3>Confirmed Loss Records</h3>
+        <p className="card-subtitle">Confirmed deductions only; pending reports are excluded from loss totals.</p>
 
         <div className="consumption-table-wrapper">
           <table className="consumption-table loss-incidents-table">
@@ -876,7 +910,7 @@ const AnalyticsDashboard = () => {
                   </td>
                 </tr>
               ) : (
-                recentLossIncidents.map((incident, index) => (
+                recentLossIncidents.slice(0, 10).map((incident, index) => (
                   <tr key={index}>
                     <td className="loss-incident-item-cell">
                       <span className="loss-incident-date">
@@ -912,8 +946,8 @@ const AnalyticsDashboard = () => {
     <>
       {/* Cross-Location Performance Comparison Chart */}
       <div className="analytics-card" style={{ marginBottom: '24px' }}>
-        <h3>Cross-Location Performance Comparison</h3>
-        <p className="card-subtitle">Efficiency & Turnover metrics</p>
+        <h3>Location Reorder Compliance</h3>
+        <p className="card-subtitle">Percentage of stock lines above their reorder point</p>
         <div className="movement-chart-container" style={{ height: '260px' }}>
           {branchPerformanceData.length > 0 ? (
             <Bar data={branchChartData} options={branchChartOptions} />
@@ -926,7 +960,7 @@ const AnalyticsDashboard = () => {
       {/* Location Performance Rankings */}
       <div className="analytics-card" style={{ marginBottom: '24px' }}>
         <h3>Location Performance Rankings</h3>
-        <p className="card-subtitle">Sorted by efficiency score</p>
+        <p className="card-subtitle">Sorted by reorder compliance</p>
 
         <div className="bp-rankings-list">
           {branchPerformanceData.length === 0 ? (
@@ -1015,19 +1049,56 @@ const AnalyticsDashboard = () => {
     </>
   );
 
+  const col = (key, label, money = false) => ({ key, label, money });
+  const datasets = {
+    'stock-level': { title: 'Stock records', rows: tabData.stockRecords.filter(row => !stockStatus || row.status === stockStatus), columns: [
+      col('product', 'Product'), col('product_code', 'Code'), col('category', 'Category'), col('location', 'Location'),
+      col('quantity_on_hand', 'On hand'), col('available_quantity', 'Available'), col('threshold', 'Reorder point'),
+      col('status', 'Stock status'), col('cost_price', 'Cost per piece', true), col('stock_value', 'Stock value at cost', true),
+    ] },
+    movement: { title: 'Movement records', rows: tabData.movementRecords, columns: [
+      col('name', 'Product'), col('category', 'Category'), col('onHand', 'On hand'), col('unitsOut', 'Units consumed (30 days)'),
+      col('week1', 'Oldest 9 days'), col('week2', 'Week 2'), col('week3', 'Week 3'), col('week4', 'Latest 7 days'), col('turnover', 'Turnover ratio'),
+    ] },
+    predictions: { title: 'Restocking records', rows: restockRecommendations, columns: [
+      col('name', 'Product'), col('branch', 'Warehouse'), col('priority', 'Priority'), col('currentStock', 'On hand'),
+      col('reorderLevel', 'Reorder point'), col('suggestedQty', 'Suggested units'), col('estCost', 'Estimated cost', true),
+      col('daysOfCover', 'Days of cover'), col('stockoutRisk', 'Stockout within 30 days'), col('dailyDemand', 'Units / day'), col('computedAt', 'Computed at'),
+    ] },
+    'profit-loss': { title: 'Confirmed loss records', rows: tabData.lossRecords, columns: [
+      col('date', 'Report date'), col('itemName', 'Product'), col('branchName', 'Location'), col('itemCategory', 'Category'),
+      col('lossType', 'Type'), col('qty', 'Units lost'), col('lossValue', 'Confirmed loss at cost', true), col('reason', 'Reason'),
+    ] },
+    'branch-performance': { title: 'Location performance records', rows: branchPerformanceData, columns: [
+      col('name', 'Location'), col('items', 'Stock lines'), col('totalValue', 'Stock value at cost', true), col('lowStockCount', 'Low / critical lines'),
+      col('criticalPriority', 'Out-of-stock lines'), col('restockNeeded', 'Restock lines'), col('restockCost', 'Restock cost', true),
+      col('avgTurnover', 'Turnover ratio'), col('efficiencyScore', 'Reorder compliance (%)'),
+    ] },
+  };
+  const records = datasets[activeTab];
+  const context = {
+    Location: branches.find(branch => String(branch.id) === selectedBranch)?.name || (branches.length === 1 ? branches[0].name : 'Available locations'),
+    Category: categories.find(category => String(category.id) === selectedCategory)?.name || 'All categories',
+    ...(activeTab === 'movement' && tabData.movementPeriod ? { Period: `${tabData.movementPeriod.from} to ${tabData.movementPeriod.to}` } : {}),
+    ...(activeTab === 'predictions' ? { Basis: 'Saved restock estimates; each row shows its calculation time' } : {}),
+    ...(activeTab === 'profit-loss' ? { Basis: 'Confirmed stock deductions at cost; open reports excluded' } : {}),
+    Snapshot: snapshotAt ? new Date(snapshotAt).toLocaleString('en-PH') : '',
+    ...(activeTab === 'stock-level' ? { 'Stock status': stockStatus || 'All statuses' } : {}),
+  };
+
   return (
-    <AdminLayout>
+    <Layout>
       <div className="ak-page analytics-content">
         {/* Page Title */}
-        <header className="ak-header">
+        {!embedded && <header className="ak-header">
           <div className="ak-header-row">
             <div>
               <p className="ak-eyebrow">Insights · Analytics</p>
               <h1 className="ak-title">Analytics Dashboard</h1>
-              <p className="ak-sub">Comprehensive stock level, operational analytics, and rule-based restocking insights.</p>
+              <p className="ak-sub">Stock trends and supporting records using the same location and category filters.</p>
             </div>
           </div>
-        </header>
+        </header>}
 
         {initialLoading && <Loader label="Loading analytics data" />}
         {refreshing && <div className="refreshing-indicator">Updating...</div>}
@@ -1037,8 +1108,13 @@ const AnalyticsDashboard = () => {
         <div className="analytics-filter-section">
           <label>Filter by:</label>
           <select
+            aria-label="Category"
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setStockStatus('');
+              onFiltersChange?.({ location_id: selectedBranch, category_id: e.target.value });
+            }}
             className="branch-filter-select"
           >
             <option value="">All Category</option>
@@ -1047,11 +1123,16 @@ const AnalyticsDashboard = () => {
             ))}
           </select>
           <select
+            aria-label="Location"
             value={selectedBranch}
-            onChange={(e) => setSelectedBranch(e.target.value)}
+            onChange={(e) => {
+              setSelectedBranch(e.target.value);
+              setStockStatus('');
+              onFiltersChange?.({ location_id: e.target.value, category_id: selectedCategory });
+            }}
             className="branch-filter-select"
           >
-            <option value="">All Location</option>
+            <option value="">Available locations</option>
             {branches.map(branch => (
               <option key={branch.id} value={branch.id}>{branch.name}</option>
             ))}
@@ -1097,7 +1178,7 @@ const AnalyticsDashboard = () => {
               <line x1="12" y1="1" x2="12" y2="23"></line>
               <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
             </svg>
-            Profit Loss Analysis
+            Stock Loss Analysis
           </button>
           <button
             className={`tab-btn ${activeTab === 'branch-performance' ? 'active' : ''}`}
@@ -1113,14 +1194,18 @@ const AnalyticsDashboard = () => {
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'stock-level' && renderStockLevelTab()}
-        {activeTab === 'movement' && renderMovementTab()}
-        {activeTab === 'predictions' && renderPredictionsTab()}
-        {activeTab === 'profit-loss' && renderProfitLossTab()}
-        {activeTab === 'branch-performance' && renderBranchPerformanceTab()}
+        {ready && activeTab === 'stock-level' && renderStockLevelTab()}
+        {ready && activeTab === 'movement' && renderMovementTab()}
+        {ready && activeTab === 'predictions' && renderPredictionsTab()}
+        {ready && activeTab === 'profit-loss' && renderProfitLossTab()}
+        {ready && activeTab === 'branch-performance' && renderBranchPerformanceTab()}
+        {ready && <AnalyticsRecords key={`${requestKey}:${stockStatus}`} {...records} context={context}
+          filter={activeTab === 'stock-level' ? <label>Stock status <select aria-label="Stock status" value={stockStatus} onChange={event => setStockStatus(event.target.value)}>
+            <option value="">All statuses</option><option value="optimal">Optimal</option><option value="low">Low stock</option><option value="critical">Critical</option><option value="overstock">Overstock</option>
+          </select></label> : null} />}
       </div>
 
-    </AdminLayout>
+    </Layout>
   );
 };
 

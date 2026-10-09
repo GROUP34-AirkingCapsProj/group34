@@ -133,6 +133,21 @@ class IncidentInspectionEndpointTest extends TestCase
 
     // ------------------------------------------------------------------ tests
 
+    public function test_repair_completion_is_authorized_validated_and_cannot_be_repeated(): void
+    {
+        ['incident' => $incident, 'location' => $location] = $this->makeScenario();
+        $item = $this->items($incident)->first();
+        $svc = app(\App\Services\IncidentItemService::class);
+        $svc->setOutcome($item, IncidentItem::OUTCOME_REPAIR, 'Repair required');
+        $approver = $this->makeUser('inventory_analyst');
+        $svc->applyOutcomes($incident, (int) $approver->user_id);
+        $url = "/api/incident-reports/{$incident->incident_id}/items/{$item->item_id}/complete-repair";
+        $this->actingAs($this->makeUser('auditor'), 'sanctum')->postJson($url, ['note' => 'Done'])->assertForbidden();
+        $this->actingAs($approver, 'sanctum')->postJson($url, [])->assertUnprocessable();
+        $this->postJson($url, ['note' => 'Repaired and tested'])->assertOk()->assertJsonPath('data.status', 'available');
+        $this->postJson($url, ['note' => 'Repeat'])->assertUnprocessable();
+    }
+
     /** Inspection is not optional: the whole point of the reordering. */
     public function test_an_admin_cannot_confirm_a_report_that_is_still_open(): void
     {

@@ -57,7 +57,7 @@ class AnalyticsDashboardController extends Controller
 
     private function ok(array $data): JsonResponse
     {
-        return response()->json(['success' => true, 'data' => $data]);
+        return response()->json(['success' => true, 'data' => $data, 'generated_at' => now()->toIso8601String()]);
     }
 
     public function stockLevel(Request $request): JsonResponse

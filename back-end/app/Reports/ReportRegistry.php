@@ -4,6 +4,8 @@ namespace App\Reports;
 
 use App\Models\User;
 use App\Reports\Definitions\InventorySummaryReport;
+use App\Reports\Definitions\AnalyticsReport;
+use App\Services\Analytics\DashboardAnalyticsService;
 use App\Reports\Definitions\LocationPerformanceReport;
 use App\Reports\Definitions\LowStockReport;
 use App\Reports\Definitions\TransactionReport;
@@ -37,6 +39,10 @@ class ReportRegistry
             $this->resolved = [];
             foreach (self::DEFINITIONS as $class) {
                 $definition = app($class);
+                $this->resolved[$definition->key()] = $definition;
+            }
+            foreach (AnalyticsReport::VIEWS as $view) {
+                $definition = new AnalyticsReport($view, app(DashboardAnalyticsService::class));
                 $this->resolved[$definition->key()] = $definition;
             }
         }

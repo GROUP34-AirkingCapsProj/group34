@@ -51,8 +51,7 @@ const DeliveryReceiptManagement = lazy(() => import('./admin/pages/DeliveryRecei
 const PurchaseReturnManagement = lazy(() => import('./admin/pages/PurchaseReturnManagement'));
 
 // Reports & Monitoring
-const AnalyticsDashboard = lazy(() => import('./admin/pages/AnalyticsDashboard'));
-const SystemReports = lazy(() => import('./admin/pages/SystemReports'));
+const ReportsAnalytics = lazy(() => import('./admin/pages/ReportsAnalytics'));
 const AuditTrail = lazy(() => import('./admin/pages/AuditTrail'));
 const AuditEvidenceExplorer = lazy(() => import('./admin/pages/AuditEvidenceExplorer'));
 const ProfitLossManagement = lazy(() => import('./admin/pages/ProfitLossManagement'));
@@ -169,8 +168,8 @@ function App() {
           <Route path="/admin/purchase-returns" element={<RoleRoute><PurchaseReturnManagement /></RoleRoute>} />
 
           {/* Reports & Monitoring */}
-          <Route path="/admin/analytics" element={<RoleRoute><AnalyticsDashboard /></RoleRoute>} />
-          <Route path="/admin/reports" element={<RoleRoute><SystemReports /></RoleRoute>} />
+          <Route path="/admin/analytics" element={<RoleRoute><Navigate to="/admin/reports?tab=analytics" replace /></RoleRoute>} />
+          <Route path="/admin/reports" element={<RoleRoute><ReportsAnalytics /></RoleRoute>} />
           <Route path="/admin/audit" element={<RoleRoute><AuditTrail /></RoleRoute>} />
           <Route path="/admin/audit-evidence" element={<RoleRoute><AuditEvidenceExplorer /></RoleRoute>} />
           <Route path="/admin/profit-loss" element={<RoleRoute><ProfitLossManagement /></RoleRoute>} />

@@ -6,6 +6,7 @@ class DispatchReceiveHttpTest extends TransferTestCase
 {
     public function test_full_dispatch_then_receive_via_transfers_endpoints(): void
     {
+        \Illuminate\Support\Facades\Event::fake([\App\Events\TransferChanged::class]);
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
         $product = $this->makeAppliance();
@@ -23,6 +24,8 @@ class DispatchReceiveHttpTest extends TransferTestCase
             ->postJson("/api/transfers/{$ist->transfer_id}/confirm-dispatch")
             ->assertOk();
         $this->assertSame($this->statusId('In Transit'), (int) $ist->fresh()->status_id);
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\TransferChanged::class,
+            fn ($event) => $event->type === 'dispatched' && $event->from === (int) $src->location_id && $event->to === (int) $dst->location_id);
 
         $dstUser = $this->makeUserAt($dst, 'warehouse_personnel');
         foreach ($serials as $sn) {
@@ -34,5 +37,7 @@ class DispatchReceiveHttpTest extends TransferTestCase
             ->postJson("/api/transfers/{$ist->transfer_id}/receive-confirm")
             ->assertOk();
         $this->assertSame($this->statusId('Received'), (int) $ist->fresh()->status_id);
+        \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\TransferChanged::class,
+            fn ($event) => $event->type === 'received');
     }
 }

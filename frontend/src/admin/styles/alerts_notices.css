@@ -291,3 +291,10 @@
   color: var(--role-accent, var(--text-info)); font: inherit; font-weight: 600;
 }
 .an-audit-open-link:hover { text-decoration: underline; }
+
+/* Retain approval notifications with their latest decision. */
+.an-approval-item--pending { background: var(--warning-bg); border-color: var(--line-amber); }
+.an-approval-item--approved { background: var(--tint-green); border-color: var(--line-green-200); }
+.an-approval-item--approved .an-approval-status { background: var(--tint-green); color: var(--ink-green); }
+.an-approval-item--rejected { background: var(--tint-red); border-color: var(--ink-red-600); }
+.an-approval-item--rejected .an-approval-status { background: var(--tint-red); color: var(--ink-red-600); }

@@ -138,7 +138,7 @@ class StockLevelAnalyticsTest extends TestCase
 
         $result = $this->service->stockLevel($this->locationId, null);
 
-        $this->assertEqualsWithDelta(20.0, $result['statsData']['totalStockValue'], 0.01);
+        $this->assertEqualsWithDelta(16.0, $result['statsData']['totalStockValue'], 0.01);
     }
 
     public function test_category_filter_narrows_results(): void
@@ -233,7 +233,7 @@ class StockLevelAnalyticsTest extends TestCase
         $this->assertSame(100, $overstock[0]['optimal']);
     }
 
-    public function test_attention_items_are_limited_to_six(): void
+    public function test_attention_items_are_complete_for_pagination(): void
     {
         for ($i = 0; $i < 9; $i++) {
             $this->stock(['product_name' => "Critical {$i}"], [
@@ -244,7 +244,7 @@ class StockLevelAnalyticsTest extends TestCase
 
         $result = $this->service->stockLevel($this->locationId, null);
 
-        $this->assertCount(6, $result['criticalItems']);
+        $this->assertCount(9, $result['criticalItems']);
     }
 
     public function test_location_with_no_inventory_returns_all_zero_output(): void

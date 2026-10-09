@@ -4,6 +4,7 @@ namespace App\Reports\Renderers;
 
 use App\Models\SystemSetting;
 use App\Reports\ReportDataset;
+use App\Reports\ReportCharts;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
@@ -36,6 +37,7 @@ class PdfReportRenderer
             'sections'     => $this->formatSections($dataset->sections, $dataset->columnFormats),
             'summary'      => $dataset->summary,
             'notes'        => $dataset->notes,
+            'charts'       => app(ReportCharts::class)->forDataset($dataset),
             'generated_at' => now()->format('Y-m-d H:i'),
             'company'      => [
                 'name'    => SystemSetting::companyName(),

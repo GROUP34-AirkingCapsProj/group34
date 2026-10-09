@@ -132,6 +132,7 @@ export default function GenerateReportDialog({
         {report.description && (
           <p className="ak-muted" style={{ marginTop: 0 }}>{report.description}</p>
         )}
+        <p className="ak-muted">{format === 'pdf' ? 'PDF includes graphs and detailed records from the same filtered dataset.' : 'CSV contains the report data for spreadsheets.'}</p>
 
         {parameters.map((param) => (
           <ParameterField

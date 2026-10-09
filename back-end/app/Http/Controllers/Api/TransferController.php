@@ -914,6 +914,9 @@ class TransferController extends Controller
                 ->findOrFail($id);
 
             $result = $service->dispatch($ist, $request->user()?->user_id);
+            \App\Support\RealtimeBroadcaster::transferChanged(
+                $result->from_location_id, $result->to_location_id, 'dispatched'
+            );
 
             try {
                 \App\Models\AuditTrail::create([
@@ -1036,6 +1039,9 @@ class TransferController extends Controller
 
             $user   = $request->user();
             $result = $service->receive($ist, $user->user_id);
+            \App\Support\RealtimeBroadcaster::transferChanged(
+                $result->from_location_id, $result->to_location_id, 'received'
+            );
 
             try {
                 \App\Models\AuditTrail::create([

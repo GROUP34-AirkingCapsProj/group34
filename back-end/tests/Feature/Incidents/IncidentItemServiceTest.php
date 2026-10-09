@@ -19,6 +19,28 @@ class IncidentItemServiceTest extends TestCase
         return (int) \App\Models\User::query()->firstOrFail()->getKey();
     }
 
+    public function test_repair_completion_releases_existing_stock_without_adding_it_twice(): void
+    {
+        ['inventory' => $inv, 'batch' => $batch, 'incident' => $incident, 'product' => $p] = $this->makeScenario();
+        $svc = app(IncidentItemService::class);
+        [$item] = $svc->quarantine($incident, [[
+            'product_id' => $p->product_id, 'batch_id' => $batch->batch_id, 'quantity' => 10,
+        ]]);
+        $svc->setOutcome($item, IncidentItem::OUTCOME_REPAIR, 'Faulty motor');
+        $svc->applyOutcomes($incident, $this->actorId());
+        $this->assertContains((int) $batch->batch_id, IncidentItem::quarantinedBatchIds((int) $incident->location_id));
+        $this->assertSame(10, IncidentItem::quarantinedQuantities((int) $incident->location_id)[$p->product_id]);
+        $repaired = $svc->completeRepair($item, 'Motor replaced and tested', $this->actorId());
+        $this->assertSame(IncidentItem::STATUS_AVAILABLE, $repaired->status);
+        $this->assertStringContainsString('Motor replaced and tested', $repaired->outcome_note);
+        $this->assertStringContainsString('Faulty motor', $repaired->outcome_note);
+        $this->assertSame(100, (int) $inv->refresh()->quantity_on_hand);
+        $this->assertSame(100, (int) $batch->refresh()->quantity_remaining);
+        $this->assertNotContains((int) $batch->batch_id, IncidentItem::quarantinedBatchIds((int) $incident->location_id));
+        $this->expectException(\RuntimeException::class);
+        $svc->completeRepair($item, 'Repeated request', $this->actorId());
+    }
+
     private function makeScenario(int $onHand = 100): array
     {
         $location = \App\Models\Location::query()->firstOrFail();

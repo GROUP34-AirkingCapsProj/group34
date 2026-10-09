@@ -205,16 +205,11 @@ class LocationPerformanceReport implements ReportDefinition
         // bypasses Eloquent's global scope, so deleted_at is excluded
         // explicitly to match how InventorySummaryReport values stock via
         // the Eloquent product relation.
-        DB::table('inventory')
-            ->join('products', 'products.product_id', '=', 'inventory.product_id')
-            ->whereIn('inventory.location_id', $locationIds)
-            ->whereNull('products.deleted_at')
-            ->select(
-                'inventory.location_id as location_id',
-                DB::raw('SUM(inventory.quantity_on_hand) as qty'),
-                DB::raw('SUM(inventory.quantity_on_hand * products.cost_price) as value')
-            )->groupBy('inventory.location_id')
-            ->get()
+        app(\App\Services\Analytics\StockSnapshotService::class)->query(null, null)
+            ->whereIn('i.location_id', $locationIds)
+            ->selectRaw('i.location_id AS location_id, SUM(i.quantity_on_hand) AS qty,
+                SUM(ROUND(i.quantity_on_hand * (' . \App\Services\Analytics\StockSnapshotService::PIECE_COST . '), 2)) AS value')
+            ->groupBy('i.location_id')->get()
             ->each(function ($row) use (&$closingUnits, &$closingValue) {
                 $closingUnits[(int) $row->location_id] += (int) $row->qty;
                 $closingValue[(int) $row->location_id] += (float) $row->value;

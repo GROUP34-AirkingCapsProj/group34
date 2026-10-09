@@ -1,7 +1,7 @@
 import ScanFeedback from '../components/ScanFeedback';
 import useScanFeedback from '../hooks/useScanFeedback';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
@@ -656,6 +656,7 @@ function AuditInspectionDetails({ scanResult }) {
 
 const BarcodeScan = () => {
   const navigate = useNavigate();
+  const { search: notificationSearch } = useLocation();
   const { user: _user, refreshUser, can } = useAuth();
   const { locationId: enforcedLocationId, locationName: enforcedLocationName, locationType: enforcedLocationType, isStrictLocation, allowedLocations } = useUserLocation();
   const roleKey = useMemo(() => getRoleKey(_user || {}), [_user]);
@@ -689,6 +690,11 @@ const BarcodeScan = () => {
 
   /* ── view state ── */
   const [scanMode, setScanMode]     = useState(null); // null = home, or MODES[i]
+  useEffect(() => {
+    if (new URLSearchParams(notificationSearch).get('mode') === 'receive-po' && canScan) {
+      setScanMode(MODES.find((mode) => mode.key === 'receive-po'));
+    }
+  }, [notificationSearch, canScan]);
   const [modeIndex, setModeIndex]   = useState(0);
 
   /* ── scan state ── */

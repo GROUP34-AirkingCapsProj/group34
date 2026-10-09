@@ -36,6 +36,8 @@ class IncidentItem extends Model
     public const STATUS_UNDER_REPAIR            = 'under_repair';
     public const STATUS_AWAITING_WARRANTY_CLAIM = 'awaiting_warranty_claim';
 
+    public const HELD_STATUSES = [self::STATUS_QUARANTINED, self::STATUS_UNDER_REPAIR, self::STATUS_AWAITING_WARRANTY_CLAIM];
+
     public const STATUSES = [
         self::STATUS_QUARANTINED, self::STATUS_AVAILABLE, self::STATUS_SCRAPPED,
         self::STATUS_RETURNED, self::STATUS_MISSING,
@@ -119,7 +121,7 @@ class IncidentItem extends Model
         return DB::table('incident_items as ii')
             ->join('incident_reports as ir', 'ir.incident_id', '=', 'ii.incident_id')
             ->where('ir.location_id', $locationId)
-            ->where('ii.status', self::STATUS_QUARANTINED)
+            ->whereIn('ii.status', self::HELD_STATUSES)
             ->whereNotNull('ii.batch_id')
             ->distinct()
             ->pluck('ii.batch_id')
@@ -149,7 +151,7 @@ class IncidentItem extends Model
         return DB::table('incident_items as ii')
             ->join('incident_reports as ir', 'ir.incident_id', '=', 'ii.incident_id')
             ->where('ir.location_id', $locationId)
-            ->where('ii.status', self::STATUS_QUARANTINED)
+            ->whereIn('ii.status', self::HELD_STATUSES)
             ->where('ii.is_inbound', false)
             ->groupBy('ii.product_id')
             ->selectRaw('ii.product_id, SUM(ii.quantity) as pieces')

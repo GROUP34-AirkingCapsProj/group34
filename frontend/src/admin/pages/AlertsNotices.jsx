@@ -402,6 +402,34 @@ const AlertsNotices = () => {
   const canViewAudit = can('audit_trail_viewing', 'read');
   const canVerifyPo = can('purchase_order_verification', 'verify');
   const [pendingVerifyPos, setPendingVerifyPos] = useState(0);
+  const [warehouseNotifications, setWarehouseNotifications] = useState([]);
+  const [warehousePage, setWarehousePage] = useState(1);
+  const [warehouseError, setWarehouseError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    const refresh = async () => {
+      try {
+        const response = await alertsAPI.getSettings();
+        if (!mounted) return;
+        setWarehouseNotifications(response?.data?.warehouse_notifications ?? []);
+        setWarehouseError('');
+      } catch (err) {
+        if (mounted) setWarehouseError(err.message || 'Warehouse notifications could not load.');
+      }
+    };
+    refresh();
+    const interval = setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('approval-notifications-updated', refresh);
+    window.addEventListener('warehouse-notifications-updated', refresh);
+    return () => {
+      mounted = false; clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('approval-notifications-updated', refresh);
+      window.removeEventListener('warehouse-notifications-updated', refresh);
+    };
+  }, []);
   const [allLowStock, setAllLowStock] = useState([]);
   const [allAudit, setAllAudit] = useState([]);
   const [pendingPOs, setPendingPOs] = useState([]);
@@ -409,6 +437,7 @@ const AlertsNotices = () => {
   const [pendingProducts, setPendingProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [markingRead, setMarkingRead] = useState(false);
+  const [approvalPage, setApprovalPage] = useState(1);
   const [stockPage, setStockPage] = useState(1);
   const [auditPage, setAuditPage] = useState(1);
   const [lastSeenMs, setLastSeenMs] = useState(0);
@@ -436,7 +465,7 @@ const AlertsNotices = () => {
       // alerts a user IS allowed to see. Audit is only requested when permitted.
       const [lowStockR, pendingR, auditR] = await Promise.allSettled([
         dashboardAPI.getLowStock(),
-        dashboardAPI.getPendingApprovals(),
+        dashboardAPI.getPendingApprovals(true),
         canViewAudit ? auditAPI.getTrailV2({ per_page: 100 }) : Promise.resolve(null),
       ]);
       if (!mounted) return;
@@ -531,13 +560,15 @@ const AlertsNotices = () => {
     setMarkingRead(true);
     try {
       await alertsAPI.markAllRead();
+      setWarehouseNotifications((items) => items.map((item) => ({ ...item, unread: false })));
+      window.dispatchEvent(new CustomEvent('approval-notifications-updated'));
       // Also mark audit trail as read
       const now = Date.now();
       localStorage.setItem(AUDIT_LAST_SEEN_KEY, now.toString());
       setLastSeenMs(now);
       setExpandedIds(new Set());
       toast.success('All alerts marked as read');
-      const pendingRes = await dashboardAPI.getPendingApprovals();
+      const pendingRes = await dashboardAPI.getPendingApprovals(true);
       const pendingData = pendingRes?.data?.data ?? pendingRes?.data ?? {};
       setPendingPOs(Array.isArray(pendingData.pending_pos) ? pendingData.pending_pos : []);
       setPendingPRs(Array.isArray(pendingData.pending_prs) ? pendingData.pending_prs : []);
@@ -550,6 +581,10 @@ const AlertsNotices = () => {
   };
 
   const stockTotal = allLowStock.length;
+  const warehouseUnread = warehouseNotifications.filter((item) => item.unread).length;
+  const warehousePages = Math.max(1, Math.ceil(warehouseNotifications.length / PAGE_SIZE));
+  const currentWarehousePage = Math.min(warehousePage, warehousePages);
+  const warehouseVisible = warehouseNotifications.slice((currentWarehousePage - 1) * PAGE_SIZE, currentWarehousePage * PAGE_SIZE);
   const stockTotalPages = Math.ceil(stockTotal / PAGE_SIZE) || 1;
   const stockVisible = allLowStock.slice((stockPage - 1) * PAGE_SIZE, stockPage * PAGE_SIZE);
 
@@ -557,7 +592,18 @@ const AlertsNotices = () => {
   const auditTotalPages = Math.ceil(auditTotal / PAGE_SIZE) || 1;
   const auditVisible = filteredAudit.slice((auditPage - 1) * PAGE_SIZE, auditPage * PAGE_SIZE);
 
-  const pendingTotal = pendingPOs.length + pendingPRs.length + pendingProducts.length;
+  const approvalItems = [...pendingPOs, ...pendingPRs, ...pendingProducts];
+  const approvalTotal = approvalItems.length;
+  const pendingTotal = approvalItems.filter(item => item.approval_status === 'pending').length;
+  const approvalTotalPages = Math.ceil(approvalTotal / PAGE_SIZE) || 1;
+  const currentApprovalPage = Math.min(approvalPage, approvalTotalPages);
+  const pageStart = (currentApprovalPage - 1) * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE;
+  const visiblePOs = pendingPOs.slice(pageStart, pageEnd);
+  const visiblePRs = pendingPRs.slice(Math.max(0, pageStart - pendingPOs.length), Math.max(0, pageEnd - pendingPOs.length));
+  const productOffset = pendingPOs.length + pendingPRs.length;
+  const visibleProducts = pendingProducts.slice(Math.max(0, pageStart - productOffset), Math.max(0, pageEnd - productOffset));
+  const approvalLabel = item => ({ approved: 'Approved', rejected: 'Rejected', pending: 'Pending' }[item.approval_status] || 'Pending');
 
   return (
     <AdminLayout>
@@ -575,7 +621,7 @@ const AlertsNotices = () => {
             type="button"
             className="ak-btn ak-btn--ghost an-mark-all-read-btn"
             onClick={handleMarkAllRead}
-            disabled={markingRead || (pendingTotal + unreadCount) === 0}
+            disabled={markingRead || (pendingTotal + unreadCount + warehouseUnread) === 0}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" aria-hidden>
               <polyline points="20 6 9 17 4 12" />
@@ -609,6 +655,31 @@ const AlertsNotices = () => {
           </div>
         )}
 
+        <div className="an-card">
+          <div className="an-card-header">
+            <h3 className="an-card-title">Receiving &amp; dispatch
+              {warehouseUnread > 0 && <span className="an-pending-badge">{warehouseUnread} unread</span>}
+            </h3>
+            <p className="an-card-subtitle">Approved purchase orders and transfer work assigned to your location</p>
+          </div>
+          {warehouseError && <div className="an-empty" role="alert">{warehouseError}</div>}
+          <div className="an-approval-list">
+            {warehouseVisible.map((item) => (
+              <button type="button" key={item.id} className="an-approval-item an-approval-item--approved"
+                style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                onClick={() => navigate(item.link)}>
+                <div><strong>{item.label}</strong>{item.unread && <span className="an-pending-badge">New</span>}
+                  <div>{item.description}</div>
+                  <small>{item.occurred_at ? new Date(item.occurred_at).toLocaleString() : ''}</small>
+                </div>
+              </button>
+            ))}
+            {!warehouseError && warehouseNotifications.length === 0 && <div className="an-empty">No receiving or dispatch tasks are waiting.</div>}
+          </div>
+          <Pagination currentPage={currentWarehousePage} totalPages={warehousePages} onPageChange={setWarehousePage}
+            totalItems={warehouseNotifications.length} pageSize={PAGE_SIZE} label="warehouse notifications" />
+        </div>
+
         {/* Pending approvals */}
         <div className="an-card">
           <div className="an-card-header--row">
@@ -619,7 +690,7 @@ const AlertsNotices = () => {
                   <span className="an-pending-badge">{pendingTotal}</span>
                 )}
               </h3>
-              <p className="an-card-subtitle">Items waiting for your approval</p>
+              <p className="an-card-subtitle">Approval notifications stay here after approval or rejection</p>
             </div>
           </div>
 
@@ -639,18 +710,18 @@ const AlertsNotices = () => {
           <div className="an-approval-list">
             {loading ? (
               <Loader label="Loading pending approvals" />
-            ) : pendingTotal === 0 ? (
-              <div className="an-empty">No pending approvals at this time</div>
+            ) : approvalTotal === 0 ? (
+              <div className="an-empty">No approval notifications yet</div>
             ) : (
               <>
-                {pendingPOs.length > 0 && (
+                {visiblePOs.length > 0 && (
                   <>
                     <div className="an-approval-group-label">
                       Purchase Orders <span className="an-approval-group-count">{pendingPOs.length}</span>
                     </div>
-                    {pendingPOs.map((po) => (
+                    {visiblePOs.map((po) => (
                       <div
-                        className={`an-approval-item an-approval-item--urgent${pendingPoTarget(po) ? ' an-clickable' : ''}`}
+                        className={`an-approval-item an-approval-item--${po.approval_status || 'pending'}${pendingPoTarget(po) ? ' an-clickable' : ''}`}
                         key={`po-${po.id}`}
                         {...clickProps(pendingPoTarget(po))}
                       >
@@ -666,20 +737,20 @@ const AlertsNotices = () => {
                           </span>
                         </div>
                         <div className="an-approval-right">
-                          <span className="an-approval-status">Awaiting approval</span>
+                          <span className="an-approval-status">{approvalLabel(po)}</span>
                         </div>
                       </div>
                     ))}
                   </>
                 )}
-                {pendingPRs.length > 0 && (
+                {visiblePRs.length > 0 && (
                   <>
                     <div className="an-approval-group-label">
                       Purchase Requests <span className="an-approval-group-count">{pendingPRs.length}</span>
                     </div>
-                    {pendingPRs.map((pr) => (
+                    {visiblePRs.map((pr) => (
                       <div
-                        className={`an-approval-item an-approval-item--urgent${pendingPrTarget(pr) ? ' an-clickable' : ''}`}
+                        className={`an-approval-item an-approval-item--${pr.approval_status || 'pending'}${pendingPrTarget(pr) ? ' an-clickable' : ''}`}
                         key={`pr-${pr.id}`}
                         {...clickProps(pendingPrTarget(pr))}
                       >
@@ -695,19 +766,19 @@ const AlertsNotices = () => {
                           </span>
                         </div>
                         <div className="an-approval-right">
-                          <span className="an-approval-status">Awaiting approval</span>
+                          <span className="an-approval-status">{approvalLabel(pr)}</span>
                         </div>
                       </div>
                     ))}
                   </>
                 )}
-                {pendingProducts.length > 0 && (
+                {visibleProducts.length > 0 && (
                   <>
                     <div className="an-approval-group-label">
                       Item Registrations <span className="an-approval-group-count">{pendingProducts.length}</span>
                     </div>
-                    {pendingProducts.map((p) => (
-                      <div className="an-approval-item an-approval-item--urgent" key={`prod-${p.id}`}>
+                    {visibleProducts.map((p) => (
+                      <div className={`an-approval-item an-approval-item--${p.approval_status || 'pending'}`} key={`prod-${p.id}`}>
                         <div className="an-approval-left">
                           <span className="an-approval-title">{p.generated_name || `Registration #${p.id}`}</span>
                           <span className="an-approval-detail">
@@ -715,7 +786,7 @@ const AlertsNotices = () => {
                           </span>
                         </div>
                         <div className="an-approval-right">
-                          <span className="an-approval-status">Awaiting approval</span>
+                          <span className="an-approval-status">{approvalLabel(p)}</span>
                         </div>
                       </div>
                     ))}
@@ -724,6 +795,10 @@ const AlertsNotices = () => {
               </>
             )}
           </div>
+          {!loading && (
+            <Pagination currentPage={currentApprovalPage} totalPages={approvalTotalPages} onPageChange={setApprovalPage}
+              totalItems={approvalTotal} pageSize={PAGE_SIZE} label="approval notifications" />
+          )}
         </div>
 
         {/* Low stock alerts */}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import { analyticsAPI } from '../services/api';
 
@@ -64,5 +64,21 @@ describe('AnalyticsDashboard', () => {
     });
 
     expect(screen.getByText('Aircon')).toBeInTheDocument();
+  });
+
+  it('hides previous charts and records during a new filter request and on failure', async () => {
+    render(<AnalyticsDashboard />);
+    await screen.findByText('₱123,456');
+    await screen.findByRole('option', { name: 'Aircon' });
+    let rejectRequest;
+    analyticsAPI.getStockLevel.mockImplementationOnce(() => new Promise((resolve, reject) => { rejectRequest = reject; }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Category' }), { target: { value: '4' } });
+    expect(screen.queryByText('₱123,456')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Stock records' })).not.toBeInTheDocument();
+    const log = jest.spyOn(console, 'error').mockImplementation(() => {});
+    rejectRequest(new Error('Filter request failed'));
+    await screen.findByText('Error: Filter request failed');
+    expect(screen.queryByText('₱123,456')).not.toBeInTheDocument();
+    log.mockRestore();
   });
 });

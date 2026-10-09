@@ -40,7 +40,7 @@ class IncidentInspectionController extends Controller
 
     /**
      * The register of non-sellable stock — what is quarantined, scrapped,
-     * returned or missing. Read-only; it replaces the held-stock worklist,
+     * returned or missing. It replaces the held-stock worklist,
      * whose Dispose button the inspection took over.
      *
      * incident_items has NO location_id: location lives on the parent report,
@@ -269,6 +269,25 @@ class IncidentInspectionController extends Controller
             'success' => true,
             'message' => 'Outcome recorded.',
             'data'    => $this->itemPayload($updated),
+        ]);
+    }
+
+    public function completeRepair(Request $request, int $id, int $itemId): JsonResponse
+    {
+        $incident = $this->visibleIncident($id);
+        $item = $incident === null ? null : IncidentItem::where('incident_id', $id)->whereKey($itemId)->first();
+        if ($item === null) {
+            return response()->json(['success' => false, 'message' => 'Item not found.'], 404);
+        }
+        $validated = $request->validate(['note' => 'required|string|max:2000']);
+        try {
+            $updated = app(IncidentItemService::class)->completeRepair($item, $validated['note'], (int) Auth::id());
+        } catch (\RuntimeException | \InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+        return response()->json([
+            'success' => true, 'message' => 'Repair completed. The item is available in inventory.',
+            'data' => $this->itemPayload($updated, withLocation: true),
         ]);
     }
 

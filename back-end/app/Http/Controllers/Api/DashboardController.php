@@ -65,6 +65,7 @@ class DashboardController extends Controller
                 'unread_count'         => $alert['unread_count']  ?? 0,
                 'total_pending'        => $alert['total_pending'] ?? 0,
                 'pending_pr_count'     => $alert['pending_pr_count'] ?? 0,
+                'warehouse_unread_ids' => $alert['warehouse_unread_ids'] ?? [],
                 'awaiting_fulfillment' => $awaiting['fulfillment'],
                 'awaiting_receipt'     => $awaiting['receipt'],
             ],
@@ -272,11 +273,17 @@ class DashboardController extends Controller
 
     public function pendingApprovals()
     {
-        // status_id 7 = PO Pending
-        $pendingPos = PurchaseOrder::where('status_id', 7)
+        $includeHistory = request()->boolean('include_history');
+        $user = request()->user();
+        $scoped = $user !== null && !$user->isCentralized();
+        $locId = $user?->scopedLocationId();
+
+        // Keep the default dashboard queue pending-only; alerts also show decisions.
+        $pendingPos = PurchaseOrder::whereIn('status_id', $includeHistory ? [7, 8, 9, 10, 11, 12] : [7])
+            ->when($scoped, fn ($q) => $q->where('location_id', $locId))
             ->with(['supplier', 'location', 'createdBy'])
             ->orderBy('created_at', 'desc')
-            ->limit(10)
+            ->when(!$includeHistory, fn ($q) => $q->limit(10))
             ->get()
             ->map(function ($po) {
                 $createdBy = $po->createdBy
@@ -292,15 +299,17 @@ class DashboardController extends Controller
                     'order_date'        => $po->order_date?->toDateString(),
                     'expected_delivery' => $po->expected_delivery_date?->toDateString(),
                     'status_id'         => $po->status_id,
+                    'approval_status'   => (int) $po->status_id === 7 ? 'pending' : ((int) $po->status_id === 9 ? 'rejected' : 'approved'),
                     'created_at'        => $po->created_at?->toIso8601String(),
                 ];
             });
 
         // status_id 13 = PR Pending
-        $pendingPrs = PurchaseRequest::where('status_id', 13)
+        $pendingPrs = PurchaseRequest::whereIn('status_id', $includeHistory ? [13, 14, 15, 16] : [13])
+            ->when($scoped, fn ($q) => $q->where('location_id', $locId))
             ->with(['location', 'requester'])
             ->orderBy('created_at', 'desc')
-            ->limit(10)
+            ->when(!$includeHistory, fn ($q) => $q->limit(10))
             ->get()
             ->map(function ($pr) {
                 $requestedBy = $pr->requester
@@ -308,6 +317,7 @@ class DashboardController extends Controller
                     : '—';
                 return [
                     'id'              => $pr->pr_id,
+                    'approval_status' => (int) $pr->status_id === 13 ? 'pending' : ((int) $pr->status_id === 15 ? 'rejected' : 'approved'),
                     'pr_number'       => $pr->pr_number,
                     'location_name'   => $pr->location?->location_name ?? '—',
                     'requested_by'    => $requestedBy ?: '—',
@@ -318,19 +328,21 @@ class DashboardController extends Controller
                 ];
             });
 
-        $pendingProducts = PendingProduct::where('status', 'pending')
+        $pendingProducts = PendingProduct::whereIn('status', $includeHistory ? ['pending', 'approved', 'rejected'] : ['pending'])
+            ->when($scoped, fn ($q) => $q->where('opening_location_id', $locId))
             ->orderBy('created_at', 'desc')
-            ->limit(10)
+            ->when(!$includeHistory, fn ($q) => $q->limit(10))
             ->get()
             ->map(fn($p) => [
                 'id'                => $p->pending_product_id,
+                'approval_status'   => $p->status,
                 'generated_name'    => $p->generated_name,
                 'registration_kind' => $p->registration_kind,
                 'category_id'       => $p->category_id,
                 'created_at'        => $p->created_at?->toIso8601String(),
             ]);
 
-        $totalPending = $pendingPos->count() + $pendingPrs->count() + $pendingProducts->count();
+        $totalPending = $pendingPos->where('approval_status', 'pending')->count() + $pendingPrs->where('approval_status', 'pending')->count() + $pendingProducts->where('approval_status', 'pending')->count();
         $awaiting     = $this->awaitingTransferCounts();
 
         return response()->json([
@@ -339,9 +351,9 @@ class DashboardController extends Controller
                 'pending_pos'                => $pendingPos->values(),
                 'pending_prs'                => $pendingPrs->values(),
                 'pending_products'           => $pendingProducts->values(),
-                'pending_po_count'           => $pendingPos->count(),
-                'pending_pr_count'           => $pendingPrs->count(),
-                'pending_product_count'      => $pendingProducts->count(),
+                'pending_po_count'           => $pendingPos->where('approval_status', 'pending')->count(),
+                'pending_pr_count'           => $pendingPrs->where('approval_status', 'pending')->count(),
+                'pending_product_count'      => $pendingProducts->where('approval_status', 'pending')->count(),
                 'total_pending'              => $totalPending,
                 'awaiting_fulfillment_count' => $awaiting['fulfillment'],
                 'awaiting_receipt_count'     => $awaiting['receipt'],
@@ -359,12 +371,12 @@ class DashboardController extends Controller
             return ['fulfillment' => 0, 'receipt' => 0];
         }
 
-        $fulfillment = Transfer::whereNotNull('transfer_request_id')
+        $fulfillment = Transfer::query()
             ->whereHas('status', fn ($q) => $q->where('status_name', 'Approved')->where('status_category', 'transfer'))
             ->when(!$isCentralized, fn ($q) => $q->where('from_location_id', $locId))
             ->count();
 
-        $receipt = Transfer::whereNotNull('transfer_request_id')
+        $receipt = Transfer::query()
             ->whereHas('status', fn ($q) => $q->where('status_name', 'In Transit')->where('status_category', 'transfer'))
             ->when(!$isCentralized, fn ($q) => $q->where('to_location_id', $locId))
             ->count();

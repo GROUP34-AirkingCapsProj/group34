@@ -56,6 +56,7 @@ class ReportDataset
      * @param array<int,array>     $sections      ['title' =>, 'columns' =>, 'rows' =>] — rows here follow the same raw-value rule
      * @param array<int,string>    $notes         caveats printed under the tables
      * @param array<string,string> $columnFormats column key => one of self::FORMAT_*, applied by the PDF renderer only
+     * @param array<int,array>     $charts        raw chart values derived from these rows; rendered only in PDF
      */
     public function __construct(
         public readonly array $columns,
@@ -64,6 +65,7 @@ class ReportDataset
         public readonly array $sections = [],
         public readonly array $notes = [],
         public readonly array $columnFormats = [],
+        public readonly array $charts = [],
     ) {
         if ($this->rows === [] && $this->sections !== []) {
             throw new \InvalidArgumentException(

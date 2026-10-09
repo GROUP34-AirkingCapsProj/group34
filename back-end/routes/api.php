@@ -737,6 +737,8 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
          ->post('/incident-reports/{id}/inspection', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'submit']);
     Route::middleware('permission:incident_reports,resolve')
          ->post('/incident-reports/{id}/decide', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'decide']);
+    Route::middleware('permission:incident_reports,resolve')
+         ->post('/incident-reports/{id}/items/{itemId}/complete-repair', [\App\Http\Controllers\Api\IncidentInspectionController::class, 'completeRepair']);
 
     /*
     |--------------------------------------------------------------------------

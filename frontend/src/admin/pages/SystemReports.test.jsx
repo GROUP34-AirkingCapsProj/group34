@@ -151,3 +151,45 @@ test('generating refreshes the runs list', async () => {
   await waitFor(() => expect(reportsAPI.generate).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(reportsAPI.getRuns).toHaveBeenCalledTimes(2));
 });
+
+test('carries analytics filters into reports that declare those filters', async () => {
+  reportsAPI.getCatalog.mockResolvedValue({ data: [{ ...inventoryReport, parameters: [
+    { key: 'location_id', type: 'location', label: 'Location' },
+    { key: 'category_id', type: 'category', label: 'Category' },
+  ] }] });
+  locationsAPI.getAll.mockResolvedValue({ data: [{ location_id: 7, location_name: 'Selected warehouse' }] });
+  categoriesAPI.getAll.mockResolvedValue({ data: [{ category_id: 4, category_name: 'Selected category' }] });
+  render(<SystemReports embedded defaultParameters={{ location_id: '7', category_id: '4', unrelated: 'ignored' }} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Generate Report' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).getByLabelText('Location')).toHaveValue('7');
+  expect(within(dialog).getByLabelText('Category')).toHaveValue('4');
+  fireEvent.click(within(dialog).getByRole('button', { name: /^generate$/i }));
+  await waitFor(() => expect(reportsAPI.generate).toHaveBeenCalledWith({
+    reportKey: 'inventory-summary', format: 'pdf', parameters: { location_id: '7', category_id: '4' },
+  }));
+});
+
+test('generates the visible analytics view with charts while keeping charts and reports together', async () => {
+  const report = { ...inventoryReport, key: 'analytics-stock-level', title: 'Stock Level Analysis Report', parameters: [
+    { key: 'location_id', type: 'location', label: 'Location' },
+    { key: 'category_id', type: 'category', label: 'Category' },
+  ] };
+  reportsAPI.getCatalog.mockResolvedValue({ data: [report, inventoryReport] });
+  locationsAPI.getAll.mockResolvedValue({ data: [{ location_id: 7, location_name: 'Selected warehouse' }] });
+  categoriesAPI.getAll.mockResolvedValue({ data: [{ category_id: 4, category_name: 'Selected category' }] });
+  render(<SystemReports embedded analyticsView="stock-level" analyticsReady defaultParameters={{ location_id: '7', category_id: '4' }}>
+    <div>Visible analytics graphs</div>
+  </SystemReports>);
+  await screen.findByText('Stock Level Analysis Report');
+  expect(screen.getByText('Visible analytics graphs')).toBeInTheDocument();
+  expect(screen.getByText('Inventory Summary Report')).toBeInTheDocument();
+  const toolbar = screen.getByText('Stock Level Analysis Report').closest('.sr-analytics-generate');
+  fireEvent.click(within(toolbar).getByRole('button', { name: 'Generate Report' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).getByText(/PDF includes graphs and detailed records/)).toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: /^generate$/i }));
+  await waitFor(() => expect(reportsAPI.generate).toHaveBeenCalledWith({
+    reportKey: 'analytics-stock-level', format: 'pdf', parameters: { location_id: '7', category_id: '4' },
+  }));
+});

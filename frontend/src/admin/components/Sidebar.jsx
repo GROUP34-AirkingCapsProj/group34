@@ -36,7 +36,7 @@ const routePrefetchMap = {
   '/admin/transactions': () => import('../pages/TransactionManagement'),
   '/admin/delivery-receipts': () => import('../pages/DeliveryReceiptManagement'),
   '/admin/purchase-returns': () => import('../pages/PurchaseReturnManagement'),
-  '/admin/reports': () => import('../pages/SystemReports'),
+  '/admin/reports': () => import('../pages/ReportsAnalytics'),
   '/admin/audit': () => import('../pages/AuditTrail'),
   '/admin/audit-evidence': () => import('../pages/AuditEvidenceExplorer'),
   '/admin/profit-loss': () => import('../pages/ProfitLossManagement'),
@@ -57,7 +57,6 @@ const adminMenuSections = [
     label: 'ADMINISTRATION',
     items: [
       { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
-      { name: 'Analytics Dashboard', path: '/admin/analytics', icon: 'analytics' },
       // User Management now lives in System Configuration → User Management tab.
       { name: 'Role & Permissions', path: '/admin/roles', icon: 'roles' },
       { name: 'Permission Audit', path: '/admin/permission-audit', icon: 'audit' },
@@ -76,7 +75,6 @@ const adminMenuSections = [
       { name: 'Item Master', path: '/admin/items', icon: 'items' },
       { name: 'Item Lookups', path: '/admin/categories', icon: 'category' },
       { name: 'Set Management', path: '/admin/sets', icon: 'sets' },
-      { name: 'Aircon Models', path: '/admin/aircon-models', icon: 'sets' },
     ],
   },
   {
@@ -104,7 +102,7 @@ const adminMenuSections = [
 
     items: [
       { name: 'Compliance Review', path: '/admin/compliance', icon: 'compliance' },
-      { name: 'System Reports', path: '/admin/reports', icon: 'reports' },
+      { name: 'Reports & Analytics', path: '/admin/reports', icon: 'reports' },
       { name: 'Warranty Records', path: '/admin/warranties', icon: 'warranty' },
       { name: 'Alerts & Notices', path: '/admin/alerts', icon: 'notifications' },
       { name: 'Audit & Evidence', path: '/admin/audit-evidence', icon: 'audit' },

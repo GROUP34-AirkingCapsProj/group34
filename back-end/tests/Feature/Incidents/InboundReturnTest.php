@@ -49,6 +49,28 @@ class InboundReturnTest extends SetTestCase
         return IncidentItem::where('incident_id', $i->incident_id)->firstOrFail();
     }
 
+    public function test_completed_inbound_repair_adds_stock_and_fifo_batch_exactly_once(): void
+    {
+        ['loc' => $loc, 'p' => $p, 'incident' => $incident] = $this->fileReturn('customer', 20, 3);
+        $svc = app(IncidentItemService::class);
+        $item = $this->itemFor($incident);
+        $actor = (int) $this->makeUserAt($loc, 'inventory_analyst')->user_id;
+        $svc->setOutcome($item, IncidentItem::OUTCOME_REPAIR, 'Needs repair');
+        $svc->applyOutcomes($incident, $actor);
+        $svc->completeRepair($item, 'Repaired and tested', $actor);
+        $this->assertSame(23, (int) Inventory::where('location_id', $loc->location_id)
+            ->where('product_id', $p->product_id)->value('quantity_on_hand'));
+        $this->assertSame(3, (int) InventoryBatch::where('location_id', $loc->location_id)
+            ->where('product_id', $p->product_id)->whereNull('received_at')->value('quantity_remaining'));
+        try {
+            $svc->completeRepair($item, 'Repeat', $actor);
+            $this->fail('A second completion must be rejected.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame(23, (int) Inventory::where('location_id', $loc->location_id)
+                ->where('product_id', $p->product_id)->value('quantity_on_hand'));
+        }
+    }
+
     public function test_a_customer_return_is_marked_inbound(): void
     {
         ['incident' => $incident] = $this->fileReturn('customer');

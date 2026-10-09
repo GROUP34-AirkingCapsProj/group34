@@ -108,7 +108,8 @@ const CardSkeleton = () => (
   </div>
 );
 
-const SystemReports = () => {
+const SystemReports = ({ embedded = false, defaultParameters = {}, analyticsView = null, analyticsReady = false, children }) => {
+  const Layout = embedded ? React.Fragment : AdminLayout;
   const [catalog, setCatalog] = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState(null);
@@ -172,7 +173,10 @@ const SystemReports = () => {
   }, [loadCatalog, loadRuns]);
 
   const openGenerate = (report) => {
-    setDialogInitialValues(null);
+    const parameters = Object.fromEntries(
+      Object.entries(defaultParameters).filter(([key, value]) => value !== '' && report.parameters?.some(parameter => parameter.key === key))
+    );
+    setDialogInitialValues(Object.keys(parameters).length ? { parameters } : null);
     setDialogReport(report);
   };
 
@@ -207,11 +211,13 @@ const SystemReports = () => {
 
   const hasCards = !catalogLoading && !catalogError && catalog.length > 0;
   const showEmpty = !catalogLoading && !catalogError && catalog.length === 0;
+  const activeAnalyticsReport = catalog.find(report => report.key === `analytics-${analyticsView}`);
+  const otherReports = analyticsView ? catalog.filter(report => !report.key.startsWith('analytics-')) : catalog;
 
   return (
-    <AdminLayout>
+    <Layout>
       <div className="ak-page sr-page">
-        <header className="ak-header">
+        {!embedded && <header className="ak-header">
           <div className="ak-header-row">
             <div>
               <p className="ak-eyebrow">Insights · Reports</p>
@@ -219,8 +225,17 @@ const SystemReports = () => {
               <p className="ak-sub">Generate and view system-wide inventory and transaction reports.</p>
             </div>
           </div>
-        </header>
+        </header>}
 
+        {analyticsView && <div className="sr-analytics-generate">
+          <div><h2>{activeAnalyticsReport?.title || 'Analytics report'}</h2>
+            <p>Generate this view with its location and category filters. PDF includes graphs and supporting records; CSV contains data only.</p>
+          </div>
+          <button type="button" className="ak-btn ak-btn--primary" disabled={!activeAnalyticsReport || !analyticsReady || generating}
+            onClick={() => openGenerate(activeAnalyticsReport)}>Generate Report</button>
+        </div>}
+        {children}
+        {analyticsView && <div className="sr-more-reports"><h2>More reports</h2><p>Generate other reports with matching graphs and detailed records.</p></div>}
         {catalogError && (
           <div className="sr-inline-error" role="alert">
             {catalogError}
@@ -242,7 +257,7 @@ const SystemReports = () => {
 
         {hasCards && (
           <div className="sr-cards-grid">
-            {catalog.map((r) => (
+            {otherReports.map((r) => (
               <div className="sr-card" key={r.key}>
                 <h3 className="sr-card-title">{r.title}</h3>
                 <p className="sr-card-desc">{r.description}</p>
@@ -282,7 +297,7 @@ const SystemReports = () => {
           onClose={closeDialog}
         />
       )}
-    </AdminLayout>
+    </Layout>
   );
 };
 

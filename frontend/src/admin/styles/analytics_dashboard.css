@@ -880,7 +880,7 @@
 /* Priority Summary Grid */
 .pred-priority-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 20px;
 }
 
@@ -903,6 +903,10 @@
 
 .pred-priority-card.medium {
   border-left-color: #2563eb;
+}
+
+.pred-priority-card.low {
+  border-left-color: #16a34a;
 }
 
 .pred-priority-card-header {

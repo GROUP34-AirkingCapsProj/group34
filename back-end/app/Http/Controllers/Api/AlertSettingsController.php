@@ -103,6 +103,9 @@ class AlertSettingsController extends Controller
                 ->count()
             : 0;
 
+        $warehouseNotifications = app(\App\Services\WarehouseNotificationService::class)->forUser($user);
+        $warehouseUnread = count(array_filter($warehouseNotifications, fn ($n) => $n['unread']));
+        $unreadCount += $warehouseUnread;
         $badgeCount = $unreadCount + $lowStockCount + $outOfStockCount + $overduePoCount
             + $pendingPoVerifyCount;
 
@@ -172,6 +175,9 @@ class AlertSettingsController extends Controller
                 'out_of_stock_count'             => $outOfStockCount,
                 'overdue_po_count'               => $overduePoCount,
                 'alerts'                         => $alerts,
+                'warehouse_notifications'        => $warehouseNotifications,
+                'warehouse_unread_count'         => $warehouseUnread,
+                'warehouse_unread_ids'           => array_values(array_column(array_filter($warehouseNotifications, fn ($n) => $n['unread']), 'id')),
                 'pending_approvals_last_seen_at' => $user->alerts_last_seen_at?->toIso8601String(),
             ],
         ]);

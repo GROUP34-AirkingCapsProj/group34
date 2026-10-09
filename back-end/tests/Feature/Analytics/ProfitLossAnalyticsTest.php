@@ -197,9 +197,8 @@ class ProfitLossAnalyticsTest extends TestCase
         $this->assertSame(1, $result['profitLossStats']['pendingReports']);
         $this->assertEqualsWithDelta(0.0, $result['profitLossStats']['totalProfitLoss'], 0.01);
 
-        $incident = collect($result['recentLossIncidents'])->firstWhere('qty', 9);
-        $this->assertNotNull($incident, 'Open incidents still appear in the list.');
-        $this->assertSame('pending', $incident['status']);
+        $this->assertSame([], $result['recentLossIncidents']);
+        $this->assertSame([], $result['lossRecords'], 'Only confirmed deductions support the charts and totals.');
     }
 
     public function test_groups_loss_by_location_and_category(): void

@@ -48,6 +48,30 @@ class IncidentItemService
         IncidentItem::STATUS_AWAITING_WARRANTY_CLAIM => 'Awaiting Warranty Claim',
     ];
 
+    /** Release a successfully repaired item; inbound returns enter stock once. */
+    public function completeRepair(IncidentItem $item, string $note, int $actorId): IncidentItem
+    {
+        return DB::transaction(function () use ($item, $note, $actorId) {
+            $locked = IncidentItem::whereKey($item->getKey())->lockForUpdate()->firstOrFail();
+            if ($locked->status !== IncidentItem::STATUS_UNDER_REPAIR) {
+                throw new \RuntimeException('Only items under repair can be returned to inventory.');
+            }
+            if (trim($note) === '') {
+                throw new \InvalidArgumentException('Describe the completed repair before returning it to inventory.');
+            }
+            if ($locked->is_inbound) {
+                $this->returnToStock($locked);
+            }
+            $locked->update([
+                'status' => IncidentItem::STATUS_AVAILABLE,
+                'outcome_note' => trim(($locked->outcome_note ?? '') . "\nRepair completed by user #{$actorId} at "
+                    . now()->toIso8601String() . ': ' . trim($note)),
+            ]);
+            $this->stampSerial($locked->serial_id, 'In Stock', makeReceivable: true);
+            return $locked->fresh();
+        });
+    }
+
     /**
      * Attach the physical things a report is about and make them unpickable.
      *

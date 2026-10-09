@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import UnitRoleBadge from '../components/UnitRoleBadge';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Alert } from '@mui/material';
+import { useAuth } from '../context/AuthContext';
 import { incidentItemsAPI, locationsAPI } from '../services/api';
 import { packageBreakdown } from '../utils/packageFormat';
 import { ITEM_STATUSES, itemStatusMeta, outcomeLabel, unitRoleLabel } from '../utils/incidentItems';
@@ -10,10 +12,8 @@ import { ITEM_STATUSES, itemStatusMeta, outcomeLabel, unitRoleLabel } from '../u
  * The incident-items register — every physical unit an incident report has
  * touched, and where it stands.
  *
- * Read-only, and deliberately so. This used to be Held Stock, a worklist with a
- * Dispose button; the inspection took that decision over, and it now belongs to
- * one person examining the goods and another confirming the result. A second
- * place to settle an item would be a second way for the stock count to move.
+ * Authorized resolvers can complete repairs here. The service releases existing
+ * stock or accepts inbound returns, and records completion notes.
  *
  * **Quarantined is not a deduction.** Those units are physically in the
  * building and still counted in quantity_on_hand — they are simply unpickable
@@ -21,6 +21,13 @@ import { ITEM_STATUSES, itemStatusMeta, outcomeLabel, unitRoleLabel } from '../u
  * ones that have already left the count.
  */
 const IncidentItemsRegisterPage = () => {
+  const { can } = useAuth();
+  const canCompleteRepair = typeof can === 'function' && can('incident_reports', 'resolve');
+  const [repairItem, setRepairItem] = useState(null);
+  const [repairNote, setRepairNote] = useState('');
+  const [repairError, setRepairError] = useState('');
+  const [savingRepair, setSavingRepair] = useState(false);
+  const [success, setSuccess] = useState('');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -52,6 +59,23 @@ const IncidentItemsRegisterPage = () => {
   }, [statusFilter, locationFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  const completeRepair = async (event) => {
+    event.preventDefault();
+    if (!repairNote.trim() || savingRepair) return;
+    setSavingRepair(true);
+    setRepairError('');
+    try {
+      await incidentItemsAPI.completeRepair(repairItem.incident_id, repairItem.item_id, repairNote.trim());
+      setRepairItem(null);
+      setSuccess('Repair completed. The item is now available in inventory.');
+      await load();
+    } catch (err) {
+      setRepairError(err.message || 'Unable to complete the repair.');
+    } finally {
+      setSavingRepair(false);
+    }
+  };
 
   // Counts describe what is actually on screen, so they stay honest under a
   // filter rather than claiming a total the table does not show.
@@ -102,6 +126,9 @@ const IncidentItemsRegisterPage = () => {
           </select>
         </div>
 
+        <p className="ak-muted">Select Under repair to complete a repair and return the item to available inventory.</p>
+        {success && <Alert severity="success">{success}</Alert>}
+
         {loading ? (
           <Loader label="Loading the register" />
         ) : error ? (
@@ -122,6 +149,7 @@ const IncidentItemsRegisterPage = () => {
                   <th>From incident</th>
                   <th>Outcome</th>
                   <th>Since</th>
+                  {canCompleteRepair && <th>Action</th>}
                 </tr>
               </thead>
               <tbody>
@@ -183,6 +211,11 @@ const IncidentItemsRegisterPage = () => {
                         )}
                       </td>
                       <td>{item.created_at ? new Date(item.created_at).toLocaleString() : '—'}</td>
+                      {canCompleteRepair && <td>
+                        {item.status === 'under_repair' && <Button size="small" onClick={() => {
+                          setRepairItem(item); setRepairNote(''); setRepairError(''); setSuccess('');
+                        }}>Complete repair</Button>}
+                      </td>}
                     </tr>
                   );
                 })}
@@ -191,6 +224,24 @@ const IncidentItemsRegisterPage = () => {
           </div>
         )}
       </div>
+      <Dialog open={Boolean(repairItem)} onClose={() => !savingRepair && setRepairItem(null)} fullWidth maxWidth="sm">
+        <form onSubmit={completeRepair}>
+          <DialogTitle>Complete repair and return to inventory</DialogTitle>
+          <DialogContent>
+            <p>{repairItem?.product_name || `Product #${repairItem?.product_id}`} · {repairItem?.quantity} pcs</p>
+            <p>Confirm these items have been repaired, checked, and are ready for use. The full quantity will become available.</p>
+            {repairError && <Alert severity="error">{repairError}</Alert>}
+            <TextField label="Repair completion notes" value={repairNote} onChange={(e) => setRepairNote(e.target.value)}
+              required multiline rows={3} fullWidth disabled={savingRepair} inputProps={{ maxLength: 2000 }} />
+          </DialogContent>
+          <DialogActions>
+            <Button disabled={savingRepair} onClick={() => setRepairItem(null)}>Cancel</Button>
+            <Button type="submit" variant="contained" disabled={savingRepair || !repairNote.trim()}>
+              {savingRepair ? 'Returning…' : 'Return to inventory'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
     </AdminLayout>
   );
 };

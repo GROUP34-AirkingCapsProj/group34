@@ -2,7 +2,6 @@
 
 namespace App\Reports\Definitions;
 
-use App\Models\Inventory;
 use App\Models\User;
 use App\Reports\ReportDataset;
 use App\Reports\ReportDefinition;
@@ -20,9 +19,6 @@ use App\Reports\ReportParameters;
  */
 class LowStockReport implements ReportDefinition
 {
-    private const SOURCE_LOCATION = 'Location reorder level';
-    private const SOURCE_PRODUCT  = 'Product default';
-
     public function key(): string
     {
         return 'low-stock';
@@ -63,56 +59,10 @@ class LowStockReport implements ReportDefinition
 
     public function build(ReportParameters $params, User $user): ReportDataset
     {
-        $query = Inventory::query()
-            ->forUser($user)
-            ->with(['location', 'product.category']);
-
-        if ($params->has('location_id')) {
-            $query->where('location_id', $params->int('location_id'));
-        }
-
-        if ($params->has('category_id')) {
-            $categoryId = $params->int('category_id');
-            $query->whereHas('product', fn ($q) => $q->where('category_id', $categoryId));
-        }
-
-        $rows = [];
-
-        foreach ($query->get() as $inventory) {
-            $product = $inventory->product;
-            if (! $product) {
-                continue;
-            }
-
-            $locationLevel = (int) $inventory->reorder_level;
-            $productLevel  = (int) ($product->recommended_stocks ?? 0);
-
-            // A location level of 0 means "not set here", not "never reorder".
-            $threshold = $locationLevel > 0 ? $locationLevel : $productLevel;
-            $source    = $locationLevel > 0 ? self::SOURCE_LOCATION : self::SOURCE_PRODUCT;
-
-            if ($threshold <= 0) {
-                continue;
-            }
-
-            $onHand = (int) $inventory->quantity_on_hand;
-            if ($onHand > $threshold) {
-                continue;
-            }
-
-            $rows[] = [
-                'product'          => $product->product_name,
-                'product_code'     => $product->product_code,
-                'category'         => $product->category?->category_name ?? '—',
-                'location'         => $inventory->location?->location_name ?? '—',
-                'quantity_on_hand' => $onHand,
-                'threshold'        => $threshold,
-                'threshold_source' => $source,
-                'shortfall'        => max(0, $threshold - $onHand),
-            ];
-        }
-
-        usort($rows, fn ($a, $b) => $b['shortfall'] <=> $a['shortfall']);
+        $rows = app(\App\Services\Analytics\StockSnapshotService::class)
+            ->forUser($user, $params->int('location_id'), $params->int('category_id'))
+            ->filter(fn ($row) => in_array($row['status'], ['critical', 'low'], true))
+            ->sortByDesc('shortfall')->values()->all();
 
         return new ReportDataset(
             columns: [
@@ -130,7 +80,7 @@ class LowStockReport implements ReportDefinition
                 'Items below threshold' => number_format(count($rows)),
                 'Total shortfall units' => number_format(array_sum(array_column($rows, 'shortfall'))),
             ],
-            notes: ['Threshold is the location reorder level where set, otherwise the product default.'],
+            notes: ['Threshold is the location reorder level where set, otherwise the product default. Out-of-stock lines are included even when no positive threshold is configured.'],
             // Rows here were already raw ints, so this is not fixing a bug —
             // it just declares the PDF display format explicitly rather than
             // relying on the blade's default of "print the value as-is",

@@ -23,6 +23,16 @@ table.data tr{page-break-inside:avoid}
 .summary .label{font-weight:bold}
 .notes{margin-top:10px;font-size:8px;font-style:italic}
 .footer{margin-top:16px;font-size:7px;text-align:center;color:#444}
+.report-chart{margin:12px 0 18px}
+.report-chart h3{font-size:11px;margin-bottom:5px}
+.chart-bars{width:100%;border-collapse:collapse;table-layout:fixed}
+.chart-bars td{padding:4px;vertical-align:middle;border:0}
+.chart-bars tr{page-break-inside:avoid}
+.chart-label{width:28%;font-size:8px}
+.chart-track{width:54%}
+.chart-value{width:18%;text-align:right;font-size:8px}
+.chart-bar{height:12px;background:#2563eb}
+.chart-note{font-size:8px;color:#555;margin-top:4px}
 </style></head><body>
 
 <div class="company"><h1>{{ $company['name'] }}</h1>
@@ -37,6 +47,22 @@ table.data tr{page-break-inside:avoid}
 @endforeach
 <tr><td class="label">Generated:</td><td>{{ $generated_at }}</td></tr>
 </table>
+
+@foreach(($charts ?? []) as $chart)
+<div class="report-chart">
+<h3>{{ $chart['title'] }} ({{ $chart['unit'] }})</h3>
+@if(empty($chart['bars']))<p class="chart-note">No matching records for this graph.</p>@endif
+@php($chartMax = $chart['unit'] === '%' ? 100 : max(1, ...array_map(fn($bar) => abs($bar['value']), $chart['bars'])))
+<table class="chart-bars">
+@foreach($chart['bars'] as $bar)
+<tr><td class="chart-label">{{ $bar['label'] }}</td>
+<td class="chart-track"><div class="chart-bar" style="width:{{ round(abs($bar['value']) / $chartMax * 100, 2) }}%;background:{{ $bar['value'] < 0 ? '#dc2626' : '#2563eb' }}"></div></td>
+<td class="chart-value">{{ number_format($bar['value'], $chart['unit'] === 'PHP' ? 2 : (floor($bar['value']) == $bar['value'] ? 0 : 2)) }}</td></tr>
+@endforeach
+</table>
+<div class="chart-note">{{ $chart['note'] }}</div>
+</div>
+@endforeach
 
 @forelse($sections as $section)
 <div class="section-title">{{ $section['title'] }}</div>

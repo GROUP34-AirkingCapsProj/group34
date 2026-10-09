@@ -1,4 +1,12 @@
-import { shouldChimeForBadge } from './badgeChime';
+import { shouldChimeForBadge, hasNewWarehouseNotification } from './badgeChime';
+
+test('detects approval and incoming transfer alerts even when the total badge stays unchanged', () => {
+  expect(hasNewWarehouseNotification([], ['po_receive:1'], true)).toBe(true);
+  expect(hasNewWarehouseNotification(['transfer_dispatch:2'], ['transfer_receive:2'], true)).toBe(true);
+  expect(hasNewWarehouseNotification(['po_receive:1'], ['po_receive:1'], true)).toBe(false);
+  expect(hasNewWarehouseNotification(['po_receive:1'], [], true)).toBe(false);
+  expect(hasNewWarehouseNotification([], ['po_receive:1'], false)).toBe(false);
+});
 
 describe('shouldChimeForBadge', () => {
   it('stays silent on the first reading, however many are waiting', () => {

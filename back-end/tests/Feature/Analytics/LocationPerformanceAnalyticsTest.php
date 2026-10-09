@@ -263,8 +263,8 @@ class LocationPerformanceAnalyticsTest extends TestCase
         $result = $this->service->locationPerformance(null, null);
         $rowFor = fn (string $name) => collect($result['branchPerformanceData'])->firstWhere('name', $name);
 
-        $this->assertSame('₱500', $rowFor('Sub Thousand Location')['stockValueFormatted']);
-        $this->assertSame('₱5K', $rowFor('Thousands Location')['stockValueFormatted']);
-        $this->assertSame('₱2.0M', $rowFor('Millions Location')['stockValueFormatted']);
+        $this->assertSame('₱400', $rowFor('Sub Thousand Location')['stockValueFormatted']);
+        $this->assertSame('₱4K', $rowFor('Thousands Location')['stockValueFormatted']);
+        $this->assertSame('₱1.6M', $rowFor('Millions Location')['stockValueFormatted']);
     }
 }

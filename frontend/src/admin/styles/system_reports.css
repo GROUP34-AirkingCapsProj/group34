@@ -413,3 +413,12 @@
     align-self: flex-end;
   }
 }
+
+.reports-analytics-page .ak-page { padding: 0; }
+.sr-analytics-generate { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; padding: 18px 20px; margin-bottom: 20px; border: 1px solid var(--border-soft); border-radius: 12px; background: var(--bg-card); }
+.sr-analytics-generate h2, .sr-more-reports h2 { margin: 0 0 6px; font-size: 18px; color: var(--text-dark); }
+.sr-analytics-generate p, .sr-more-reports p { margin: 0; font-size: 13px; color: var(--text-muted); }
+.sr-more-reports { margin: 32px 0 18px; }
+.analytics-records-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.analytics-records .consumption-table-wrapper { margin-top: 16px; }
+.analytics-records select { margin-left: 8px; padding: 6px; color: var(--text-dark); background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 6px; }

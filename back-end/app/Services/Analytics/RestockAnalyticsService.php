@@ -319,6 +319,7 @@ class RestockAnalyticsService
         $issuances = DB::table('issuance_details as d')
             ->join('issuances as i', 'i.issuance_id', '=', 'd.issuance_id')
             ->join('products as p', 'p.product_id', '=', 'd.product_id')
+            ->whereNull('i.deleted_at')
             ->whereBetween('i.issuance_date', [$from, $to])
             ->where(fn ($q) => $q->whereNull('i.status_id')
                 ->orWhere('i.status_id', '!=', self::ISSUANCE_VOIDED_STATUS))

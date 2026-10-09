@@ -31,3 +31,10 @@ export function shouldChimeForBadge(previous, next, hasBaseline) {
 
   return after > before;
 }
+
+// A PO approval can replace a pending alert without increasing the badge.
+export function hasNewWarehouseNotification(previousIds, nextIds, hasBaseline) {
+  if (!hasBaseline || !Array.isArray(nextIds)) return false;
+  const previous = new Set(previousIds || []);
+  return nextIds.some((id) => !previous.has(id));
+}
