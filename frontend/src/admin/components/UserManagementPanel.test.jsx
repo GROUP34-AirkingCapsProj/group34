@@ -50,6 +50,29 @@ test('renders a profile photo when avatar_url is set, initials otherwise', async
   expect(screen.getByText('GH')).toBeInTheDocument();
 });
 
+test('opens the full profile photo, allows zooming, and closes with Escape', async () => {
+  usersAPI.getAll.mockResolvedValue({ data: [{ user_id: 1, first_name: 'Ada', last_name: 'Lovelace',
+    avatar_url: '/storage/avatars/ada.png' }], pagination: { total: 1, last_page: 1 } });
+  render(<UserManagementPanel />);
+  fireEvent.click(await screen.findByRole('button', { name: 'View profile photo of Ada Lovelace' }));
+  expect(screen.getByRole('img', { name: 'Ada Lovelace full profile photo' })).toHaveStyle({ objectFit: 'contain' });
+  fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+  expect(screen.getByText('150%')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Reset zoom' }));
+  expect(screen.getByText('100%')).toBeInTheDocument();
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('shows initials and disables preview when the profile image fails to load', async () => {
+  usersAPI.getAll.mockResolvedValue({ data: [{ user_id: 1, first_name: 'Ada', last_name: 'Lovelace',
+    avatar_url: '/storage/avatars/missing.png' }], pagination: { total: 1, last_page: 1 } });
+  render(<UserManagementPanel />);
+  fireEvent.error(await screen.findByRole('img', { name: 'Ada Lovelace profile photo' }));
+  expect(screen.getByText('AL')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'View profile photo of Ada Lovelace' })).toBeDisabled();
+});
+
 // The Resend button's disabled state mirrors two server-side guards. If it ever
 // drifts, the admin gets an opaque 422 instead of a tooltip explaining why --
 // or, worse, an enabled button on an account whose password Resend would

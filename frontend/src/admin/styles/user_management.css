@@ -316,6 +316,12 @@
   object-fit: cover;
 }
 
+.um-avatar-button { padding: 0; border: 0; cursor: zoom-in; }
+.um-avatar-button:disabled { cursor: default; opacity: 1; }
+.um-avatar-button:focus-visible { outline: 2px solid var(--ak-crimson); outline-offset: 3px; }
+.um-photo-controls { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0; }
+.um-photo-preview { overflow: auto; max-height: 65vh; background: var(--bg-card); border-radius: 8px; }
+
 /* User Info Cell */
 .um-user-info {
   display: flex;

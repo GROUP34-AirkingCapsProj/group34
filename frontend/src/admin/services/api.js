@@ -76,10 +76,13 @@ export const getApiBaseUrl = () => {
  * Resolve a backend-relative asset path (e.g. "/storage/avatars/x.png") to an
  * absolute URL against the API origin computed at runtime. The backend returns
  * avatar paths host-agnostically so the same value works on localhost, LAN IP,
- * and mobile. Absolute URLs (legacy/external) are returned unchanged.
+ * and mobile. Avatars use the API image route to avoid relying on a storage
+ * symlink. Absolute URLs (legacy/external) are returned unchanged.
  */
 export const resolveStorageUrl = (path) => {
   if (!path) return path;
+  const avatar = /^\/?storage\/avatars\/([A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp))$/i.exec(String(path));
+  if (avatar) return `${getApiBaseUrl()}/avatars/${avatar[1]}`;
   if (/^https?:\/\//i.test(path)) return path;
   const origin = getApiBaseUrl().replace(/\/api\/?$/, '');
   return `${origin}/${String(path).replace(/^\/+/, '')}`;

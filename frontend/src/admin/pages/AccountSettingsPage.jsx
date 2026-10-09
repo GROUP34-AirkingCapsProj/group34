@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
 import { useAuth } from '../context/AuthContext';
-import { accountAPI, resolveStorageUrl } from '../services/api';
+import { accountAPI } from '../services/api';
+import ProfilePhoto from '../components/ProfilePhoto';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
 import '../styles/airking_ds.css';
@@ -222,9 +223,7 @@ const AccountSettingsPage = () => {
           <div className="as-identity">
             <div className="as-avatar">
               <div className="as-avatar-inner">
-                {profile?.avatar_url
-                  ? <img src={resolveStorageUrl(profile.avatar_url)} alt="" />
-                  : initials}
+                <ProfilePhoto src={profile?.avatar_url} alt="Your profile photo" fallback={initials} />
               </div>
             </div>
             <div className="as-identity-main">

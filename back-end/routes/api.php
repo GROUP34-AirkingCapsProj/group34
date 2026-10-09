@@ -104,6 +104,9 @@ Route::post('/reset-password', [ForgotPasswordOtpController::class, 'reset'])->m
 // authorization is enforced in routes/channels.php via ChannelAccess.
 Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
+Route::get('/avatars/{filename}', [\App\Http\Controllers\Api\AvatarController::class, 'show'])
+    ->where('filename', '[A-Za-z0-9_-]+\.(?i:jpg|jpeg|png|webp)');
+
 // External cron entry point for Laravel's scheduler. Carries its own shared-secret
 // check (see SchedulerTickController) rather than auth:sanctum, because the caller
 // is a cron service with no user and no session. 404s unless SCHEDULER_RUN_TOKEN is

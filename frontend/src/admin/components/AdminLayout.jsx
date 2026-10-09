@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth, useUserLocation } from '../context/AuthContext';
-import { authAPI, layoutAPI, resolveStorageUrl } from '../services/api';
+import { authAPI, layoutAPI } from '../services/api';
+import ProfilePhoto from './ProfilePhoto';
 import { getRoleKey, ROLE_META, ROLES } from '../utils/roles';
 import { channelFor, REALTIME_EVENTS } from '../utils/realtimeChannel';
 import { playNotifySound, initNotifySound } from '../utils/notifySound';
@@ -417,7 +418,8 @@ const AdminLayout = ({ children }) => {
                 style={{ background: avatarColor(user.first_name || user.username || 'S'), color: '#fff', overflow: 'hidden' }}
               >
                 {user.avatar_url ? (
-                  <img src={resolveStorageUrl(user.avatar_url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <ProfilePhoto src={user.avatar_url} alt="Your profile photo" fallback={(user.first_name?.charAt(0) || user.username?.charAt(0) || 'S').toUpperCase()}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1 }}>
                     {user.first_name && user.last_name
@@ -454,7 +456,8 @@ const AdminLayout = ({ children }) => {
                       style={{ background: avatarColor(user.first_name || user.username || 'S'), overflow: 'hidden' }}
                     >
                       {user.avatar_url ? (
-                        <img src={resolveStorageUrl(user.avatar_url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <ProfilePhoto src={user.avatar_url} alt="Your profile photo" fallback={(user.first_name?.charAt(0) || user.username?.charAt(0) || 'S').toUpperCase()}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
                         user.first_name && user.last_name
                           ? user.first_name.charAt(0).toUpperCase() + user.last_name.charAt(0).toUpperCase()

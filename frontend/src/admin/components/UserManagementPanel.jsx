@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Loader from './Loader';
 import Modal from './Modal';
+import ProfilePhoto from './ProfilePhoto';
 import PasswordFieldWithToggle from './PasswordFieldWithToggle';
 import ArchiveButton from './ArchiveButton';
-import { usersAPI, authAPI, batchAPI, resolveStorageUrl } from '../services/api';
+import { usersAPI, authAPI, batchAPI } from '../services/api';
 import { avatarColor } from './Sidebar';
 import { toast } from '../utils/toast';
 import { confirmAction } from '../utils/confirm';
@@ -29,6 +30,9 @@ const UserManagementPanel = () => {
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [previewUser, setPreviewUser] = useState(null);
+  const [photoZoom, setPhotoZoom] = useState(1);
+  const [failedPhotos, setFailedPhotos] = useState(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
@@ -468,11 +472,15 @@ const UserManagementPanel = () => {
                     <td className="um-id">{getUserId(user)}</td>
                     <td>
                       <div className="um-user-cell">
-                        <span className="um-avatar" style={{ background: avatarColor(user.first_name || user.username || 'U') }}>
-                          {user.avatar_url
-                            ? <img src={resolveStorageUrl(user.avatar_url)} alt="" />
-                            : getUserInitials(user)}
-                        </span>
+                        <button type="button" className="um-avatar um-avatar-button"
+                          style={{ background: avatarColor(user.first_name || user.username || 'U') }}
+                          disabled={!user.avatar_url || failedPhotos.has(user.avatar_url)}
+                          aria-label={`View profile photo of ${getUserName(user)}`}
+                          title={user.avatar_url && !failedPhotos.has(user.avatar_url) ? 'Click to enlarge photo' : 'No profile photo available'}
+                          onClick={() => { setPreviewUser(user); setPhotoZoom(1); }}>
+                          <ProfilePhoto src={user.avatar_url} alt={`${getUserName(user)} profile photo`}
+                            fallback={getUserInitials(user)} onError={() => setFailedPhotos((previous) => new Set([...previous, user.avatar_url]))} />
+                        </button>
                         <div className="um-user-info">
                           <span className="um-user-name">{getUserName(user)}</span>
                           <span className="um-user-username">@{user.username || 'N/A'}</span>
@@ -721,6 +729,22 @@ const UserManagementPanel = () => {
             </button>
           </div>
         </form>
+      </Modal>
+      <Modal isOpen={Boolean(previewUser)} onClose={() => setPreviewUser(null)}
+        title={previewUser ? `${getUserName(previewUser)} — Profile photo` : 'Profile photo'} maxWidth={820}>
+        <div className="um-photo-controls">
+          <button type="button" className="ak-btn ak-btn--ghost" aria-label="Zoom out" disabled={photoZoom <= 1}
+            onClick={() => setPhotoZoom((zoom) => Math.max(1, zoom - 0.5))}>−</button>
+          <span aria-live="polite">{Math.round(photoZoom * 100)}%</span>
+          <button type="button" className="ak-btn ak-btn--ghost" aria-label="Zoom in" disabled={photoZoom >= 3}
+            onClick={() => setPhotoZoom((zoom) => Math.min(3, zoom + 0.5))}>+</button>
+          <button type="button" className="ak-btn ak-btn--ghost" onClick={() => setPhotoZoom(1)}>Reset zoom</button>
+        </div>
+        <div className="um-photo-preview">
+          {previewUser && <ProfilePhoto src={previewUser.avatar_url} alt={`${getUserName(previewUser)} full profile photo`}
+            style={{ width: `${photoZoom * 100}%`, height: `${photoZoom * 60}vh`, objectFit: 'contain', maxWidth: 'none', display: 'block' }}
+            fallback={<p role="alert">This profile photo is unavailable. Please upload it again in Account Settings.</p>} />}
+        </div>
       </Modal>
     </>
   );

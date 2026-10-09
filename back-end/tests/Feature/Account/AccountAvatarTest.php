@@ -40,6 +40,16 @@ class AccountAvatarTest extends TestCase
         $this->assertNotNull($path);
         Storage::disk('public')->assertExists($path);
         $this->assertNotNull($resp->json('data.avatar_url'));
+        $this->get('/api/avatars/' . basename($path))->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+    }
+
+    public function test_avatar_route_rejects_missing_files_and_non_image_files(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('avatars/notes.txt', 'private text');
+        $this->get('/api/avatars/missing.png')->assertNotFound();
+        $this->get('/api/avatars/notes.txt')->assertNotFound();
+        $this->get('/api/avatars/../notes.txt')->assertNotFound();
     }
 
     public function test_upload_rejects_non_image(): void
