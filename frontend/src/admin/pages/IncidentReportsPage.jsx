@@ -13,7 +13,8 @@ import { useAuth } from '../context/AuthContext';
  * The list itself lives in IncidentList so the Report Incident page reached
  * from the barcode scanner can render the same table.
  */
-const IncidentReportsPage = () => {
+const IncidentReportsPage = ({ embedded = false }) => {
+  const Layout = embedded ? React.Fragment : AdminLayout;
   const { can } = useAuth();
   const canCreate = typeof can === 'function' && can('incident_reports', 'create');
 
@@ -25,7 +26,7 @@ const IncidentReportsPage = () => {
   const [refreshToken, setRefreshToken] = useState(0);
 
   return (
-    <AdminLayout>
+    <Layout>
       <div className="ak-page">
         <header className="ak-header">
           <div className="ak-header-row">
@@ -62,7 +63,7 @@ const IncidentReportsPage = () => {
           <IncidentList key={refreshToken} />
         )}
       </div>
-    </AdminLayout>
+    </Layout>
   );
 };
 

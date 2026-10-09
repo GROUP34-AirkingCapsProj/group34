@@ -20,7 +20,8 @@ import { ITEM_STATUSES, itemStatusMeta, outcomeLabel, unitRoleLabel } from '../u
  * until an admin confirms an inspection. Scrapped, returned and missing are the
  * ones that have already left the count.
  */
-const IncidentItemsRegisterPage = () => {
+const IncidentItemsRegisterPage = ({ embedded = false }) => {
+  const Layout = embedded ? React.Fragment : AdminLayout;
   const { can } = useAuth();
   const canCompleteRepair = typeof can === 'function' && can('incident_reports', 'resolve');
   const [repairItem, setRepairItem] = useState(null);
@@ -85,7 +86,7 @@ const IncidentItemsRegisterPage = () => {
   }), [items]);
 
   return (
-    <AdminLayout>
+    <Layout>
       <div className="ak-page">
         <header className="ak-header">
           <div className="ak-header-row">
@@ -242,7 +243,7 @@ const IncidentItemsRegisterPage = () => {
           </DialogActions>
         </form>
       </Dialog>
-    </AdminLayout>
+    </Layout>
   );
 };
 

@@ -84,8 +84,6 @@ const adminMenuSections = [
       { name: 'Barcode Printing', path: '/admin/barcode-printing', icon: 'scan' },
       { name: 'Transfers', path: '/admin/transfers', icon: 'transfer' },
       { name: 'Incident Reports', path: '/admin/incidents', icon: 'incident' },
-      { name: 'Inspections', path: '/admin/inspections', icon: 'incident' },
-      { name: 'Incident Items', path: '/admin/incident-items', icon: 'incident' },
     ],
   },
   {

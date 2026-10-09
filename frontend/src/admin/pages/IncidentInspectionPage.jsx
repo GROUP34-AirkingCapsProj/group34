@@ -28,7 +28,8 @@ import { reasonLabel } from '../utils/incidentReasons';
 
 const INSPECTABLE_STATUSES = ['Open', 'Awaiting Inspection'];
 
-const IncidentInspectionPage = () => {
+const IncidentInspectionPage = ({ embedded = false }) => {
+  const Layout = embedded ? React.Fragment : AdminLayout;
   const { can } = useAuth();
   const canInspect = typeof can === 'function' && can('incident_reports', 'inspect');
 
@@ -88,7 +89,7 @@ const IncidentInspectionPage = () => {
   useEffect(() => { loadReport(selectedId); }, [selectedId, loadReport]);
 
   return (
-    <AdminLayout>
+    <Layout>
       <div className="ak-page">
         <header className="ak-header">
           <div className="ak-header-row">
@@ -170,7 +171,7 @@ const IncidentInspectionPage = () => {
           </div>
         </div>
       </div>
-    </AdminLayout>
+    </Layout>
   );
 };
 
