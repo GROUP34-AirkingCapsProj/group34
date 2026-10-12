@@ -1,10 +1,10 @@
 <?php
 
-namespace Tests\Feature\Budget;
+namespace Tests\Feature\Procurement;
 
 use Illuminate\Support\Facades\DB;
 
-class WarehousePrTest extends BudgetTestCase
+class WarehousePrTest extends ProcurementTestCase
 {
     private int $supplierId;
 
@@ -65,7 +65,6 @@ class WarehousePrTest extends BudgetTestCase
     public function test_rejects_showroom_destination(): void
     {
         $ia = $this->makeUser('inventory_analyst');
-        $this->makeBudget(10000);
         $sr = $this->showroom();
         $pid = $this->product();
 
@@ -81,7 +80,6 @@ class WarehousePrTest extends BudgetTestCase
     {
         $ia = $this->makeUser('inventory_analyst');
         $wh = $this->locationId;
-        $this->makeBudget(10000);
         $otherSupplier = (int) DB::table('suppliers')->insertGetId([
             'supplier_name' => 'Other', 'created_at' => now(), 'updated_at' => now(),
         ], 'supplier_id');
@@ -106,7 +104,6 @@ class WarehousePrTest extends BudgetTestCase
     {
         $ia = $this->makeUser('inventory_analyst');
         $wh = $this->locationId;
-        $this->makeBudget(10000, ['location_id' => $wh]);
         $pid = $this->product(false);
 
         $this->actingAs($ia, 'sanctum')->postJson('/api/purchase-requests', $this->payload([
@@ -114,13 +111,11 @@ class WarehousePrTest extends BudgetTestCase
         ]))->assertStatus(201);
     }
 
-    public function test_accepts_multi_warehouse_pr_with_budgets(): void
+    public function test_accepts_multi_warehouse_pr(): void
     {
         $ia = $this->makeUser('inventory_analyst');
         $whA = $this->locationId;
         $whB = $this->warehouse('B');
-        $this->makeBudget(10000, ['location_id' => $whA]);
-        $this->makeBudget(10000, ['location_id' => $whB]);
         $pA = $this->product(); $pB = $this->product();
 
         $res = $this->actingAs($ia, 'sanctum')->postJson('/api/purchase-requests', $this->payload([
@@ -134,21 +129,4 @@ class WarehousePrTest extends BudgetTestCase
         $this->assertSame(2, \App\Models\PurchaseRequestDetail::where('pr_id', $prId)->whereNotNull('location_id')->count());
     }
 
-    public function test_blocks_when_a_warehouse_group_exceeds_its_budget(): void
-    {
-        $ia = $this->makeUser('inventory_analyst');
-        $whA = $this->locationId;
-        $whB = $this->warehouse('B');
-        $this->makeBudget(10000, ['location_id' => $whA]);
-        $this->makeBudget(100, ['location_id' => $whB]);
-        $pA = $this->product(); $pB = $this->product();
-
-        $res = $this->actingAs($ia, 'sanctum')->postJson('/api/purchase-requests', $this->payload([
-            ['product_id' => $pA, 'location_id' => $whA, 'quantity' => 2, 'estimated_price' => 100],
-            ['product_id' => $pB, 'location_id' => $whB, 'quantity' => 3, 'estimated_price' => 100],
-        ]));
-
-        $res->assertStatus(422);
-        $this->assertStringContainsString('WH B', $res->json('message'));
-    }
 }

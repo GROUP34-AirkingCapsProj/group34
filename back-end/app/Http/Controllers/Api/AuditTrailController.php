@@ -53,7 +53,6 @@ class AuditTrailController extends Controller
         'products'                 => 'Product',
         'warranty_records'         => 'Warranty Record',
         'users'                    => 'User',
-        'budget_allocations'       => 'Budget Allocation',
         'sales'                    => 'Sale',
         'sale_details'             => 'Sale Item',
         'purchase_returns'         => 'Purchase Return',

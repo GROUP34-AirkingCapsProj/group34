@@ -22,20 +22,19 @@
 <text class="cap" x="451" y="34">PROCESSES</text>
 <text class="cap" x="928" y="34">DATA STORES</text>
 <path class="ln" d="M240,110 L310,110 L310,118 L451,118" marker-end="url(#ar)"/>
-<path class="ln" d="M928,249 L854,249 L854,133 L741,133" marker-end="url(#ar)"/>
+<path class="ln" d="M928,287 L854,287 L854,133 L741,133" marker-end="url(#ar)"/>
 <path class="ln" d="M741,103 L779,103 L779,90 L928,90" marker-end="url(#ar)"/>
 <path class="ln" d="M240,854 L381,854 L381,281 L451,281" marker-end="url(#ar)"/>
 <path class="ln" d="M596,310 L596,370" marker-end="url(#ar)"/>
-<path class="ln" d="M928,265 L891,265 L891,414 L741,414" marker-end="url(#ar)"/>
-<path class="ln" d="M741,436 L816,436 L816,420 L928,420" marker-end="url(#ar)"/>
+<path class="ln" d="M928,303 L891,303 L891,414 L741,414" marker-end="url(#ar)"/>
+<path class="ln" d="M741,436 L816,436 L816,496 L928,496" marker-end="url(#ar)"/>
 <path class="ln" d="M741,392 L816,392 L816,106 L928,106" marker-end="url(#ar)"/>
 <path class="ln" d="M451,251 L310,251 L310,547 L451,547" marker-end="url(#ar)"/>
 <path class="ln" d="M928,122 L779,122 L779,547 L741,547" marker-end="url(#ar)"/>
-<path class="ln" d="M741,577 L779,577 L779,572 L928,572" marker-end="url(#ar)"/>
+<path class="ln" d="M741,577 L779,577 L779,685 L928,685" marker-end="url(#ar)"/>
 <path class="ln" d="M596,606 L596,666" marker-end="url(#ar)"/>
-<path class="ln" d="M741,688 L854,688 L854,281 L928,281" marker-end="url(#ar)"/>
-<path class="ln" d="M741,710 L779,710 L779,723 L928,723" marker-end="url(#ar)"/>
-<path class="ln" d="M741,732 L816,732 L816,874 L928,874" marker-end="url(#ar)"/>
+<path class="ln" d="M741,695 L854,695 L854,319 L928,319" marker-end="url(#ar)"/>
+<path class="ln" d="M741,725 L779,725 L779,874 L928,874" marker-end="url(#ar)"/>
 <path class="ln" d="M451,577 L310,577 L310,843 L451,843" marker-end="url(#ar)"/>
 <path class="ln" d="M451,873 L310,873 L310,878 L240,878" marker-end="url(#ar)"/>
 <rect class="ext" x="40" y="74" width="200" height="72"/>
@@ -63,34 +62,30 @@
 <rect class="proc" x="451" y="666" width="290" height="88" rx="9"/>
 <line class="ln" x1="451" y1="691" x2="741" y2="691"/>
 <text class="pnum" x="596" y="684" text-anchor="middle">3.5</text>
-<text class="pn" x="596" y="726" text-anchor="middle">Update Order and Spend Budget</text>
+<text class="pn" x="596" y="726" text-anchor="middle">Update Purchase Order Status</text>
 <rect class="proc" x="451" y="814" width="290" height="88" rx="9"/>
 <line class="ln" x1="451" y1="839" x2="741" y2="839"/>
 <text class="pnum" x="596" y="832" text-anchor="middle">3.6</text>
 <text class="pn" x="596" y="874" text-anchor="middle">Print GRN and Labels</text>
 <path class="store" d="M928,74 H1248 M928,138 H1248 M928,74 V138"/>
 <line class="ln" x1="964" y1="74" x2="964" y2="138"/>
-<text class="snum" x="946" y="110" text-anchor="middle">D5</text>
+<text class="snum" x="946" y="110" text-anchor="middle">D4</text>
 <text class="sn" x="974" y="110">Receiving Records</text>
-<path class="store" d="M928,233 H1248 M928,297 H1248 M928,233 V297"/>
-<line class="ln" x1="964" y1="233" x2="964" y2="297"/>
-<text class="snum" x="946" y="269" text-anchor="middle">D4</text>
-<text class="sn" x="974" y="269">Purchase Requests and Orders</text>
-<path class="store" d="M928,392 H1248 M928,448 H1248 M928,392 V448"/>
-<line class="ln" x1="964" y1="392" x2="964" y2="448"/>
-<text class="snum" x="946" y="424" text-anchor="middle">D9</text>
-<text class="sn" x="974" y="424">Incidents and Warranty</text>
-<path class="store" d="M928,544 H1248 M928,600 H1248 M928,544 V600"/>
-<line class="ln" x1="964" y1="544" x2="964" y2="600"/>
-<text class="snum" x="946" y="576" text-anchor="middle">D6</text>
-<text class="sn" x="974" y="576">Inventory and Batches</text>
-<path class="store" d="M928,695 H1248 M928,751 H1248 M928,695 V751"/>
-<line class="ln" x1="964" y1="695" x2="964" y2="751"/>
-<text class="snum" x="946" y="727" text-anchor="middle">D3</text>
-<text class="sn" x="974" y="727">Budget Ledger</text>
+<path class="store" d="M928,271 H1248 M928,335 H1248 M928,271 V335"/>
+<line class="ln" x1="964" y1="271" x2="964" y2="335"/>
+<text class="snum" x="946" y="307" text-anchor="middle">D3</text>
+<text class="sn" x="974" y="307">Purchase Requests and Orders</text>
+<path class="store" d="M928,468 H1248 M928,524 H1248 M928,468 V524"/>
+<line class="ln" x1="964" y1="468" x2="964" y2="524"/>
+<text class="snum" x="946" y="500" text-anchor="middle">D8</text>
+<text class="sn" x="974" y="500">Incidents and Warranty</text>
+<path class="store" d="M928,657 H1248 M928,713 H1248 M928,657 V713"/>
+<line class="ln" x1="964" y1="657" x2="964" y2="713"/>
+<text class="snum" x="946" y="689" text-anchor="middle">D5</text>
+<text class="sn" x="974" y="689">Inventory and Batches</text>
 <path class="store" d="M928,846 H1248 M928,902 H1248 M928,846 V902"/>
 <line class="ln" x1="964" y1="846" x2="964" y2="902"/>
-<text class="snum" x="946" y="878" text-anchor="middle">D10</text>
+<text class="snum" x="946" y="878" text-anchor="middle">D9</text>
 <text class="sn" x="974" y="878">Audit and Activity Log</text>
 <text class="fl" x="316" y="112" text-anchor="start">delivery note</text>
 <text class="fl" x="848" y="127" text-anchor="end">open order lines</text>
@@ -98,15 +93,14 @@
 <text class="fl" x="246" y="848" text-anchor="start">barcode scan, counted quantity</text>
 <text class="fl" x="604" y="340" text-anchor="start">scanned line</text>
 <text class="fl" x="885" y="408" text-anchor="end">expected product and quantity</text>
-<text class="fl" x="822" y="433" text-anchor="start">discrepancy incident</text>
+<text class="fl" x="822" y="490" text-anchor="start">discrepancy incident</text>
 <text class="fl" x="822" y="100" text-anchor="start">staged row</text>
 <text class="fl" x="445" y="245" text-anchor="end">submit draft</text>
 <text class="fl" x="922" y="116" text-anchor="end">all staged rows</text>
-<text class="fl" x="785" y="566" text-anchor="start">batch, serials, tags</text>
+<text class="fl" x="785" y="666" text-anchor="start">batch, serials, tags</text>
 <text class="fl" x="604" y="636" text-anchor="start">posted quantities</text>
-<text class="fl" x="747" y="682" text-anchor="start">partially received / completed</text>
-<text class="fl" x="785" y="717" text-anchor="start">spend entry</text>
-<text class="fl" x="822" y="868" text-anchor="start">audit entry</text>
+<text class="fl" x="747" y="689" text-anchor="start">partially received / completed</text>
+<text class="fl" x="785" y="868" text-anchor="start">audit entry</text>
 <text class="fl" x="445" y="571" text-anchor="end">posted receipt</text>
 <text class="fl" x="445" y="867" text-anchor="end">goods received note, barcode labels</text>
 </svg>

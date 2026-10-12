@@ -147,14 +147,6 @@ class PermissionSeeder extends Seeder
             'purchase_request_approval' => [
                 'approve' => ['admin'],
             ],
-            // Budget allocations (page /admin/budget-management). read is the view
-            // gate; create/update/archive let admin delegate budget CRUD.
-            'budget_verification' => [
-                'read'    => ['admin', 'auditor'],
-                'create'  => ['admin'],
-                'update'  => ['admin'],
-                'archive' => ['admin'],
-            ],
             'purchase_order_verification' => [
                 'read'   => ['admin', 'auditor'],
                 'verify' => ['auditor'],

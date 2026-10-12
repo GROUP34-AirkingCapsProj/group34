@@ -7,7 +7,6 @@ export const NAV_BUNDLES = [
   { name: 'Location Management',   routePath: '/admin/branches',         required: ['location_based_inventory.read'] },
   { name: 'System Configuration',  routePath: '/admin/config',           required: ['system_configuration.read'] },
   { name: 'Archive Management',    routePath: '/admin/archive',          required: ['archive_viewing.read'] },
-  { name: 'Budget Management',     routePath: '/admin/budget-management',required: ['budget_verification.read'] },
   { name: 'Purchase Requests',     routePath: '/admin/purchase-requests',required: ['purchase_request_creation.read'] },
   { name: 'Purchase Orders',       routePath: '/admin/draft-po-creator', required: ['purchase_order_creation.read'] },
   { name: 'Supplier Network',      routePath: '/admin/suppliers',        required: ['supplier_management.read'] },

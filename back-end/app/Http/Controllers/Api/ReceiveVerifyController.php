@@ -149,8 +149,7 @@ class ReceiveVerifyController extends Controller
             // checkOverage() reads it as `already_received`, so the next scan
             // would wave a genuine over-receipt through; PoReceivingStatusService
             // reads it as `totalReceived` and could flip the PO to Completed,
-            // firing the committed-to-spent budget transition, on a delivery
-            // that barely arrived. BudgetService and reporting read it too.
+            // on a delivery that barely arrived. Reporting reads it too.
             //
             // Letting the one row go negative would also make the sum exact and
             // is less code, but quantity_amount is consumed elsewhere as a

@@ -64,15 +64,6 @@ class PoReceivingStatusService
             }
 
             PurchaseOrder::where('po_id', $poId)->update($updateData);
-
-            // When PO is fully completed: move budget from committed → spent.
-            // Only applies to POs sourced from a PR that has a budget_id.
-            if ($newStatusId === 11) {
-                $po = PurchaseOrder::with('purchaseRequest')->find($poId);
-                if ($po) {
-                    app(\App\Services\BudgetService::class)->spend($po, $userId);
-                }
-            }
         } elseif ($userId !== null) {
             // No items received yet — still stamp received_by on the PO.
             PurchaseOrder::where('po_id', $poId)->update(['received_by' => $userId]);

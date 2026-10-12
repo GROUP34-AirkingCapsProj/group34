@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="920" height="1420" viewBox="0 0 920 1420" role="img"
-           aria-label="Flowchart sheet 4. From connector B, enter the delivery note and purchase order, create a receiving draft, then scan each item. An item that does not match a purchase order line is flagged and sent to connector E. Matching items are staged in the draft, looping until all items are entered and the draft is submitted. Posting opens a transaction and replays each staged row; if any row fails the transaction rolls back and the draft survives. On success the transaction commits, budget is spent, the purchase order status is recomputed, and documents are printed before returning to connector M.">
+           aria-label="Flowchart sheet 4. From connector B, enter the delivery note and purchase order, create a receiving draft, then scan each item. An item that does not match a purchase order line is flagged and sent to connector E. Matching items are staged in the draft, looping until all items are entered and the draft is submitted. Posting opens a transaction and replays each staged row; if any row fails the transaction rolls back and the draft survives. On success the transaction commits, the purchase order status is recomputed, and documents are printed before returning to connector M.">
   <style>
     svg { background: #ffffff; }
     .sym  { fill: #ffffff; stroke: #000000; stroke-width: 1.7; }
@@ -120,7 +120,7 @@
         <text class="yn" x="292" y="1158">Yes</text>
 
         <rect class="sym" x="150" y="1170" width="260" height="64"></rect>
-        <text class="t" x="280" y="1194">Commit; spend the budget;</text>
+        <text class="t" x="280" y="1194">Commit the transaction;</text>
         <text class="t" x="280" y="1211">recompute PO status —</text>
         <text class="t" x="280" y="1228">Partially Received or Completed</text>
 

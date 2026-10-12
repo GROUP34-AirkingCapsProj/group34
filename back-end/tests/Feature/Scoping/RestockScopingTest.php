@@ -5,10 +5,9 @@ namespace Tests\Feature\Scoping;
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use App\Models\Product;
-use App\Models\BudgetAllocation;
 use App\Models\RestockRecommendation;
 
-class BudgetRestockScopingTest extends TestCase
+class RestockScopingTest extends TestCase
 {
     use DatabaseTransactions;
 
@@ -32,40 +31,6 @@ class BudgetRestockScopingTest extends TestCase
             'role_id'       => $roleId,
             'location_id'   => $locationId,
         ]);
-    }
-
-    /**
-     * NOTE: GET /api/budget-allocations is gated by CheckRole to
-     * admin,inventory_analyst,auditor only — all three are centralized roles
-     * per User::isCentralized(). A branch_manager (role 3, scoped) can never
-     * reach this endpoint at all (403 before the controller runs), so the
-     * scoping behavior can't be exercised over HTTP with a scoped role today.
-     * We instead assert the scope directly against the query builder, which
-     * is what the controller now applies via ->forUser($request->user()).
-     */
-    public function test_scoped_user_query_sees_only_their_location_budgets(): void
-    {
-        $a = $this->loc(); $b = $this->loc();
-        BudgetAllocation::create([
-            'location_id'  => $a->location_id,
-            'period_label' => 'P-' . uniqid(),
-            'total_budget' => 100,
-            'period_start' => now()->toDateString(),
-            'period_end'   => now()->addMonth()->toDateString(),
-        ]);
-        BudgetAllocation::create([
-            'location_id'  => $b->location_id,
-            'period_label' => 'P-' . uniqid(),
-            'total_budget' => 200,
-            'period_start' => now()->toDateString(),
-            'period_end'   => now()->addMonth()->toDateString(),
-        ]);
-
-        $bm = $this->userAt(3, $a->location_id);
-        $rows = BudgetAllocation::forUser($bm)->get();
-        $locs = $rows->pluck('location_id')->unique()->all();
-        $this->assertContains($a->location_id, $locs);
-        $this->assertNotContains($b->location_id, $locs);
     }
 
     public function test_scoped_user_sees_only_their_location_restock(): void
@@ -104,30 +69,5 @@ class BudgetRestockScopingTest extends TestCase
         $locs = collect($data)->pluck('location_id')->unique()->all();
         $this->assertContains($a->location_id, $locs);
         $this->assertNotContains($b->location_id, $locs);
-    }
-
-    public function test_admin_sees_all_budgets(): void
-    {
-        $a = $this->loc(); $b = $this->loc();
-        BudgetAllocation::create([
-            'location_id'  => $a->location_id,
-            'period_label' => 'P-' . uniqid(),
-            'total_budget' => 100,
-            'period_start' => now()->toDateString(),
-            'period_end'   => now()->addMonth()->toDateString(),
-        ]);
-        BudgetAllocation::create([
-            'location_id'  => $b->location_id,
-            'period_label' => 'P-' . uniqid(),
-            'total_budget' => 200,
-            'period_start' => now()->toDateString(),
-            'period_end'   => now()->addMonth()->toDateString(),
-        ]);
-
-        $admin = $this->userAt(1, null);
-        $data = $this->actingAs($admin)->getJson('/api/budget-allocations')->assertStatus(200)->json('data');
-        $locs = collect($data)->pluck('location_id')->unique()->all();
-        $this->assertContains($a->location_id, $locs);
-        $this->assertContains($b->location_id, $locs);
     }
 }

@@ -23,7 +23,6 @@ const routePrefetchMap = {
   '/admin/brands': () => import('../pages/LookupManagement'),
   '/admin/items': () => import('../pages/ItemManagement'),
   '/admin/suppliers': () => import('../pages/SupplierNetwork'),
-  '/admin/budget-management': () => import('../pages/BudgetManagementPage'),
   '/admin/purchase-requests': () => import('../pages/PurchaseRequestPage'),
   '/admin/draft-po-creator': () => import('../pages/PurchaseOrderPage'),
   '/admin/inventory': () => import('../pages/InventoryManagement'),
@@ -68,7 +67,6 @@ const adminMenuSections = [
   {
     label: 'PROCUREMENT & PLANNING',
     items: [
-      { name: 'Budget Management', path: '/admin/budget-management', icon: 'budget' },
       { name: 'Purchase Requests', path: '/admin/purchase-requests', icon: 'approval' },
       { name: 'Purchase Orders', path: '/admin/draft-po-creator', icon: 'procurement' },
       { name: 'Supplier Network', path: '/admin/suppliers', icon: 'supplier' },
@@ -380,13 +378,6 @@ const renderIcon = (iconType) => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="1 4 1 10 7 10"></polyline>
           <path d="M3.51 15a9 9 0 1 0 .49-4"></path>
-        </svg>
-      );
-    case 'budget':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="12" y1="1" x2="12" y2="23"></line>
-          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
         </svg>
       );
     case 'sets':

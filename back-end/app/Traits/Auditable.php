@@ -155,12 +155,6 @@ trait Auditable
                 return $row ? $row->product_name : $value;
             }
 
-            // budget_id → period label
-            if ($key === 'budget_id') {
-                $row = \App\Models\BudgetAllocation::find($id);
-                return $row ? $row->period_label : $value;
-            }
-
             // pr_id → PR number
             if ($key === 'pr_id') {
                 $row = \App\Models\PurchaseRequest::find($id);

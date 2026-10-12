@@ -96,7 +96,7 @@
    },
    {
     "id": "f3",
-    "label": "pending approvals, budget utilisation",
+    "label": "pending approvals, request status",
     "src": "n7",
     "tgt": "n1"
    },
@@ -138,13 +138,13 @@
    },
    {
     "id": "f10",
-    "label": "budget allocation, user setup, incident decision",
+    "label": "user setup, incident decision",
     "src": "n5",
     "tgt": "n7"
    },
    {
     "id": "f11",
-    "label": "stock and budget alerts, incident reports",
+    "label": "stock alerts, incident reports",
     "src": "n7",
     "tgt": "n5"
    },
@@ -319,18 +319,9 @@
     "h": 52.0
    },
    {
-    "id": "n17",
-    "kind": "store",
-    "label": "D3 Budget Ledger",
-    "x": 900.0,
-    "y": 230.0,
-    "w": 330.0,
-    "h": 52.0
-   },
-   {
     "id": "n18",
     "kind": "store",
-    "label": "D4 Purchase Requests and Orders",
+    "label": "D3 Purchase Requests and Orders",
     "x": 900.0,
     "y": 310.0,
     "w": 330.0,
@@ -339,7 +330,7 @@
    {
     "id": "n19",
     "kind": "store",
-    "label": "D5 Receiving Records",
+    "label": "D4 Receiving Records",
     "x": 900.0,
     "y": 390.0,
     "w": 330.0,
@@ -348,7 +339,7 @@
    {
     "id": "n20",
     "kind": "store",
-    "label": "D6 Inventory and Batches",
+    "label": "D5 Inventory and Batches",
     "x": 900.0,
     "y": 470.0,
     "w": 330.0,
@@ -357,7 +348,7 @@
    {
     "id": "n21",
     "kind": "store",
-    "label": "D7 Issuances and Sales",
+    "label": "D6 Issuances and Sales",
     "x": 900.0,
     "y": 550.0,
     "w": 330.0,
@@ -366,7 +357,7 @@
    {
     "id": "n22",
     "kind": "store",
-    "label": "D8 Transfers",
+    "label": "D7 Transfers",
     "x": 900.0,
     "y": 630.0,
     "w": 330.0,
@@ -375,7 +366,7 @@
    {
     "id": "n23",
     "kind": "store",
-    "label": "D9 Incidents and Warranty",
+    "label": "D8 Incidents and Warranty",
     "x": 900.0,
     "y": 710.0,
     "w": 330.0,
@@ -384,7 +375,7 @@
    {
     "id": "n24",
     "kind": "store",
-    "label": "D10 Audit and Activity Log",
+    "label": "D9 Audit and Activity Log",
     "x": 900.0,
     "y": 790.0,
     "w": 330.0,
@@ -393,7 +384,7 @@
    {
     "id": "n25",
     "kind": "store",
-    "label": "D11 Reference Data",
+    "label": "D10 Reference Data",
     "x": 900.0,
     "y": 870.0,
     "w": 330.0,
@@ -430,18 +421,6 @@
     "label": "approval decision",
     "src": "n1",
     "tgt": "n8"
-   },
-   {
-    "id": "f5",
-    "label": "available balance",
-    "src": "n17",
-    "tgt": "n8"
-   },
-   {
-    "id": "f6",
-    "label": "commit / release",
-    "src": "n8",
-    "tgt": "n17"
    },
    {
     "id": "f7",
@@ -490,12 +469,6 @@
     "label": "new batch, serials",
     "src": "n9",
     "tgt": "n20"
-   },
-   {
-    "id": "f15",
-    "label": "spend",
-    "src": "n9",
-    "tgt": "n17"
    },
    {
     "id": "f16",
@@ -668,15 +641,6 @@
     "h": 62.0
    },
    {
-    "id": "n3",
-    "kind": "entity",
-    "label": "Administrator",
-    "x": 40.0,
-    "y": 358.0,
-    "w": 190.0,
-    "h": 62.0
-   },
-   {
     "id": "n4",
     "kind": "process",
     "label": "2.1|Encode Purchase Request",
@@ -686,18 +650,9 @@
     "h": 84.0
    },
    {
-    "id": "n5",
-    "kind": "process",
-    "label": "2.2|Check Budget Availability",
-    "x": 430.0,
-    "y": 194.0,
-    "w": 260.0,
-    "h": 84.0
-   },
-   {
     "id": "n6",
     "kind": "process",
-    "label": "2.3|Approve or Reject Request",
+    "label": "2.2|Approve or Reject Request",
     "x": 430.0,
     "y": 318.0,
     "w": 260.0,
@@ -706,25 +661,16 @@
    {
     "id": "n7",
     "kind": "process",
-    "label": "2.4|Create Purchase Order",
+    "label": "2.3|Create Purchase Order",
     "x": 430.0,
     "y": 442.0,
     "w": 260.0,
     "h": 84.0
    },
    {
-    "id": "n8",
-    "kind": "process",
-    "label": "2.5|Commit Budget and Notify",
-    "x": 430.0,
-    "y": 566.0,
-    "w": 260.0,
-    "h": 84.0
-   },
-   {
     "id": "n9",
     "kind": "process",
-    "label": "2.6|Process Purchase Return",
+    "label": "2.4|Process Purchase Return",
     "x": 430.0,
     "y": 690.0,
     "w": 260.0,
@@ -740,18 +686,9 @@
     "h": 52.0
    },
    {
-    "id": "n11",
-    "kind": "store",
-    "label": "D3 Budget Ledger",
-    "x": 900.0,
-    "y": 150.0,
-    "w": 330.0,
-    "h": 52.0
-   },
-   {
     "id": "n12",
     "kind": "store",
-    "label": "D4 Purchase Requests and Orders",
+    "label": "D3 Purchase Requests and Orders",
     "x": 900.0,
     "y": 230.0,
     "w": 330.0,
@@ -760,7 +697,7 @@
    {
     "id": "n13",
     "kind": "store",
-    "label": "D5 Receiving Records",
+    "label": "D4 Receiving Records",
     "x": 900.0,
     "y": 310.0,
     "w": 330.0,
@@ -769,7 +706,7 @@
    {
     "id": "n14",
     "kind": "store",
-    "label": "D10 Audit and Activity Log",
+    "label": "D9 Audit and Activity Log",
     "x": 900.0,
     "y": 390.0,
     "w": 330.0,
@@ -793,25 +730,7 @@
     "id": "f2",
     "label": "request total",
     "src": "n4",
-    "tgt": "n5"
-   },
-   {
-    "id": "f3",
-    "label": "allocation balance",
-    "src": "n11",
-    "tgt": "n5"
-   },
-   {
-    "id": "f4",
-    "label": "budget verdict",
-    "src": "n5",
     "tgt": "n6"
-   },
-   {
-    "id": "f5",
-    "label": "insufficient budget notice",
-    "src": "n5",
-    "tgt": "n0"
    },
    {
     "id": "f6",
@@ -844,27 +763,9 @@
     "tgt": "n2"
    },
    {
-    "id": "f11",
-    "label": "order total",
-    "src": "n7",
-    "tgt": "n8"
-   },
-   {
-    "id": "f12",
-    "label": "commit entry",
-    "src": "n8",
-    "tgt": "n11"
-   },
-   {
-    "id": "f13",
-    "label": "80% utilisation alert",
-    "src": "n8",
-    "tgt": "n3"
-   },
-   {
     "id": "f14",
     "label": "audit entry",
-    "src": "n8",
+    "src": "n7",
     "tgt": "n14"
    },
    {
@@ -878,12 +779,6 @@
     "label": "return notice",
     "src": "n9",
     "tgt": "n2"
-   },
-   {
-    "id": "f17",
-    "label": "release entry",
-    "src": "n9",
-    "tgt": "n11"
    }
   ]
  },
@@ -956,7 +851,7 @@
    {
     "id": "n7",
     "kind": "process",
-    "label": "3.5|Update Order and Spend Budget",
+    "label": "3.5|Update Purchase Order Status",
     "x": 430.0,
     "y": 566.0,
     "w": 260.0,
@@ -972,18 +867,9 @@
     "h": 84.0
    },
    {
-    "id": "n9",
-    "kind": "store",
-    "label": "D3 Budget Ledger",
-    "x": 900.0,
-    "y": 70.0,
-    "w": 330.0,
-    "h": 52.0
-   },
-   {
     "id": "n10",
     "kind": "store",
-    "label": "D4 Purchase Requests and Orders",
+    "label": "D3 Purchase Requests and Orders",
     "x": 900.0,
     "y": 150.0,
     "w": 330.0,
@@ -992,7 +878,7 @@
    {
     "id": "n11",
     "kind": "store",
-    "label": "D5 Receiving Records",
+    "label": "D4 Receiving Records",
     "x": 900.0,
     "y": 230.0,
     "w": 330.0,
@@ -1001,7 +887,7 @@
    {
     "id": "n12",
     "kind": "store",
-    "label": "D6 Inventory and Batches",
+    "label": "D5 Inventory and Batches",
     "x": 900.0,
     "y": 310.0,
     "w": 330.0,
@@ -1010,7 +896,7 @@
    {
     "id": "n13",
     "kind": "store",
-    "label": "D9 Incidents and Warranty",
+    "label": "D8 Incidents and Warranty",
     "x": 900.0,
     "y": 390.0,
     "w": 330.0,
@@ -1019,7 +905,7 @@
    {
     "id": "n14",
     "kind": "store",
-    "label": "D10 Audit and Activity Log",
+    "label": "D9 Audit and Activity Log",
     "x": 900.0,
     "y": 470.0,
     "w": 330.0,
@@ -1104,12 +990,6 @@
     "label": "partially received / completed",
     "src": "n7",
     "tgt": "n10"
-   },
-   {
-    "id": "f13",
-    "label": "spend entry",
-    "src": "n7",
-    "tgt": "n9"
    },
    {
     "id": "f14",
@@ -1218,7 +1098,7 @@
    {
     "id": "n9",
     "kind": "store",
-    "label": "D6 Inventory and Batches",
+    "label": "D5 Inventory and Batches",
     "x": 900.0,
     "y": 150.0,
     "w": 330.0,
@@ -1227,7 +1107,7 @@
    {
     "id": "n10",
     "kind": "store",
-    "label": "D7 Issuances and Sales",
+    "label": "D6 Issuances and Sales",
     "x": 900.0,
     "y": 230.0,
     "w": 330.0,
@@ -1236,7 +1116,7 @@
    {
     "id": "n11",
     "kind": "store",
-    "label": "D9 Incidents and Warranty",
+    "label": "D8 Incidents and Warranty",
     "x": 900.0,
     "y": 310.0,
     "w": 330.0,
@@ -1245,7 +1125,7 @@
    {
     "id": "n12",
     "kind": "store",
-    "label": "D10 Audit and Activity Log",
+    "label": "D9 Audit and Activity Log",
     "x": 900.0,
     "y": 390.0,
     "w": 330.0,
@@ -1465,7 +1345,7 @@
    {
     "id": "n10",
     "kind": "store",
-    "label": "D6 Inventory and Batches",
+    "label": "D5 Inventory and Batches",
     "x": 900.0,
     "y": 70.0,
     "w": 330.0,
@@ -1474,7 +1354,7 @@
    {
     "id": "n11",
     "kind": "store",
-    "label": "D7 Issuances and Sales",
+    "label": "D6 Issuances and Sales",
     "x": 900.0,
     "y": 150.0,
     "w": 330.0,
@@ -1483,7 +1363,7 @@
    {
     "id": "n12",
     "kind": "store",
-    "label": "D9 Incidents and Warranty",
+    "label": "D8 Incidents and Warranty",
     "x": 900.0,
     "y": 230.0,
     "w": 330.0,
@@ -1492,7 +1372,7 @@
    {
     "id": "n13",
     "kind": "store",
-    "label": "D10 Audit and Activity Log",
+    "label": "D9 Audit and Activity Log",
     "x": 900.0,
     "y": 310.0,
     "w": 330.0,

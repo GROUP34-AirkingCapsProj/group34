@@ -1,12 +1,12 @@
 <?php
 
-namespace Tests\Feature\Budget;
+namespace Tests\Feature\Procurement;
 
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestDetail;
 use Illuminate\Support\Facades\DB;
 
-class PrMergeTest extends BudgetTestCase
+class PrMergeTest extends ProcurementTestCase
 {
     private int $supplierId;
 
@@ -51,7 +51,6 @@ class PrMergeTest extends BudgetTestCase
     {
         $ia = $this->makeUser('inventory_analyst');
         $wh = $this->locationId; // warehouse
-        $this->makeBudget(100000, ['location_id' => $wh]);
         $pA = $this->product(); $pB = $this->product();
 
         $first = $this->actingAs($ia, 'sanctum')->postJson('/api/purchase-requests', $this->payload($pA, $wh, 2, 100))
@@ -74,7 +73,6 @@ class PrMergeTest extends BudgetTestCase
     {
         $ia = $this->makeUser('inventory_analyst');
         $wh = $this->locationId;
-        $this->makeBudget(100000, ['location_id' => $wh]);
         $p = $this->product();
 
         $first = $this->actingAs($ia, 'sanctum')->postJson('/api/purchase-requests', $this->payload($p, $wh, 2, 100))
@@ -95,7 +93,6 @@ class PrMergeTest extends BudgetTestCase
     {
         $ia = $this->makeUser('inventory_analyst');
         $wh = $this->locationId;
-        $this->makeBudget(100000, ['location_id' => $wh]);
         $p = $this->product();
         $this->actingAs($ia, 'sanctum')->postJson('/api/purchase-requests', $this->payload($p, $wh, 2, 100))->assertStatus(201);
 
@@ -111,7 +108,6 @@ class PrMergeTest extends BudgetTestCase
         $ia1 = $this->makeUser('inventory_analyst');
         $ia2 = $this->makeUser('inventory_analyst');
         $wh = $this->locationId;
-        $this->makeBudget(100000, ['location_id' => $wh]);
         $p = $this->product();
         $this->actingAs($ia1, 'sanctum')->postJson('/api/purchase-requests', $this->payload($p, $wh, 2, 100))->assertStatus(201);
         $this->actingAs($ia2, 'sanctum')->postJson('/api/purchase-requests', $this->payload($p, $wh, 2, 100))->assertStatus(201);
@@ -120,29 +116,11 @@ class PrMergeTest extends BudgetTestCase
         $this->assertSame(1, PurchaseRequest::where('requested_by', $ia2->user_id)->count());
     }
 
-    public function test_combined_budget_advisory_blocks_merge_over_budget(): void
-    {
-        $ia = $this->makeUser('inventory_analyst');
-        $wh = $this->locationId;
-        $this->makeBudget(500, ['location_id' => $wh]); // small
-        $p = $this->product();
-
-        // First fits (400).
-        $first = $this->actingAs($ia, 'sanctum')->postJson('/api/purchase-requests', $this->payload($p, $wh, 4, 100))
-            ->assertStatus(201)->json('data.pr_id');
-        // Second alone (200) would fit, but combined (400+200=600) exceeds 500 → blocked.
-        $res = $this->actingAs($ia, 'sanctum')->postJson('/api/purchase-requests', $this->payload($p, $wh, 2, 100));
-        $res->assertStatus(422);
-
-        // The first PR is unchanged (still qty 4 / 400).
-        $this->assertSame('400.00', (string) PurchaseRequest::find($first)->estimated_total);
-    }
 
     public function test_approved_same_supplier_pr_is_not_a_merge_target(): void
     {
         $ia = $this->makeUser('inventory_analyst');
         $wh = $this->locationId;
-        $this->makeBudget(100000, ['location_id' => $wh]);
         $p = $this->product();
 
         // Create a pending PR, then flip it to Approved (14) so it's no longer a target.

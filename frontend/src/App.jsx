@@ -58,7 +58,6 @@ const ProfitLossManagement = lazy(() => import('./admin/pages/ProfitLossManageme
 const SystemConfiguration = lazy(() => import('./admin/pages/SystemConfiguration'));
 const ArchiveManagement = lazy(() => import('./admin/pages/ArchiveManagement'));
 const ArchiveSettingsPage = lazy(() => import('./admin/pages/ArchiveSettingsPage'));
-const BudgetManagementPage = lazy(() => import('./admin/pages/BudgetManagementPage'));
 const PurchaseRequestPage = lazy(() => import('./admin/pages/PurchaseRequestPage'));
 const PurchaseOrderPage = lazy(() => import('./admin/pages/PurchaseOrderPage'));
 const ComplianceReview = lazy(() => import('./admin/pages/ComplianceReview'));
@@ -136,7 +135,6 @@ function App() {
           <Route path="/admin/held-stock" element={<Navigate to="/admin/incident-items" replace />} />
           <Route path="/admin/inspections" element={<Navigate to="/admin/incidents?tab=inspections" replace />} />
           <Route path="/admin/purchase-orders" element={<Navigate to="/admin/draft-po-creator" replace />} />
-          <Route path="/admin/budget-management" element={<RoleRoute><BudgetManagementPage /></RoleRoute>} />
           <Route path="/admin/purchase-requests" element={<RoleRoute><PurchaseRequestPage /></RoleRoute>} />
           <Route path="/admin/draft-po-creator" element={<RoleRoute><PurchaseOrderPage /></RoleRoute>} />
 

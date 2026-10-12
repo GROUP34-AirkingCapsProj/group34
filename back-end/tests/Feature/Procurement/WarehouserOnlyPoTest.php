@@ -1,10 +1,10 @@
 <?php
 
-namespace Tests\Feature\Budget;
+namespace Tests\Feature\Procurement;
 
 use Illuminate\Support\Facades\DB;
 
-class WarehouserOnlyPoTest extends BudgetTestCase
+class WarehouserOnlyPoTest extends ProcurementTestCase
 {
     public function test_direct_po_create_to_showroom_is_rejected(): void
     {

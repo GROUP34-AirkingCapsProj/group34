@@ -29,7 +29,6 @@ const TABLE_LABELS = {
   users: 'User', inventory: 'Inventory',
   scan_corrections: 'Barcode Correction',
   warranty_records: 'Warranty Record',
-  budget_allocations: 'Budget Allocation',
   customers: 'Customer',
 };
 

@@ -10,7 +10,7 @@ namespace Tests\Feature\Lookups;
  *     freely for any authenticated user. They
  *     are classification vocabularies feeding pickers used app-wide
  *     (ProductRegisterModal, BarcodeScan, OrderBuilder, InventoryManagement,
- *     BudgetManagementPage, SetManagementPage), not sensitive records — so
+ *     SetManagementPage), not sensitive records — so
  *     none of their GET routes carry a permission: gate. In particular,
  *     ProductRegisterModal is rendered from BarcodeScan.jsx, which is gated
  *     on barcode_inventory_processing.create (admin, branch_manager,
@@ -165,7 +165,7 @@ class LookupRouteAccessTest extends LookupTestCase
     // The read/write split — pinned in both directions. All five lookups
     // (units, categories, brands, capacities, variants) feed pickers used throughout the app
     // (ProductRegisterModal, BarcodeScan, OrderBuilder, InventoryManagement,
-    // BudgetManagementPage, SetManagementPage), so their GETs are
+    // SetManagementPage), so their GETs are
     // deliberately left ungated for any authenticated user — including
     // warehouse_personnel and branch_manager, neither of which is granted
     // lookup_management,read. If any of these starts failing with a 403,

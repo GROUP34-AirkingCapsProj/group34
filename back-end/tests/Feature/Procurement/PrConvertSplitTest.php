@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Budget;
+namespace Tests\Feature\Procurement;
 
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
@@ -8,7 +8,7 @@ use App\Models\PurchaseRequestDetail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class PrConvertSplitTest extends BudgetTestCase
+class PrConvertSplitTest extends ProcurementTestCase
 {
     private function warehouse(): int
     {
@@ -24,8 +24,6 @@ class PrConvertSplitTest extends BudgetTestCase
         $admin = $this->makeUser('admin');
         $supplier = (int) DB::table('suppliers')->insertGetId(['supplier_name' => 'S', 'created_at' => now(), 'updated_at' => now()], 'supplier_id');
         $whA = $this->locationId; $whB = $this->warehouse();
-        $this->makeBudget(10000, ['location_id' => $whA]);
-        $this->makeBudget(10000, ['location_id' => $whB]);
         $pid = (int) DB::table('products')->insertGetId([
             'product_code' => 'P-' . uniqid(), 'product_name' => 'P',
             'product_type' => 'installation_material', 'unit_price' => 100, 'cost_price' => 80,
@@ -33,7 +31,7 @@ class PrConvertSplitTest extends BudgetTestCase
         ], 'product_id');
 
         $pr = PurchaseRequest::create([
-            'location_id' => null, 'supplier_id' => $supplier, 'budget_id' => null,
+            'location_id' => null, 'supplier_id' => $supplier,
             'pr_number' => 'PR-' . strtoupper(Str::random(6)),
             'request_date' => today(), 'needed_by_date' => today()->addDays(7),
             'estimated_total' => 500, 'status_id' => 14,
@@ -75,7 +73,7 @@ class PrConvertSplitTest extends BudgetTestCase
             'status_id' => 3, 'created_at' => now(), 'updated_at' => now(),
         ], 'product_id');
         $pr = PurchaseRequest::create([
-            'location_id' => null, 'supplier_id' => $supplier, 'budget_id' => null,
+            'location_id' => null, 'supplier_id' => $supplier,
             'pr_number' => 'PR-' . strtoupper(Str::random(6)),
             'request_date' => today(), 'needed_by_date' => today()->addDays(7),
             'estimated_total' => 200, 'status_id' => 14,
@@ -101,7 +99,7 @@ class PrConvertSplitTest extends BudgetTestCase
             'status_id' => 3, 'created_at' => now(), 'updated_at' => now(),
         ], 'product_id');
         $pr = PurchaseRequest::create([
-            'location_id' => null, 'supplier_id' => $supplier, 'budget_id' => null,
+            'location_id' => null, 'supplier_id' => $supplier,
             'pr_number' => 'PR-' . strtoupper(Str::random(6)),
             'request_date' => today(), 'needed_by_date' => today()->addDays(7),
             'estimated_total' => 200, 'status_id' => 14,
@@ -122,15 +120,13 @@ class PrConvertSplitTest extends BudgetTestCase
         $admin = $this->makeUser('admin');
         $supplier = (int) DB::table('suppliers')->insertGetId(['supplier_name' => 'S', 'created_at' => now(), 'updated_at' => now()], 'supplier_id');
         $whA = $this->locationId; $whB = $this->warehouse();
-        $this->makeBudget(10000, ['location_id' => $whA]);
-        $this->makeBudget(10000, ['location_id' => $whB]);
         $pid = (int) DB::table('products')->insertGetId([
             'product_code' => 'P-' . uniqid(), 'product_name' => 'P',
             'product_type' => 'installation_material', 'unit_price' => 100, 'cost_price' => 80,
             'status_id' => 3, 'created_at' => now(), 'updated_at' => now(),
         ], 'product_id');
         $pr = PurchaseRequest::create([
-            'location_id' => null, 'supplier_id' => $supplier, 'budget_id' => null,
+            'location_id' => null, 'supplier_id' => $supplier,
             'pr_number' => 'PR-' . strtoupper(Str::random(6)),
             'request_date' => today(), 'needed_by_date' => today()->addDays(7),
             'estimated_total' => 500, 'status_id' => 14,
@@ -158,15 +154,13 @@ class PrConvertSplitTest extends BudgetTestCase
         $admin = $this->makeUser('admin');
         $supplier = (int) DB::table('suppliers')->insertGetId(['supplier_name' => 'S', 'created_at' => now(), 'updated_at' => now()], 'supplier_id');
         $whA = $this->locationId; $whB = $this->warehouse();
-        $this->makeBudget(10000, ['location_id' => $whA]);
-        $this->makeBudget(10000, ['location_id' => $whB]);
         $pid = (int) DB::table('products')->insertGetId([
             'product_code' => 'P-' . uniqid(), 'product_name' => 'P',
             'product_type' => 'installation_material', 'unit_price' => 100, 'cost_price' => 80,
             'status_id' => 3, 'created_at' => now(), 'updated_at' => now(),
         ], 'product_id');
         $pr = PurchaseRequest::create([
-            'location_id' => null, 'supplier_id' => $supplier, 'budget_id' => null,
+            'location_id' => null, 'supplier_id' => $supplier,
             'pr_number' => 'PR-' . strtoupper(Str::random(6)),
             'request_date' => today(), 'needed_by_date' => today()->addDays(7),
             'estimated_total' => 500, 'status_id' => 14,

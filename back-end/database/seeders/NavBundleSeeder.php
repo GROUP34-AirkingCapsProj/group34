@@ -27,7 +27,6 @@ class NavBundleSeeder extends Seeder
             ['Archive Management',   '/admin/archive',              'ADMINISTRATION',          'archive',            'archive_viewing',         'read'],
 
             // PROCUREMENT & PLANNING
-            ['Budget Management',    '/admin/budget-management',    'PROCUREMENT & PLANNING',  'budget',             'budget_verification',     'read'],
             ['Purchase Requests',    '/admin/purchase-requests',    'PROCUREMENT & PLANNING',  'approval',           'purchase_request_creation','read'],
             ['Purchase Orders',      '/admin/draft-po-creator',     'PROCUREMENT & PLANNING',  'procurement',        'purchase_order_creation', 'read'],
             ['Supplier Network',     '/admin/suppliers',            'PROCUREMENT & PLANNING',  'supplier',           'supplier_management',     'read'],

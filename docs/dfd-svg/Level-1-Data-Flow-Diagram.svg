@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1266" height="1410" viewBox="0 0 1266 1410" role="img" aria-label="Gane and Sarson data flow diagram: Level 1 Data Flow Diagram">
+<svg xmlns="http://www.w3.org/2000/svg" width="1266" height="1286" viewBox="0 0 1266 1286" role="img" aria-label="Gane and Sarson data flow diagram: Level 1 Data Flow Diagram">
   <style>
     svg { background:#ffffff; }
     .ext  { fill:#eef1f4; stroke:#000; stroke-width:1.7; }
@@ -21,173 +21,163 @@
 <text class="cap" x="40" y="34">EXTERNAL ENTITIES</text>
 <text class="cap" x="448" y="34">PROCESSES</text>
 <text class="cap" x="906" y="34">DATA STORES</text>
-<path class="ln" d="M240,696 L292,696 L292,118 L448,118" marker-end="url(#ar)"/>
-<path class="ln" d="M738,103 L766,103 L766,93 L906,93" marker-end="url(#ar)"/>
-<path class="ln" d="M906,111 L794,111 L794,133 L738,133" marker-end="url(#ar)"/>
-<path class="ln" d="M240,110 L266,110 L266,269 L448,269" marker-end="url(#ar)"/>
-<path class="ln" d="M240,501 L318,501 L318,313 L448,313" marker-end="url(#ar)"/>
-<path class="ln" d="M906,438 L794,438 L794,282 L738,282" marker-end="url(#ar)"/>
-<path class="ln" d="M738,300 L822,300 L822,458 L906,458" marker-end="url(#ar)"/>
-<path class="ln" d="M738,317 L850,317 L850,565 L906,565" marker-end="url(#ar)"/>
-<path class="ln" d="M906,334 L766,334 L766,265 L738,265" marker-end="url(#ar)"/>
-<path class="ln" d="M448,291 L266,291 L266,299 L240,299" marker-end="url(#ar)"/>
-<path class="ln" d="M240,323 L266,323 L266,441 L448,441" marker-end="url(#ar)"/>
-<path class="ln" d="M240,895 L266,895 L266,463 L448,463" marker-end="url(#ar)"/>
-<path class="ln" d="M906,583 L879,583 L879,454 L738,454" marker-end="url(#ar)"/>
-<path class="ln" d="M738,472 L794,472 L794,690 L906,690" marker-end="url(#ar)"/>
-<path class="ln" d="M738,489 L766,489 L766,794 L906,794" marker-end="url(#ar)"/>
-<path class="ln" d="M738,437 L766,437 L766,470 L906,470" marker-end="url(#ar)"/>
-<path class="ln" d="M448,485 L344,485 L344,911 L240,911" marker-end="url(#ar)"/>
-<path class="ln" d="M738,621 L822,621 L822,810 L906,810" marker-end="url(#ar)"/>
-<path class="ln" d="M906,826 L850,826 L850,651 L738,651" marker-end="url(#ar)"/>
-<path class="ln" d="M448,636 L370,636 L370,714 L240,714" marker-end="url(#ar)"/>
-<path class="ln" d="M240,1105 L396,1105 L396,808 L448,808" marker-end="url(#ar)"/>
-<path class="ln" d="M240,927 L370,927 L370,786 L448,786" marker-end="url(#ar)"/>
-<path class="ln" d="M906,842 L794,842 L794,786 L738,786" marker-end="url(#ar)"/>
-<path class="ln" d="M738,808 L879,808 L879,858 L906,858" marker-end="url(#ar)"/>
-<path class="ln" d="M738,830 L766,830 L766,1101 L906,1101" marker-end="url(#ar)"/>
-<path class="ln" d="M448,830 L422,830 L422,1121 L240,1121" marker-end="url(#ar)"/>
-<path class="ln" d="M240,525 L318,525 L318,981 L448,981" marker-end="url(#ar)"/>
-<path class="ln" d="M738,996 L794,996 L794,994 L906,994" marker-end="url(#ar)"/>
-<path class="ln" d="M738,966 L794,966 L794,874 L906,874" marker-end="url(#ar)"/>
-<path class="ln" d="M240,943 L266,943 L266,1144 L448,1144" marker-end="url(#ar)"/>
-<path class="ln" d="M240,732 L292,732 L292,1127 L448,1127" marker-end="url(#ar)"/>
-<path class="ln" d="M738,1168 L766,1168 L766,1226 L906,1226" marker-end="url(#ar)"/>
-<path class="ln" d="M738,1138 L822,1138 L822,890 L906,890" marker-end="url(#ar)"/>
-<path class="ln" d="M240,1137 L318,1137 L318,1162 L448,1162" marker-end="url(#ar)"/>
-<path class="ln" d="M448,1179 L292,1179 L292,1153 L240,1153" marker-end="url(#ar)"/>
-<path class="ln" d="M906,1333 L766,1333 L766,1326 L738,1326" marker-end="url(#ar)"/>
-<path class="ln" d="M906,1119 L794,1119 L794,1304 L738,1304" marker-end="url(#ar)"/>
-<path class="ln" d="M448,1326 L266,1326 L266,1334 L240,1334" marker-end="url(#ar)"/>
-<path class="ln" d="M738,1348 L794,1348 L794,1351 L906,1351" marker-end="url(#ar)"/>
+<path class="ln" d="M240,634 L292,634 L292,118 L448,118" marker-end="url(#ar)"/>
+<path class="ln" d="M738,103 L772,103 L772,93 L906,93" marker-end="url(#ar)"/>
+<path class="ln" d="M906,111 L805,111 L805,133 L738,133" marker-end="url(#ar)"/>
+<path class="ln" d="M240,110 L266,110 L266,251 L448,251" marker-end="url(#ar)"/>
+<path class="ln" d="M240,459 L318,459 L318,295 L448,295" marker-end="url(#ar)"/>
+<path class="ln" d="M738,288 L805,288 L805,441 L906,441" marker-end="url(#ar)"/>
+<path class="ln" d="M906,334 L772,334 L772,258 L738,258" marker-end="url(#ar)"/>
+<path class="ln" d="M448,273 L266,273 L266,279 L240,279" marker-end="url(#ar)"/>
+<path class="ln" d="M240,303 L266,303 L266,406 L448,406" marker-end="url(#ar)"/>
+<path class="ln" d="M240,813 L266,813 L266,428 L448,428" marker-end="url(#ar)"/>
+<path class="ln" d="M906,459 L772,459 L772,406 L738,406" marker-end="url(#ar)"/>
+<path class="ln" d="M738,428 L839,428 L839,566 L906,566" marker-end="url(#ar)"/>
+<path class="ln" d="M738,450 L873,450 L873,670 L906,670" marker-end="url(#ar)"/>
+<path class="ln" d="M448,450 L344,450 L344,829 L240,829" marker-end="url(#ar)"/>
+<path class="ln" d="M738,568 L772,568 L772,686 L906,686" marker-end="url(#ar)"/>
+<path class="ln" d="M906,702 L805,702 L805,598 L738,598" marker-end="url(#ar)"/>
+<path class="ln" d="M448,583 L370,583 L370,652 L240,652" marker-end="url(#ar)"/>
+<path class="ln" d="M240,1001 L396,1001 L396,737 L448,737" marker-end="url(#ar)"/>
+<path class="ln" d="M240,845 L370,845 L370,715 L448,715" marker-end="url(#ar)"/>
+<path class="ln" d="M906,718 L772,718 L772,715 L738,715" marker-end="url(#ar)"/>
+<path class="ln" d="M738,737 L805,737 L805,734 L906,734" marker-end="url(#ar)"/>
+<path class="ln" d="M738,759 L805,759 L805,977 L906,977" marker-end="url(#ar)"/>
+<path class="ln" d="M448,759 L422,759 L422,1017 L240,1017" marker-end="url(#ar)"/>
+<path class="ln" d="M240,483 L318,483 L318,892 L448,892" marker-end="url(#ar)"/>
+<path class="ln" d="M738,907 L873,907 L873,870 L906,870" marker-end="url(#ar)"/>
+<path class="ln" d="M738,877 L772,877 L772,750 L906,750" marker-end="url(#ar)"/>
+<path class="ln" d="M240,861 L266,861 L266,1038 L448,1038" marker-end="url(#ar)"/>
+<path class="ln" d="M240,670 L292,670 L292,1021 L448,1021" marker-end="url(#ar)"/>
+<path class="ln" d="M738,1062 L805,1062 L805,1102 L906,1102" marker-end="url(#ar)"/>
+<path class="ln" d="M738,1032 L839,1032 L839,766 L906,766" marker-end="url(#ar)"/>
+<path class="ln" d="M240,1033 L318,1033 L318,1056 L448,1056" marker-end="url(#ar)"/>
+<path class="ln" d="M448,1073 L292,1073 L292,1049 L240,1049" marker-end="url(#ar)"/>
+<path class="ln" d="M906,1209 L772,1209 L772,1202 L738,1202" marker-end="url(#ar)"/>
+<path class="ln" d="M906,995 L772,995 L772,1180 L738,1180" marker-end="url(#ar)"/>
+<path class="ln" d="M448,1202 L266,1202 L266,1210 L240,1210" marker-end="url(#ar)"/>
+<path class="ln" d="M738,1224 L805,1224 L805,1227 L906,1227" marker-end="url(#ar)"/>
 <rect class="ext" x="40" y="74" width="200" height="72"/>
 <text class="en" x="140" y="114" text-anchor="middle">Branch Staff (requester)</text>
-<rect class="ext" x="40" y="275" width="200" height="72"/>
-<text class="en" x="140" y="315" text-anchor="middle">Supplier</text>
-<rect class="ext" x="40" y="477" width="200" height="72"/>
-<text class="en" x="140" y="517" text-anchor="middle">Branch Manager</text>
-<rect class="ext" x="40" y="678" width="200" height="72"/>
-<text class="en" x="140" y="718" text-anchor="middle">Administrator</text>
-<rect class="ext" x="40" y="879" width="200" height="80"/>
-<text class="en" x="140" y="923" text-anchor="middle">Warehouse Personnel</text>
-<rect class="ext" x="40" y="1089" width="200" height="80"/>
-<text class="en" x="140" y="1133" text-anchor="middle">Customer</text>
-<rect class="ext" x="40" y="1298" width="200" height="72"/>
-<text class="en" x="140" y="1338" text-anchor="middle">Auditor</text>
+<rect class="ext" x="40" y="255" width="200" height="72"/>
+<text class="en" x="140" y="295" text-anchor="middle">Supplier</text>
+<rect class="ext" x="40" y="435" width="200" height="72"/>
+<text class="en" x="140" y="475" text-anchor="middle">Branch Manager</text>
+<rect class="ext" x="40" y="616" width="200" height="72"/>
+<text class="en" x="140" y="656" text-anchor="middle">Administrator</text>
+<rect class="ext" x="40" y="797" width="200" height="80"/>
+<text class="en" x="140" y="841" text-anchor="middle">Warehouse Personnel</text>
+<rect class="ext" x="40" y="985" width="200" height="80"/>
+<text class="en" x="140" y="1029" text-anchor="middle">Customer</text>
+<rect class="ext" x="40" y="1174" width="200" height="72"/>
+<text class="en" x="140" y="1214" text-anchor="middle">Auditor</text>
 <rect class="proc" x="448" y="74" width="290" height="88" rx="9"/>
 <line class="ln" x1="448" y1="99" x2="738" y2="99"/>
 <text class="pnum" x="593" y="92" text-anchor="middle">1.0</text>
 <text class="pn" x="593" y="134" text-anchor="middle">Manage Users and Access</text>
-<rect class="proc" x="448" y="247" width="290" height="88" rx="9"/>
-<line class="ln" x1="448" y1="272" x2="738" y2="272"/>
-<text class="pnum" x="593" y="265" text-anchor="middle">2.0</text>
-<text class="pn" x="593" y="308" text-anchor="middle">Process Procurement</text>
-<rect class="proc" x="448" y="419" width="290" height="88" rx="9"/>
-<line class="ln" x1="448" y1="444" x2="738" y2="444"/>
-<text class="pnum" x="593" y="437" text-anchor="middle">3.0</text>
-<text class="pn" x="593" y="480" text-anchor="middle">Receive Deliveries</text>
-<rect class="proc" x="448" y="592" width="290" height="88" rx="9"/>
-<line class="ln" x1="448" y1="617" x2="738" y2="617"/>
-<text class="pnum" x="593" y="610" text-anchor="middle">4.0</text>
-<text class="pn" x="593" y="652" text-anchor="middle">Maintain Inventory</text>
-<rect class="proc" x="448" y="764" width="290" height="88" rx="9"/>
-<line class="ln" x1="448" y1="789" x2="738" y2="789"/>
-<text class="pnum" x="593" y="782" text-anchor="middle">5.0</text>
-<text class="pn" x="593" y="824" text-anchor="middle">Issue Stock and Sales</text>
-<rect class="proc" x="448" y="937" width="290" height="88" rx="9"/>
-<line class="ln" x1="448" y1="962" x2="738" y2="962"/>
-<text class="pnum" x="593" y="955" text-anchor="middle">6.0</text>
-<text class="pn" x="593" y="990" text-anchor="middle">Transfer Stock Between</text>
-<text class="pn" x="593" y="1004" text-anchor="middle">Branches</text>
-<rect class="proc" x="448" y="1109" width="290" height="88" rx="9"/>
-<line class="ln" x1="448" y1="1134" x2="738" y2="1134"/>
-<text class="pnum" x="593" y="1127" text-anchor="middle">7.0</text>
-<text class="pn" x="593" y="1170" text-anchor="middle">Handle Incidents and Warranty</text>
-<rect class="proc" x="448" y="1282" width="290" height="88" rx="9"/>
-<line class="ln" x1="448" y1="1307" x2="738" y2="1307"/>
-<text class="pnum" x="593" y="1300" text-anchor="middle">8.0</text>
-<text class="pn" x="593" y="1342" text-anchor="middle">Generate Reports and Audit</text>
+<rect class="proc" x="448" y="229" width="290" height="88" rx="9"/>
+<line class="ln" x1="448" y1="254" x2="738" y2="254"/>
+<text class="pnum" x="593" y="247" text-anchor="middle">2.0</text>
+<text class="pn" x="593" y="290" text-anchor="middle">Process Procurement</text>
+<rect class="proc" x="448" y="384" width="290" height="88" rx="9"/>
+<line class="ln" x1="448" y1="409" x2="738" y2="409"/>
+<text class="pnum" x="593" y="402" text-anchor="middle">3.0</text>
+<text class="pn" x="593" y="444" text-anchor="middle">Receive Deliveries</text>
+<rect class="proc" x="448" y="539" width="290" height="88" rx="9"/>
+<line class="ln" x1="448" y1="564" x2="738" y2="564"/>
+<text class="pnum" x="593" y="557" text-anchor="middle">4.0</text>
+<text class="pn" x="593" y="600" text-anchor="middle">Maintain Inventory</text>
+<rect class="proc" x="448" y="693" width="290" height="88" rx="9"/>
+<line class="ln" x1="448" y1="718" x2="738" y2="718"/>
+<text class="pnum" x="593" y="711" text-anchor="middle">5.0</text>
+<text class="pn" x="593" y="754" text-anchor="middle">Issue Stock and Sales</text>
+<rect class="proc" x="448" y="848" width="290" height="88" rx="9"/>
+<line class="ln" x1="448" y1="873" x2="738" y2="873"/>
+<text class="pnum" x="593" y="866" text-anchor="middle">6.0</text>
+<text class="pn" x="593" y="902" text-anchor="middle">Transfer Stock Between</text>
+<text class="pn" x="593" y="916" text-anchor="middle">Branches</text>
+<rect class="proc" x="448" y="1003" width="290" height="88" rx="9"/>
+<line class="ln" x1="448" y1="1028" x2="738" y2="1028"/>
+<text class="pnum" x="593" y="1021" text-anchor="middle">7.0</text>
+<text class="pn" x="593" y="1064" text-anchor="middle">Handle Incidents and Warranty</text>
+<rect class="proc" x="448" y="1158" width="290" height="88" rx="9"/>
+<line class="ln" x1="448" y1="1183" x2="738" y2="1183"/>
+<text class="pnum" x="593" y="1176" text-anchor="middle">8.0</text>
+<text class="pn" x="593" y="1218" text-anchor="middle">Generate Reports and Audit</text>
 <path class="store" d="M906,74 H1226 M906,130 H1226 M906,74 V130"/>
 <line class="ln" x1="942" y1="74" x2="942" y2="130"/>
 <text class="snum" x="924" y="106" text-anchor="middle">D1</text>
 <text class="sn" x="952" y="106">Users and Permissions</text>
 <path class="store" d="M906,190 H1226 M906,246 H1226 M906,190 V246"/>
 <line class="ln" x1="942" y1="190" x2="942" y2="246"/>
-<text class="snum" x="924" y="222" text-anchor="middle">D11</text>
+<text class="snum" x="924" y="222" text-anchor="middle">D10</text>
 <text class="sn" x="952" y="222">Reference Data</text>
 <path class="store" d="M906,306 H1226 M906,362 H1226 M906,306 V362"/>
 <line class="ln" x1="942" y1="306" x2="942" y2="362"/>
 <text class="snum" x="924" y="338" text-anchor="middle">D2</text>
 <text class="sn" x="952" y="338">Product Catalogue</text>
-<path class="store" d="M906,422 H1226 M906,486 H1226 M906,422 V486"/>
-<line class="ln" x1="942" y1="422" x2="942" y2="486"/>
-<text class="snum" x="924" y="458" text-anchor="middle">D3</text>
-<text class="sn" x="952" y="458">Budget Ledger</text>
-<path class="store" d="M906,546 H1226 M906,602 H1226 M906,546 V602"/>
-<line class="ln" x1="942" y1="546" x2="942" y2="602"/>
-<text class="snum" x="924" y="578" text-anchor="middle">D4</text>
-<text class="sn" x="952" y="578">Purchase Requests and Orders</text>
-<path class="store" d="M906,662 H1226 M906,718 H1226 M906,662 V718"/>
-<line class="ln" x1="942" y1="662" x2="942" y2="718"/>
-<text class="snum" x="924" y="694" text-anchor="middle">D5</text>
-<text class="sn" x="952" y="694">Receiving Records</text>
-<path class="store" d="M906,778 H1226 M906,906 H1226 M906,778 V906"/>
-<line class="ln" x1="942" y1="778" x2="942" y2="906"/>
-<text class="snum" x="924" y="846" text-anchor="middle">D6</text>
-<text class="sn" x="952" y="846">Inventory and Batches</text>
-<path class="store" d="M906,966 H1226 M906,1022 H1226 M906,966 V1022"/>
-<line class="ln" x1="942" y1="966" x2="942" y2="1022"/>
-<text class="snum" x="924" y="998" text-anchor="middle">D8</text>
-<text class="sn" x="952" y="998">Transfers</text>
-<path class="store" d="M906,1082 H1226 M906,1138 H1226 M906,1082 V1138"/>
-<line class="ln" x1="942" y1="1082" x2="942" y2="1138"/>
-<text class="snum" x="924" y="1114" text-anchor="middle">D7</text>
-<text class="sn" x="952" y="1114">Issuances and Sales</text>
-<path class="store" d="M906,1198 H1226 M906,1254 H1226 M906,1198 V1254"/>
-<line class="ln" x1="942" y1="1198" x2="942" y2="1254"/>
-<text class="snum" x="924" y="1230" text-anchor="middle">D9</text>
-<text class="sn" x="952" y="1230">Incidents and Warranty</text>
-<path class="store" d="M906,1314 H1226 M906,1370 H1226 M906,1314 V1370"/>
-<line class="ln" x1="942" y1="1314" x2="942" y2="1370"/>
-<text class="snum" x="924" y="1346" text-anchor="middle">D10</text>
-<text class="sn" x="952" y="1346">Audit and Activity Log</text>
+<path class="store" d="M906,422 H1226 M906,478 H1226 M906,422 V478"/>
+<line class="ln" x1="942" y1="422" x2="942" y2="478"/>
+<text class="snum" x="924" y="454" text-anchor="middle">D3</text>
+<text class="sn" x="952" y="454">Purchase Requests and Orders</text>
+<path class="store" d="M906,538 H1226 M906,594 H1226 M906,538 V594"/>
+<line class="ln" x1="942" y1="538" x2="942" y2="594"/>
+<text class="snum" x="924" y="570" text-anchor="middle">D4</text>
+<text class="sn" x="952" y="570">Receiving Records</text>
+<path class="store" d="M906,654 H1226 M906,782 H1226 M906,654 V782"/>
+<line class="ln" x1="942" y1="654" x2="942" y2="782"/>
+<text class="snum" x="924" y="722" text-anchor="middle">D5</text>
+<text class="sn" x="952" y="722">Inventory and Batches</text>
+<path class="store" d="M906,842 H1226 M906,898 H1226 M906,842 V898"/>
+<line class="ln" x1="942" y1="842" x2="942" y2="898"/>
+<text class="snum" x="924" y="874" text-anchor="middle">D7</text>
+<text class="sn" x="952" y="874">Transfers</text>
+<path class="store" d="M906,958 H1226 M906,1014 H1226 M906,958 V1014"/>
+<line class="ln" x1="942" y1="958" x2="942" y2="1014"/>
+<text class="snum" x="924" y="990" text-anchor="middle">D6</text>
+<text class="sn" x="952" y="990">Issuances and Sales</text>
+<path class="store" d="M906,1074 H1226 M906,1130 H1226 M906,1074 V1130"/>
+<line class="ln" x1="942" y1="1074" x2="942" y2="1130"/>
+<text class="snum" x="924" y="1106" text-anchor="middle">D8</text>
+<text class="sn" x="952" y="1106">Incidents and Warranty</text>
+<path class="store" d="M906,1190 H1226 M906,1246 H1226 M906,1190 V1246"/>
+<line class="ln" x1="942" y1="1190" x2="942" y2="1246"/>
+<text class="snum" x="924" y="1222" text-anchor="middle">D9</text>
+<text class="sn" x="952" y="1222">Audit and Activity Log</text>
 <text class="fl" x="298" y="112" text-anchor="start">user and role setup</text>
-<text class="fl" x="772" y="87" text-anchor="start">credentials, permissions</text>
+<text class="fl" x="778" y="87" text-anchor="start">credentials, permissions</text>
 <text class="fl" x="900" y="105" text-anchor="end">role and overrides</text>
-<text class="fl" x="272" y="263" text-anchor="start">purchase request</text>
-<text class="fl" x="324" y="307" text-anchor="start">approval decision</text>
-<text class="fl" x="900" y="432" text-anchor="end">available balance</text>
-<text class="fl" x="828" y="471" text-anchor="start">commit / release</text>
-<text class="fl" x="744" y="311" text-anchor="start">request and order</text>
+<text class="fl" x="272" y="245" text-anchor="start">purchase request</text>
+<text class="fl" x="324" y="289" text-anchor="start">approval decision</text>
+<text class="fl" x="811" y="435" text-anchor="start">request and order</text>
 <text class="fl" x="900" y="328" text-anchor="end">product and supplier</text>
-<text class="fl" x="442" y="285" text-anchor="end">purchase order</text>
-<text class="fl" x="272" y="435" text-anchor="start">delivery note, goods</text>
-<text class="fl" x="272" y="457" text-anchor="start">scanned items, counts</text>
-<text class="fl" x="873" y="448" text-anchor="end">expected quantities</text>
-<text class="fl" x="800" y="729" text-anchor="start">draft, then posted receipt</text>
-<text class="fl" x="772" y="788" text-anchor="start">new batch, serials</text>
-<text class="fl" x="772" y="464" text-anchor="start">spend</text>
-<text class="fl" x="442" y="479" text-anchor="end">goods received note, labels</text>
-<text class="fl" x="744" y="615" text-anchor="start">adjusted quantity</text>
-<text class="fl" x="844" y="645" text-anchor="end">stock levels</text>
-<text class="fl" x="364" y="708" text-anchor="end">low-stock alert</text>
-<text class="fl" x="246" y="1099" text-anchor="start">order details</text>
-<text class="fl" x="246" y="921" text-anchor="start">pick scan</text>
-<text class="fl" x="900" y="836" text-anchor="end">FIFO batch suggestion</text>
-<text class="fl" x="744" y="802" text-anchor="start">deduction, reservation</text>
-<text class="fl" x="772" y="1095" text-anchor="start">issuance, sale</text>
-<text class="fl" x="416" y="1115" text-anchor="end">quotation, delivery receipt</text>
-<text class="fl" x="324" y="975" text-anchor="start">transfer approval</text>
-<text class="fl" x="800" y="988" text-anchor="start">transfer record</text>
-<text class="fl" x="800" y="868" text-anchor="start">dispatch and receipt</text>
-<text class="fl" x="272" y="1157" text-anchor="start">incident report</text>
-<text class="fl" x="298" y="1140" text-anchor="start">inspection decision</text>
-<text class="fl" x="772" y="1220" text-anchor="start">incident, claim</text>
-<text class="fl" x="828" y="929" text-anchor="start">quarantine, write-off</text>
-<text class="fl" x="324" y="1175" text-anchor="start">warranty claim</text>
-<text class="fl" x="442" y="1192" text-anchor="end">claim outcome</text>
-<text class="fl" x="900" y="1327" text-anchor="end">activity history</text>
-<text class="fl" x="900" y="1113" text-anchor="end">sales figures</text>
-<text class="fl" x="442" y="1320" text-anchor="end">reports, audit trail</text>
-<text class="fl" x="800" y="1345" text-anchor="start">report run record</text>
+<text class="fl" x="442" y="267" text-anchor="end">purchase order</text>
+<text class="fl" x="272" y="400" text-anchor="start">delivery note, goods</text>
+<text class="fl" x="272" y="422" text-anchor="start">scanned items, counts</text>
+<text class="fl" x="900" y="453" text-anchor="end">expected quantities</text>
+<text class="fl" x="744" y="422" text-anchor="start">draft, then posted receipt</text>
+<text class="fl" x="744" y="476" text-anchor="start">new batch, serials</text>
+<text class="fl" x="442" y="444" text-anchor="end">goods received note, labels</text>
+<text class="fl" x="778" y="680" text-anchor="start">adjusted quantity</text>
+<text class="fl" x="900" y="696" text-anchor="end">stock levels</text>
+<text class="fl" x="364" y="646" text-anchor="end">low-stock alert</text>
+<text class="fl" x="246" y="995" text-anchor="start">order details</text>
+<text class="fl" x="246" y="839" text-anchor="start">pick scan</text>
+<text class="fl" x="900" y="712" text-anchor="end">FIFO batch suggestion</text>
+<text class="fl" x="744" y="731" text-anchor="start">deduction, reservation</text>
+<text class="fl" x="811" y="971" text-anchor="start">issuance, sale</text>
+<text class="fl" x="416" y="1011" text-anchor="end">quotation, delivery receipt</text>
+<text class="fl" x="324" y="886" text-anchor="start">transfer approval</text>
+<text class="fl" x="744" y="901" text-anchor="start">transfer record</text>
+<text class="fl" x="778" y="744" text-anchor="start">dispatch and receipt</text>
+<text class="fl" x="272" y="1051" text-anchor="start">incident report</text>
+<text class="fl" x="298" y="1034" text-anchor="start">inspection decision</text>
+<text class="fl" x="811" y="1096" text-anchor="start">incident, claim</text>
+<text class="fl" x="744" y="1026" text-anchor="start">quarantine, write-off</text>
+<text class="fl" x="324" y="1069" text-anchor="start">warranty claim</text>
+<text class="fl" x="442" y="1086" text-anchor="end">claim outcome</text>
+<text class="fl" x="900" y="1203" text-anchor="end">activity history</text>
+<text class="fl" x="900" y="989" text-anchor="end">sales figures</text>
+<text class="fl" x="442" y="1196" text-anchor="end">reports, audit trail</text>
+<text class="fl" x="811" y="1221" text-anchor="start">report run record</text>
 </svg>

@@ -147,6 +147,13 @@ php artisan event:cache
 > a copy of `airkingv5.sql` (336 products, 12 users) — 17 pending migrations
 > applied cleanly, data intact, second run reported "Nothing to migrate."
 
+> **Destructive migrations must not run ahead of the code.** `migrate --force` is
+> only safe to run early when every pending migration is additive. A migration
+> that drops a table or column breaks the *currently running* release the moment
+> it lands, because that release still queries what was dropped. For those,
+> deploy the image first and migrate after — or use a Render Pre-Deploy Command,
+> which runs against the new image. See *Removing budget management* below.
+
 #### 3c. Verify before handing over
 
 ```
@@ -158,6 +165,40 @@ php artisan schedule:list      # must list 4 jobs (see Scheduled tasks below)
 > a machine you still code on — it removes PHPUnit, Mockery, Pail and Pint, so
 > the test suite stops working. Undo with a plain `composer install`.
 > While developing, run `php artisan config:clear` instead of `config:cache`.
+
+### Removing budget management (release of 2026-10-12)
+
+`2026_10_12_000001_drop_budget_management` drops `budget_allocations`,
+`budget_transactions`, `purchase_requests.budget_id`, the `budget_verification`
+permissions, and the Budget Management nav bundle.
+
+**It must not run before the new image is live.** The previous release still
+calls `BudgetService` and `BudgetAllocation`, so against the dropped tables it
+returns 500 from purchase request creation, PR approval, PO approval, and
+receiving — the PR form in particular blocks on "Still loading budget
+information" and the send button never enables.
+
+Order:
+
+1. Deploy the image containing this release.
+2. Then `php artisan migrate --force` (Pre-Deploy Command, or a one-off shell).
+3. `php artisan config:cache && php artisan route:cache` so the removed routes
+   leave the cached route table.
+
+The live Aiven data is exported to `backups/aiven-budget-data-20261012.sql`
+(replayable INSERTs, plus the permission and nav-bundle rows as comments).
+To reverse: `php artisan migrate:rollback --step=1`, then replay that file.
+`down()` restores structure only — it cannot bring the rows back by itself.
+
+> Verified against the live Aiven schema before release: the foreign key is named
+> `purchase_requests_budget_id_foreign`, matching the convention
+> `dropForeign(['budget_id'])` relies on, and no view or other foreign key
+> references either budget table.
+>
+> Note that `migrate --pretend` under-reports this migration. Laravel returns
+> `[]` for every `SELECT` in pretend mode, so the `Schema::hasColumn` guard reads
+> false and neither the column drop nor the permission cleanup appears in the
+> dry run. The two `DROP TABLE`s are all it shows.
 
 ### 4. Serve everything through Apache on port 80
 

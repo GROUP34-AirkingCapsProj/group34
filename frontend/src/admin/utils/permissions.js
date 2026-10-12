@@ -23,7 +23,7 @@ export const keyOf = (feature, action) => `${feature}.${action}`;
 export const FEATURE_GROUPS = [
   { label: 'I. Users & Security',               features: ['user_account_management', 'role_assignment', 'permission_audit', 'system_configuration'] },
   { label: 'II. Item & Classification',          features: ['item_master_management', 'category_management', 'brand_management', 'barcode_assignment'] },
-  { label: 'III. Suppliers & Procurement',       features: ['supplier_management', 'item_supplier_mapping', 'purchase_order_creation', 'purchase_order_verification', 'purchase_request_creation', 'purchase_request_approval', 'budget_verification', 'po_recommendations'] },
+  { label: 'III. Suppliers & Procurement',       features: ['supplier_management', 'item_supplier_mapping', 'purchase_order_creation', 'purchase_order_verification', 'purchase_request_creation', 'purchase_request_approval', 'po_recommendations'] },
   { label: 'IV. Inventory Operations',           features: ['barcode_inventory_processing', 'delivery_receiving', 'inventory_issuance', 'inventory_transfers', 'stock_transfers', 'inventory_adjustments', 'inventory_monitoring'] },
   { label: 'V. Sales & Delivery',                features: ['sales_recording', 'delivery_receipt_generation', 'customer_management'] },
   { label: 'VI. Location',                       features: ['location_based_inventory'] },

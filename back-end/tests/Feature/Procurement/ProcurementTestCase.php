@@ -1,8 +1,7 @@
 <?php
 
-namespace Tests\Feature\Budget;
+namespace Tests\Feature\Procurement;
 
-use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\Role;
@@ -16,7 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
-abstract class BudgetTestCase extends TestCase
+abstract class ProcurementTestCase extends TestCase
 {
     use DatabaseTransactions;
 
@@ -40,7 +39,7 @@ abstract class BudgetTestCase extends TestCase
 
         $this->locationId = (int) DB::table('locations')->insertGetId([
             'location_code' => 'TST-WH-' . uniqid(),
-            'location_name' => 'Budget Test Warehouse',
+            'location_name' => 'Procurement Test Warehouse',
             'location_type' => 'warehouse',
             'is_active'     => 1,
             'created_at'    => now(),
@@ -65,24 +64,10 @@ abstract class BudgetTestCase extends TestCase
         ]);
     }
 
-    protected function makeBudget(float $total, array $overrides = []): BudgetAllocation
-    {
-        return BudgetAllocation::create(array_merge([
-            'location_id'  => $this->locationId,
-            'period_label' => 'TEST-' . uniqid(),
-            'period_start' => today()->subDays(10)->toDateString(),
-            'period_end'   => today()->addDays(10)->toDateString(),
-            'total_budget' => $total,
-            'committed'    => 0,
-            'spent'        => 0,
-        ], $overrides));
-    }
-
-    protected function makePr(BudgetAllocation $budget, float $estimatedTotal, int $statusId = 13, array $overrides = []): PurchaseRequest
+    protected function makePr(float $estimatedTotal, int $statusId = 13, array $overrides = []): PurchaseRequest
     {
         return PurchaseRequest::create(array_merge([
-            'location_id'     => $budget->location_id,
-            'budget_id'       => $budget->budget_id,
+            'location_id'     => $this->locationId,
             'pr_number'       => 'PR-TEST-' . strtoupper(Str::random(6)),
             'request_date'    => today(),
             'needed_by_date'  => today()->addDays(7),
@@ -95,7 +80,7 @@ abstract class BudgetTestCase extends TestCase
     protected function makePo(PurchaseRequest $pr, float $totalAmount, int $statusId = 7): PurchaseOrder
     {
         $supplierId = (int) DB::table('suppliers')->insertGetId([
-            'supplier_name' => 'Budget Test Supplier ' . uniqid(),
+            'supplier_name' => 'Procurement Test Supplier ' . uniqid(),
             'created_at'    => now(),
             'updated_at'    => now(),
         ], 'supplier_id');

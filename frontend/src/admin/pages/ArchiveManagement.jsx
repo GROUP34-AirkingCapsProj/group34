@@ -26,7 +26,6 @@ const MODULES = [
   { key: 'transfers',          label: 'Transfers' },
   { key: 'adjustments',        label: 'Adjustments' },
   { key: 'issuances',          label: 'Issuances' },
-  { key: 'budget_allocations', label: 'Budget Allocations' },
 ];
 
 const PER_PAGE = 15;

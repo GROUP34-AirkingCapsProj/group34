@@ -13,6 +13,7 @@ appear below; if it appears below, the paper may cite it.
 |---|---|
 | Commit | `56ea27b` (branch `balorov21`) |
 | Captured | 5 October 2026 |
+| Amended | 12 October 2026 — budget management removed (section 30 and its 10 routes) |
 | Backend | Laravel 12 · PHP 8.2+ |
 | Client | React 19 SPA |
 | Database | MySQL / MariaDB |
@@ -31,17 +32,17 @@ catch any method with no route. See [Regenerating this file](#regenerating-this-
 
 | Measure | Count |
 |---|---|
-| API controller files | 73 |
+| API controller files | 72 |
 | Controllers unreachable by any route | **0** |
-| Routed controller classes | 74 (73 ours + Sanctum's CSRF controller) |
-| Distinct routed methods | 442 |
-| Application routes | 449 |
-| Module sections | 51 |
-| Eloquent models | 85 |
-| Migrations | 131 |
+| Routed controller classes | 73 (72 ours + Sanctum's CSRF controller) |
+| Distinct routed methods | 432 |
+| Application routes | 439 |
+| Module sections | 50 |
+| Eloquent models | 83 |
+| Migrations | 132 |
 | Seeded roles | 5 |
 
-Route totals reconcile: `route:list` reports **457** entries — 449 application
+Route totals reconcile: `route:list` reports **447** entries — 439 application
 routes listed here, 5 closures (the API health check, a user audit-trail lookup,
 and three framework storage routes), and 3 framework-owned routes (Laravel's
 view and broadcast-auth controllers).
@@ -50,13 +51,13 @@ By HTTP verb:
 
 | Verb | Routes | Notes |
 |---|---|---|
-| GET | 211 | Reads dominate — dashboards, audit explorers, report catalogs |
-| POST | 125 | Every scan, approval, and restore action, not just creation |
-| DELETE | 58 | Mostly soft archive; `/force` variants are the hard delete |
-| PUT | 45 | Full-record updates on master data |
+| GET | 206 | Reads dominate — dashboards, audit explorers, report catalogs |
+| POST | 123 | Every scan, approval, and restore action, not just creation |
+| DELETE | 56 | Mostly soft archive; `/force` variants are the hard delete |
+| PUT | 44 | Full-record updates on master data |
 | PATCH | 11 | Workflow state changes — verify, reject, cancel |
 
-(Sums to 450 because `UserController::update` answers both PUT and PATCH.)
+(Sums to 440 because `UserController::update` answers both PUT and PATCH.)
 
 ---
 
@@ -64,9 +65,9 @@ By HTTP verb:
 
 Airking Inventory is an inventory, procurement, and issuance system for an
 air-conditioning retailer and installer. Its spine is a single chain of custody
-over physical stock: a **purchase request** is raised and approved against a
-**budget allocation**, becomes a **purchase order**, arrives as a barcode-scanned
-**receiving** batch, is drawn down by FIFO batch picking through **issuance**,
+over physical stock: a **purchase request** is raised and approved, becomes a
+**purchase order**, arrives as a barcode-scanned **receiving** batch, is drawn
+down by FIFO batch picking through **issuance**,
 **sales**, or inter-location **transfer**, and leaves a serial-level trail that
 the audit and warranty modules read back.
 
@@ -766,25 +767,7 @@ _1 controller · 14 routes_
 - `verify` — PATCH /api/purchase-orders/{id}/verify
 
 
-### 30. BUDGET ALLOCATIONS
-
-_1 controller · 10 routes_
-
-**BudgetAllocationController**
-
-- `archived` — GET /api/budget-allocations/archived
-- `available` — GET /api/budget-allocations/{id}/available
-- `destroy` — DELETE /api/budget-allocations/{id}
-- `forceDestroy` — DELETE /api/budget-allocations/{id}/force
-- `index` — GET /api/budget-allocations
-- `restore` — POST /api/budget-allocations/{id}/restore
-- `show` — GET /api/budget-allocations/{id}
-- `store` — POST /api/budget-allocations
-- `transactions` — GET /api/budget-allocations/{id}/transactions
-- `update` — PUT /api/budget-allocations/{id}
-
-
-### 31. PURCHASE REQUESTS (PR → PO workflow)
+### 30. PURCHASE REQUESTS (PR → PO workflow)
 
 _1 controller · 15 routes_
 
@@ -807,7 +790,7 @@ _1 controller · 15 routes_
 - `store` — POST /api/purchase-requests
 
 
-### 32. PR Recommendation analytics (restock engine)
+### 31. PR Recommendation analytics (restock engine)
 
 _1 controller · 5 routes_
 
@@ -820,7 +803,7 @@ _1 controller · 5 routes_
 - `suggestions` — GET /api/restock/suggestions
 
 
-### 33. Analytics Dashboard (admin / inventory analyst / auditor)
+### 32. Analytics Dashboard (admin / inventory analyst / auditor)
 
 _1 controller · 6 routes_
 
@@ -834,7 +817,7 @@ _1 controller · 6 routes_
 - `stockLevel` — GET /api/analytics/stock-level
 
 
-### 34. ERD: RECEIVING (RECEIVING)
+### 33. ERD: RECEIVING (RECEIVING)
 
 _1 controller · 7 routes_
 
@@ -849,7 +832,7 @@ _1 controller · 7 routes_
 - `update` — PUT /api/receivings/{id}
 
 
-### 35. ERD: PURCHASE_RETURN (purchase_return)
+### 34. ERD: PURCHASE_RETURN (purchase_return)
 
 _1 controller · 5 routes_
 
@@ -862,7 +845,7 @@ _1 controller · 5 routes_
 - `update` — PUT /api/purchase-returns/{id}
 
 
-### 36. ERD: SALES (sales)
+### 35. ERD: SALES (sales)
 
 _1 controller · 5 routes_
 
@@ -875,7 +858,7 @@ _1 controller · 5 routes_
 - `update` — PUT /api/sales/{id}
 
 
-### 37. ERD: DELIVERY_RECEIPT (delivery_receipt)
+### 36. ERD: DELIVERY_RECEIPT (delivery_receipt)
 
 _1 controller · 5 routes_
 
@@ -888,7 +871,7 @@ _1 controller · 5 routes_
 - `update` — PUT /api/delivery-receipts/{id}
 
 
-### 38. ERD: ISSUANCE (issuance)
+### 37. ERD: ISSUANCE (issuance)
 
 _2 controllers · 16 routes_
 
@@ -915,7 +898,7 @@ _2 controllers · 16 routes_
 - `updateLine` — PUT /api/issuances/{id}/lines/{lineId}
 
 
-### 39. ERD: TRANSFER (transfer)
+### 38. ERD: TRANSFER (transfer)
 
 _1 controller · 27 routes_
 
@@ -950,7 +933,7 @@ _1 controller · 27 routes_
 - `verify` — POST /api/transfers/{id}/verify
 
 
-### 40. ERD: ADJUSTMENT (adjustment)
+### 39. ERD: ADJUSTMENT (adjustment)
 
 _2 controllers · 14 routes_
 
@@ -975,7 +958,7 @@ _2 controllers · 14 routes_
 - `submitCorrection` — POST /api/adjustments/submit
 
 
-### 41. COMPLIANCE REVIEW
+### 40. COMPLIANCE REVIEW
 
 _1 controller · 1 route_
 
@@ -984,7 +967,7 @@ _1 controller · 1 route_
 - `getComplianceLogs` — GET /api/compliance/logs
 
 
-### 42. ERD: PROFIT_LOSS (profit_loss)
+### 41. ERD: PROFIT_LOSS (profit_loss)
 
 _1 controller · 5 routes_
 
@@ -997,7 +980,7 @@ _1 controller · 5 routes_
 - `update` — PUT /api/profit-loss/{id}
 
 
-### 43. AUDIT TRAIL (legacy, unstructured)
+### 42. AUDIT TRAIL (legacy, unstructured)
 
 _1 controller · 1 route_
 
@@ -1006,7 +989,7 @@ _1 controller · 1 route_
 - `legacyIndex` — GET /api/audit-trail
 
 
-### 44. AUDIT TRAIL v2 (structured, filterable, with labels)
+### 43. AUDIT TRAIL v2 (structured, filterable, with labels)
 
 _2 controllers · 4 routes_
 
@@ -1021,7 +1004,7 @@ _2 controllers · 4 routes_
 - `index` — GET /api/login-sessions
 
 
-### 45. AUDIT & EVIDENCE EXPLORER
+### 44. AUDIT & EVIDENCE EXPLORER
 
 _1 controller · 9 routes_
 
@@ -1038,7 +1021,7 @@ _1 controller · 9 routes_
 - `summary` — GET /api/audit-evidence/summary
 
 
-### 46. ERD: ACTIVITY_LOG (activity_log)
+### 45. ERD: ACTIVITY_LOG (activity_log)
 
 _1 controller · 4 routes_
 
@@ -1050,7 +1033,7 @@ _1 controller · 4 routes_
 - `store` — POST /api/activity-log
 
 
-### 47. INVENTORY (legacy scan/adjust endpoints via InventoryController)
+### 46. INVENTORY (legacy scan/adjust endpoints via InventoryController)
 
 _3 controllers · 11 routes_
 
@@ -1075,7 +1058,7 @@ _3 controllers · 11 routes_
 - `updateLocation` — PATCH /api/po-inventory-groups/{po}
 
 
-### 48. INVENTORY OPERATION (barcode scan)
+### 47. INVENTORY OPERATION (barcode scan)
 
 _8 controllers · 15 routes_
 
@@ -1119,7 +1102,7 @@ _8 controllers · 15 routes_
 - `__invoke` — POST /api/receiving-drafts/{draft}/submit
 
 
-### 49. REPORTS & ANALYTICS
+### 48. REPORTS & ANALYTICS
 
 _1 controller · 6 routes_
 
@@ -1132,7 +1115,7 @@ _1 controller · 6 routes_
 - `runs` — GET /api/reports/runs
 
 
-### 50. Download endpoints — token passed as ?token= query param (browser download)
+### 49. Download endpoints — token passed as ?token= query param (browser download)
 
 _4 controllers · 7 routes_
 
@@ -1156,7 +1139,7 @@ _4 controllers · 7 routes_
 - `receiptPdf` — GET /api/transfers/{id}/receipt/pdf
 
 
-### 51. Sanctum / framework
+### 50. Sanctum / framework
 
 _1 controller · 1 route_
 
@@ -1165,7 +1148,7 @@ _1 controller · 1 route_
 - `show` — GET /sanctum/csrf-cookie
 
 
-### 52. OPS: external scheduler trigger
+### 51. OPS: external scheduler trigger
 
 _1 controller · 1 route_
 

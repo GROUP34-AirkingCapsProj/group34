@@ -1,17 +1,16 @@
 <?php
 
-namespace Tests\Feature\Budget;
+namespace Tests\Feature\Procurement;
 
 use App\Events\PurchaseOrderChanged;
 use Illuminate\Support\Facades\Event;
 
-class PoVerificationTest extends BudgetTestCase
+class PoVerificationTest extends ProcurementTestCase
 {
     public function test_auditor_verifies_po(): void
     {
         $auditor = $this->makeUser('auditor');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $po = $this->makePo($pr, 4000, 7);
 
         $this->actingAs($auditor, 'sanctum')
@@ -27,8 +26,7 @@ class PoVerificationTest extends BudgetTestCase
     public function test_auditor_rejects_po_requires_reason(): void
     {
         $auditor = $this->makeUser('auditor');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $po = $this->makePo($pr, 4000, 7);
 
         $this->actingAs($auditor, 'sanctum')
@@ -47,8 +45,7 @@ class PoVerificationTest extends BudgetTestCase
     public function test_cannot_reject_already_approved_po(): void
     {
         $auditor = $this->makeUser('auditor');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $po = $this->makePo($pr, 4000, 10); // Authorized
 
         $this->actingAs($auditor, 'sanctum')
@@ -59,8 +56,7 @@ class PoVerificationTest extends BudgetTestCase
     public function test_cannot_verify_po_you_created(): void
     {
         $auditor = $this->makeUser('auditor');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $po = $this->makePo($pr, 4000, 7);
         $po->update(['created_by' => $auditor->user_id]);
 
@@ -73,8 +69,7 @@ class PoVerificationTest extends BudgetTestCase
     {
         Event::fake([PurchaseOrderChanged::class]);
         $auditor = $this->makeUser('auditor');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $po = $this->makePo($pr, 4000, 7);
 
         $this->actingAs($auditor, 'sanctum')
@@ -88,8 +83,7 @@ class PoVerificationTest extends BudgetTestCase
     {
         $ia = $this->makeUser('inventory_analyst');
         $someone = $this->makeUser('admin');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $supplierId = (int) \Illuminate\Support\Facades\DB::table('suppliers')
             ->insertGetId(['supplier_name' => 'S' . uniqid(), 'created_at' => now(), 'updated_at' => now()], 'supplier_id');
         $productId = $this->makeProductForPo();

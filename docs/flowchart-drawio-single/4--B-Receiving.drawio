@@ -44,7 +44,7 @@
         <mxCell id="s4_p6" value="Roll back everything; the draft survives intact" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="510" y="1060" width="260" height="56" as="geometry" />
         </mxCell>
-        <mxCell id="s4_p7" value="Commit; spend the budget; recompute PO status - Partially Received or Completed" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="s4_p7" value="Commit the transaction; recompute PO status - Partially Received or Completed" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="150" y="1170" width="260" height="64" as="geometry" />
         </mxCell>
         <mxCell id="s4_doc1" value="Print GRN and barcode labels" style="shape=document;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;fontSize=12;" vertex="1" parent="1">

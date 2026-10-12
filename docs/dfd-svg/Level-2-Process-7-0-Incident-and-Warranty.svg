@@ -76,19 +76,19 @@
 <text class="pn" x="582" y="874" text-anchor="middle">Complete Claim and Return Unit</text>
 <path class="store" d="M905,74 H1225 M905,154 H1225 M905,74 V154"/>
 <line class="ln" x1="941" y1="74" x2="941" y2="154"/>
-<text class="snum" x="923" y="118" text-anchor="middle">D9</text>
+<text class="snum" x="923" y="118" text-anchor="middle">D8</text>
 <text class="sn" x="951" y="118">Incidents and Warranty</text>
 <path class="store" d="M905,345 H1225 M905,409 H1225 M905,345 V409"/>
 <line class="ln" x1="941" y1="345" x2="941" y2="409"/>
-<text class="snum" x="923" y="381" text-anchor="middle">D6</text>
+<text class="snum" x="923" y="381" text-anchor="middle">D5</text>
 <text class="sn" x="951" y="381">Inventory and Batches</text>
 <path class="store" d="M905,599 H1225 M905,655 H1225 M905,599 V655"/>
 <line class="ln" x1="941" y1="599" x2="941" y2="655"/>
-<text class="snum" x="923" y="631" text-anchor="middle">D10</text>
+<text class="snum" x="923" y="631" text-anchor="middle">D9</text>
 <text class="sn" x="951" y="631">Audit and Activity Log</text>
 <path class="store" d="M905,846 H1225 M905,902 H1225 M905,846 V902"/>
 <line class="ln" x1="941" y1="846" x2="941" y2="902"/>
-<text class="snum" x="923" y="878" text-anchor="middle">D7</text>
+<text class="snum" x="923" y="878" text-anchor="middle">D6</text>
 <text class="sn" x="951" y="878">Issuances and Sales</text>
 <text class="fl" x="246" y="92" text-anchor="start">damage, shortfall, FIFO override</text>
 <text class="fl" x="769" y="84" text-anchor="start">incident report</text>

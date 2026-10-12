@@ -153,7 +153,7 @@ class ReceiveVerifyTest extends TestCase
      * is what checkOverage() reads as `already_received` and what
      * PoReceivingStatusService::sync() reads as `totalReceived`. A sum left
      * overstated lets a genuine over-receipt through undetected and can flip the
-     * PO to Completed, firing the committed-to-spent budget transition, when
+     * PO to Completed when
      * almost none of the order actually arrived.
      */
     public function test_a_shortfall_larger_than_one_scan_row_keeps_the_line_sum_exact(): void

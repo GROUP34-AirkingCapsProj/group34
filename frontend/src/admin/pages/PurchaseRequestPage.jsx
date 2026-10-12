@@ -11,7 +11,6 @@ import {
   locationsAPI,
   suppliersAPI,
   purchaseRequestsAPI,
-  budgetAllocationsAPI,
   restockAPI,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -53,16 +52,6 @@ const getPRStatusConfig = (statusId) => {
   }
 };
 
-
-// ─── Budget colour helper ─────────────────────────────────────────────────────
-
-const budgetColor = (available, total) => {
-  if (!total) return '#64748b';
-  const pct = available / total;
-  if (pct > 0.5)  return '#16a34a';
-  if (pct > 0.10) return '#d97706';
-  return '#dc2626';
-};
 
 // ─── V5 product display helpers ──────────────────────────────────────────────
 
@@ -206,9 +195,6 @@ const PurchaseRequestPage = () => {
   const [suppliers,        setSuppliers]        = useState([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
-  // Per-warehouse budget cache: { [locationId]: { loading: bool, budget: object|null } }
-  const [budgetsByLoc,     setBudgetsByLoc]     = useState({});
-  const fetchedLocRef = useRef(new Set());
   // Per-warehouse recommendation cache: { [locationId]: { loading, recs: [] } }
   const [recsByLoc, setRecsByLoc] = useState({});
   const fetchedRecLocRef = useRef(new Set());
@@ -372,34 +358,6 @@ const PurchaseRequestPage = () => {
     if (sugWarehouse && !(s.warehouses || []).some(w => String(w.location_id) === sugWarehouse)) return false;
     return true;
   }), [suggestions, productById, sugCategory, sugBrand, sugWarehouse, sugSearch]);
-
-  // ── Fetch (and cache) the active budget for each distinct warehouse ───────
-  useEffect(() => {
-    distinctBlockLocIds.forEach(locId => {
-      if (fetchedLocRef.current.has(locId)) return;
-      fetchedLocRef.current.add(locId);
-      setBudgetsByLoc(prev => ({ ...prev, [locId]: { loading: true, budget: null } }));
-      budgetAllocationsAPI.getForLocation(locId)
-        .then(res => {
-          const list = Array.isArray(res?.data) ? res.data : [];
-          if (!list.length) return null;
-          // Prefer a budget whose period covers today; otherwise take the first (most recent by period_start)
-          const todayStr = new Date().toISOString().slice(0, 10);
-          const active = list.find(b =>
-            String(b.period_start).slice(0, 10) <= todayStr &&
-            String(b.period_end).slice(0, 10)   >= todayStr
-          );
-          const best = active || list[0];
-          return budgetAllocationsAPI.getAvailable(best.budget_id);
-        })
-        .then(avRes => {
-          setBudgetsByLoc(prev => ({ ...prev, [locId]: { loading: false, budget: avRes?.data ?? null } }));
-        })
-        .catch(() => {
-          setBudgetsByLoc(prev => ({ ...prev, [locId]: { loading: false, budget: null } }));
-        });
-    });
-  }, [distinctBlockLocIds]);
 
   // ── Fetch (and cache) low-stock recommendations for each distinct warehouse ─
   useEffect(() => {
@@ -623,7 +581,7 @@ const PurchaseRequestPage = () => {
     [warehouseBlocks]
   );
 
-  // ── Per-warehouse subtotal + budget-group status ──────────────────────────
+  // ── Per-warehouse subtotal ────────────────────────────────────────────────
   const blockSubtotalsByLoc = useMemo(() => {
     const map = {};
     warehouseBlocks.forEach(b => {
@@ -636,20 +594,10 @@ const PurchaseRequestPage = () => {
   }, [warehouseBlocks]);
 
   const warehouseGroupStatus = useMemo(() => distinctBlockLocIds.map(locId => {
-    const entry     = budgetsByLoc[locId];
-    const loading   = entry?.loading ?? true;
-    const budget    = entry?.budget ?? null;
-    const subtotal  = blockSubtotalsByLoc[locId] || 0;
-    const available = budget ? Number(budget.available ?? 0) : null;
-    const missing   = !loading && !budget;
-    const over      = available !== null && subtotal > available;
-    const loc       = locations.find(l => String(l.location_id ?? l.id ?? '') === locId);
-    const locName   = loc?.location_name || loc?.name || `Warehouse #${locId}`;
-    const ok        = !loading && !missing && !over;
-    return { locId, locName, loading, budget, subtotal, available, missing, over, ok };
-  }), [distinctBlockLocIds, budgetsByLoc, blockSubtotalsByLoc, locations]);
-
-  const hasBlockingWarehouseGroup = warehouseGroupStatus.some(g => !g.ok);
+    const loc     = locations.find(l => String(l.location_id ?? l.id ?? '') === locId);
+    const locName = loc?.location_name || loc?.name || `Warehouse #${locId}`;
+    return { locId, locName, subtotal: blockSubtotalsByLoc[locId] || 0 };
+  }), [distinctBlockLocIds, blockSubtotalsByLoc, locations]);
 
   // ── Warehouse dropdown options per block (exclude warehouses used by others) ──
   const availableWarehousesForBlock = useCallback((blockId) => {
@@ -683,31 +631,6 @@ const PurchaseRequestPage = () => {
     }
     if (hasRowsWithoutWarehouse) {
       toast.error("Couldn't send request", 'Select a destination warehouse for every warehouse block that has items.'); return;
-    }
-
-    // Verify each warehouse group used by a block with valid rows is fundable
-    const usedLocIds = [...new Set(
-      warehouseBlocks
-        .filter(b => b.warehouseId && b.rows.some(r => r.productId && Number(r.qty) > 0))
-        .map(b => String(b.warehouseId))
-    )];
-    for (const locId of usedLocIds) {
-      const group = warehouseGroupStatus.find(g => g.locId === locId);
-      if (!group || group.loading) {
-        toast.error("Couldn't send request", 'Still loading budget information — please wait a moment and try again.');
-        return;
-      }
-      if (group.missing) {
-        toast.error("Couldn't send request", `No budget found for ${group.locName}. Ask Admin to create one in Budget Management.`);
-        return;
-      }
-      if (group.over) {
-        toast.error(
-          "Couldn't send request",
-          `Estimated total ${fmtPeso(group.subtotal)} for ${group.locName} exceeds its available budget ${fmtPeso(group.available)}.`
-        );
-        return;
-      }
     }
 
     setSubmitting(true);
@@ -890,69 +813,6 @@ const PurchaseRequestPage = () => {
   // RENDER HELPERS
   // ─────────────────────────────────────────────────────────────────────────
 
-  // ── Single warehouse-block budget card ─────────────────────────────────────
-  const renderBudgetCard = (group) => {
-    if (!group) return null;
-    if (group.loading) {
-      return (
-        <div className="pr-budget-card pr-budget-card--loading">
-          <Loader variant="inline" label={`Loading budget for ${group.locName}`} />
-        </div>
-      );
-    }
-    if (group.missing) {
-      return (
-        <div className="pr-budget-card pr-budget-card--empty">
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="18" height="18" style={{ flexShrink: 0, marginTop: 1 }}>
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <div>
-              <div style={{ fontWeight: 700, color: 'var(--warning-text)', fontSize: 13 }}>No budget found for {group.locName}</div>
-              <div style={{ color: 'var(--ink-orange-700-7)', fontSize: 12, marginTop: 3 }}>
-                Ask Admin to create a budget allocation for this warehouse in Budget Management.
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    const budget    = group.budget;
-    const total     = Number(budget.total_budget || 0);
-    const committed = Number(budget.committed || 0);
-    const spent     = Number(budget.spent || 0);
-    const available = Number(budget.available ?? (total - committed - spent));
-    const avColor   = budgetColor(available, total);
-    return (
-      <div className="pr-budget-card">
-        <div className="pr-budget-card-header">
-          <span className="pr-budget-card-title">Budget — {group.locName}</span>
-        </div>
-        <div className="pr-budget-grid">
-          {[
-            { label: 'TOTAL BUDGET', value: fmtPeso(total),          color: 'var(--ink-blue-800-3)' },
-            { label: 'COMMITTED',    value: fmtPeso(committed),      color: 'var(--ink-orange-600)' },
-            { label: 'SPENT',        value: fmtPeso(spent),          color: 'var(--text-danger)' },
-            { label: 'AVAILABLE',    value: fmtPeso(available),      color: avColor  },
-            { label: 'THIS REQUEST', value: fmtPeso(group.subtotal), color: group.over ? 'var(--text-danger)' : 'var(--ink-blue-800-3)' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="pr-budget-item">
-              <span className="pr-budget-label">{label}</span>
-              <span className="pr-budget-value" style={{ color }}>{value}</span>
-            </div>
-          ))}
-        </div>
-        {group.over && (
-          <div style={{ margin:'10px 0 0', background:'var(--danger-soft-bg)', border:'1px solid var(--line-red-200)', borderRadius:8, padding:'8px 12px', fontSize:13, color:'var(--ink-red-600)' }}>
-            This request's items for {group.locName} ({fmtPeso(group.subtotal)}) exceed the available budget ({fmtPeso(available)}).
-          </div>
-        )}
-      </div>
-    );
-  };
-
   // ── Tab 1: Create Request ─────────────────────────────────────────────────
   const renderCreateTab = () => (
     <div className="pr-create-form-layout">
@@ -1066,12 +926,6 @@ const PurchaseRequestPage = () => {
                 </button>
               )}
             </div>
-
-            {block.warehouseId && (
-              <div style={{ padding: '0 16px 16px' }}>
-                {renderBudgetCard(group)}
-              </div>
-            )}
 
             {block.warehouseId && (
               <div className="pr-reco-panel">
@@ -1400,18 +1254,6 @@ const PurchaseRequestPage = () => {
               </span>
             </div>
 
-            {group && !group.loading && !group.missing && group.over && (
-              <div style={{ margin: '0 16px 14px', background: 'var(--warning-bg)', border: '1px solid var(--line-amber-400-2)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warning-text)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="16" height="16" style={{ flexShrink: 0, marginTop: 1 }}>
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-                <span>
-                  For {group.locName}, this block's items ({fmtPeso(group.subtotal)}) exceed the available budget ({fmtPeso(group.available)}) by{' '}
-                  <strong>{fmtPeso(group.subtotal - group.available)}</strong>. Reduce the block or ask Admin to raise the budget.
-                </span>
-              </div>
-            )}
           </div>
         );
       })}
@@ -1441,14 +1283,12 @@ const PurchaseRequestPage = () => {
             submitting ||
             !selectedSupplierId ||
             !hasAnyValidRow ||
-            hasRowsWithoutWarehouse ||
-            hasBlockingWarehouseGroup
+            hasRowsWithoutWarehouse
           }
           title={
             !selectedSupplierId ? 'Select a supplier first'
             : !hasAnyValidRow ? 'Add at least one item with a selected product'
             : hasRowsWithoutWarehouse ? 'Select a destination warehouse for every warehouse block that has items'
-            : hasBlockingWarehouseGroup ? 'One or more warehouses are over budget or missing a budget'
             : undefined
           }
         >
@@ -1596,14 +1436,7 @@ const PurchaseRequestPage = () => {
           const requesterName = pr.requester
             ? `${pr.requester.first_name || ''} ${pr.requester.last_name || ''}`.trim() || pr.requester.username || '—'
             : '—';
-          const budgetTotal     = Number(pr.budget?.total_budget || 0);
-          const budgetCommitted = Number(pr.budget?.committed || 0);
-          const budgetSpent     = Number(pr.budget?.spent || 0);
-          const budgetAvail     = pr.budget
-            ? Number(pr.budget.available ?? (budgetTotal - budgetCommitted - budgetSpent))
-            : null;
           const prTotal    = Number(pr.estimated_total || 0);
-          const isOver     = budgetAvail !== null && prTotal > budgetAvail;
           const itemCount  = pr.details?.length ?? 0;
           const isExpanded = expandedCards.has(pr.pr_id);
 
@@ -1629,7 +1462,6 @@ const PurchaseRequestPage = () => {
                   <div className="po-status-card-header-row">
                     <span className="po-status-card-number">{pr.pr_number}</span>
                     <span className="po-status-badge po-status-badge--pending">PENDING APPROVAL</span>
-                    {isOver && <span className="pr-over-budget-badge">OVER BUDGET</span>}
                   </div>
                   <div className="po-status-card-meta">
                     <div className="po-status-meta-item">
@@ -1648,26 +1480,11 @@ const PurchaseRequestPage = () => {
                       <span className="po-status-meta-label">ITEMS</span>
                       <span className="po-status-meta-value">{itemCount}</span>
                     </div>
-                  </div>
-
-                  {/* Budget comparison */}
-                  {pr.budget && (
-                    <div className="pr-admin-budget-bar">
-                      <div>
-                        <span style={{ color: 'var(--ink-blue-500)', fontSize: 11 }}>AVAILABLE</span>
-                        <span style={{ marginLeft: 6, fontWeight: 700, color: budgetColor(budgetAvail, budgetTotal) }}>
-                          {fmtPeso(budgetAvail)}
-                        </span>
-                      </div>
-                      <div style={{ color: '#cbd5e1' }}>|</div>
-                      <div>
-                        <span style={{ color: 'var(--ink-blue-500)', fontSize: 11 }}>PR TOTAL</span>
-                        <span style={{ marginLeft: 6, fontWeight: 700, color: isOver ? 'var(--text-danger)' : 'var(--text-success)' }}>
-                          {fmtPeso(prTotal)}
-                        </span>
-                      </div>
+                    <div className="po-status-meta-item">
+                      <span className="po-status-meta-label">ESTIMATED TOTAL</span>
+                      <span className="po-status-meta-value">{fmtPeso(prTotal)}</span>
                     </div>
-                  )}
+                  </div>
 
                   {pr.purpose && (
                     <div style={{ fontSize: 12, color: 'var(--ink-blue-500)', marginTop: 8, fontStyle: 'italic' }}>
@@ -1761,12 +1578,6 @@ const PurchaseRequestPage = () => {
     const approverName = pr.approver
       ? `${pr.approver.first_name || ''} ${pr.approver.last_name || ''}`.trim() || pr.approver.username
       : null;
-    const budgetTotal   = Number(pr.budget?.total_budget || 0);
-    const budgetCommit  = Number(pr.budget?.committed || 0);
-    const budgetSpent   = Number(pr.budget?.spent || 0);
-    const budgetAvail   = pr.budget
-      ? Number(pr.budget.available ?? (budgetTotal - budgetCommit - budgetSpent))
-      : null;
     const details = Array.isArray(pr.details) ? pr.details : [];
 
     const isApproving = actionLoading[pr.pr_id] === 'approving';
@@ -1815,20 +1626,6 @@ const PurchaseRequestPage = () => {
                 <span className="po-detail-info-label">NEEDED BY</span>
                 <span className="po-detail-info-value">{isoToMDY(pr.needed_by_date)}</span>
               </div>
-              {pr.budget && (
-                <>
-                  <div className="po-detail-info-item">
-                    <span className="po-detail-info-label">BUDGET TOTAL</span>
-                    <span className="po-detail-info-value">{fmtPeso(budgetTotal)}</span>
-                  </div>
-                  <div className="po-detail-info-item">
-                    <span className="po-detail-info-label">AVAILABLE</span>
-                    <span className="po-detail-info-value" style={{ color: budgetColor(budgetAvail, budgetTotal) }}>
-                      {fmtPeso(budgetAvail)}
-                    </span>
-                  </div>
-                </>
-              )}
               {approverName && (
                 <div className="po-detail-info-item">
                   <span className="po-detail-info-label">

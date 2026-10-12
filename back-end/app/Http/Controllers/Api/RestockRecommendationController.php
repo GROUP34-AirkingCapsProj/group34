@@ -8,7 +8,6 @@ use App\Models\Product;
 use App\Models\RestockRecommendation;
 use App\Models\StockParameterSuggestion;
 use App\Services\Analytics\RestockAnalyticsService;
-use App\Services\BudgetService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -75,27 +74,12 @@ class RestockRecommendationController extends Controller
             return $arr;
         });
 
-        $warehouseId = $locationId ?? Location::where('location_type', 'warehouse')
-            ->orderBy('location_id')
-            ->value('location_id');
-        $budget = $warehouseId
-            ? app(BudgetService::class)->resolveActiveBudget((int) $warehouseId)
-            : null;
-
         return $this->success([
             // Fall back to the suggestions table so a run that produced zero
             // recommendations still reports when it happened.
             'run_at'          => ($rows->first()['run_at'] ?? null)
                 ?? StockParameterSuggestion::max('run_at'),
             'recommendations' => $rows,
-            'budget'          => $budget ? [
-                'budget_id'    => $budget->budget_id,
-                'period_label' => $budget->period_label,
-                'total_budget' => (float) $budget->total_budget,
-                'available'    => (float) $budget->total_budget
-                    - (float) $budget->committed
-                    - (float) $budget->spent,
-            ] : null,
         ], 'Restock recommendations retrieved');
     }
 

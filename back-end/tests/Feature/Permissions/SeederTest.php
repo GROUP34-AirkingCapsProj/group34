@@ -59,7 +59,7 @@ class SeederTest extends TestCase
      * via a per-user permission override. See PoVerificationTest.
      *
      * The carve-outs exist so the person who approves an action is not also the
-     * person who checks it: budget and PO verification (the checker in the
+     * person who checks it: PO verification (the checker in the
      * maker-checker-approver chain), and resolving an Audit & Evidence drift
      * finding (closing an exception that may concern spending the admin approved).
      */
@@ -70,7 +70,7 @@ class SeederTest extends TestCase
 
         $carvedOut = Permission::where(function ($q) {
             $q->where('action', 'verify')
-              ->whereIn('feature', ['budget_verification', 'purchase_order_verification']);
+              ->whereIn('feature', ['purchase_order_verification']);
         })->orWhere(function ($q) {
             $q->where('feature', 'audit_evidence')->where('action', 'resolve_exception');
         })->count();

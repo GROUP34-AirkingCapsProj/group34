@@ -1,7 +1,7 @@
 # Airking Inventory
 
 Inventory, procurement, and issuance system for Airking — purchase requests and
-orders with budget control, barcode-scanned receiving, FIFO batch picking,
+orders on supplier payment terms, barcode-scanned receiving, FIFO batch picking,
 inter-branch transfers, warranty tracking, and role-based dashboards.
 
 **Stack:** Laravel 12 (PHP 8.2+) API · React 19 (CRA) · MySQL/MariaDB · Laravel

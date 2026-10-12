@@ -24,7 +24,6 @@ use App\Http\Controllers\Api\BarcodeQueueController;
 use App\Http\Controllers\Api\AnalyticsDashboardController;
 // ERD-aligned controllers
 use App\Http\Controllers\Api\LocationController;
-use App\Http\Controllers\Api\BudgetAllocationController;
 use App\Http\Controllers\Api\PurchaseRequestController;
 use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\ReceivingController;
@@ -349,7 +348,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     // variants) leave their GETs ungated for any
     // authenticated user: they are classification vocabularies feeding
     // pickers used app-wide — ProductRegisterModal, BarcodeScan,
-    // OrderBuilder, InventoryManagement, BudgetManagementPage,
+    // OrderBuilder, InventoryManagement,
     // SetManagementPage — not sensitive records. In particular,
     // ProductRegisterModal (rendered from BarcodeScan.jsx, gated on
     // barcode_inventory_processing.create — admin, branch_manager,
@@ -776,30 +775,6 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:purchase_order_verification,verify')->group(function () {
         Route::patch('/purchase-orders/{id}/verify', [PurchaseOrderController::class, 'verify']);
         Route::patch('/purchase-orders/{id}/reject', [PurchaseOrderController::class, 'reject']);
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | BUDGET ALLOCATIONS
-    | Read: admin + inventory_analyst (IA needs to see budget on PR create form)
-    | Write: admin only
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/budget-allocations/archived', [BudgetAllocationController::class, 'archived']);
-    Route::middleware('role:admin,inventory_analyst,auditor')->group(function () {
-        Route::get('/budget-allocations', [BudgetAllocationController::class, 'index']);
-        Route::get('/budget-allocations/{id}', [BudgetAllocationController::class, 'show']);
-        Route::get('/budget-allocations/{id}/available', [BudgetAllocationController::class, 'available']);
-        Route::get('/budget-allocations/{id}/transactions', [BudgetAllocationController::class, 'transactions']);
-    });
-    // Budget CRUD is now permission-driven so admin can delegate it (admin always
-    // passes via the resolver bypass). Defaults grant these to admin only.
-    Route::middleware('permission:budget_verification,create')->post('/budget-allocations', [BudgetAllocationController::class, 'store']);
-    Route::middleware('permission:budget_verification,update')->put('/budget-allocations/{id}', [BudgetAllocationController::class, 'update']);
-    Route::middleware('permission:budget_verification,archive')->group(function () {
-        Route::delete('/budget-allocations/{id}', [BudgetAllocationController::class, 'destroy']);
-        Route::post('/budget-allocations/{id}/restore', [BudgetAllocationController::class, 'restore']);
-        Route::delete('/budget-allocations/{id}/force', [BudgetAllocationController::class, 'forceDestroy']);
     });
 
     /*

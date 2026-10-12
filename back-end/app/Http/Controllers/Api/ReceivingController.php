@@ -12,7 +12,6 @@ use App\Models\Receiving;
 use App\Models\ReceivingDetail;
 use App\Models\ReceivingDraft;
 use App\Services\AirconLineGrouper;
-use App\Services\BudgetService;
 use App\Services\InventoryBatchService;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
@@ -229,19 +228,6 @@ class ReceivingController extends Controller
 
             $newPoStatus = ($totalReceivedForPO >= $totalOrdered) ? 11 : 12;
             PurchaseOrder::where('po_id', $poId)->update(['status_id' => $newPoStatus]);
-
-            // Settle budget: single-warehouse POs settle at full completion; multi-
-            // warehouse POs settle each warehouse group as its lines finish (spend()
-            // is group-aware and idempotent per (po, budget)).
-            $po = PurchaseOrder::with(['purchaseRequest', 'details'])->find($poId);
-            if ($po) {
-                $isMultiWarehouse = $po->details
-                    ->groupBy(fn ($d) => (int) ($d->location_id ?? $po->location_id))
-                    ->count() > 1;
-                if ($newPoStatus === 11 || $isMultiWarehouse) {
-                    app(BudgetService::class)->spend($po, $request->user()?->user_id);
-                }
-            }
 
             DB::commit();
 

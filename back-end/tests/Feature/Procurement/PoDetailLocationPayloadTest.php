@@ -1,13 +1,13 @@
 <?php
 
-namespace Tests\Feature\Budget;
+namespace Tests\Feature\Procurement;
 
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class PoDetailLocationPayloadTest extends BudgetTestCase
+class PoDetailLocationPayloadTest extends ProcurementTestCase
 {
     private function warehouse(string $name, array $extra = []): int
     {

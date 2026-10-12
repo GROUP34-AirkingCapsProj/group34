@@ -1,11 +1,11 @@
 <?php
 
-namespace Tests\Feature\Budget;
+namespace Tests\Feature\Procurement;
 
 use App\Models\PurchaseOrderDetail;
 use Illuminate\Support\Facades\Schema;
 
-class PoDetailLocationColumnTest extends BudgetTestCase
+class PoDetailLocationColumnTest extends ProcurementTestCase
 {
     public function test_location_id_column_and_relation_exist(): void
     {

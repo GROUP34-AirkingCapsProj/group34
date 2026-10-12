@@ -1,10 +1,10 @@
 <?php
 
-namespace Tests\Feature\Budget;
+namespace Tests\Feature\Procurement;
 
 use Illuminate\Support\Facades\DB;
 
-class VerificationGateTest extends BudgetTestCase
+class VerificationGateTest extends ProcurementTestCase
 {
     private function makeProduct(): int
     {
@@ -23,8 +23,7 @@ class VerificationGateTest extends BudgetTestCase
     public function test_po_cannot_be_authorized_while_unverified(): void
     {
         $admin = $this->makeUser('admin');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $po = $this->makePo($pr, 4000, 7); // pending verification
 
         $response = $this->actingAs($admin, 'sanctum')
@@ -38,8 +37,7 @@ class VerificationGateTest extends BudgetTestCase
     public function test_po_cannot_be_completed_directly_while_unverified(): void
     {
         $admin = $this->makeUser('admin');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $po = $this->makePo($pr, 4000, 7); // pending, unverified
 
         $response = $this->actingAs($admin, 'sanctum')
@@ -48,16 +46,12 @@ class VerificationGateTest extends BudgetTestCase
         $response->assertStatus(422);
         $this->assertStringContainsString('verified', strtolower($response->json('message')));
         $this->assertSame(7, (int) $po->fresh()->status_id);
-        // Budget must NOT have been spent.
-        $budget->refresh();
-        $this->assertSame('0.00', (string) $budget->spent);
     }
 
     public function test_verified_po_can_be_authorized(): void
     {
         $admin = $this->makeUser('admin');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $po = $this->makePo($pr, 4000, 7);
         $po->update(['verification_status' => 'verified']);
 
@@ -71,8 +65,7 @@ class VerificationGateTest extends BudgetTestCase
     public function test_non_approval_update_of_unverified_po_still_allowed(): void
     {
         $admin = $this->makeUser('admin');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $po = $this->makePo($pr, 4000, 7);
 
         $this->actingAs($admin, 'sanctum')
@@ -83,8 +76,7 @@ class VerificationGateTest extends BudgetTestCase
     public function test_receiving_blocked_against_unverified_po(): void
     {
         $wp = $this->makeUser('warehouse_personnel');
-        $budget = $this->makeBudget(10000);
-        $pr = $this->makePr($budget, 4000, 14);
+        $pr = $this->makePr(4000, 14);
         $po = $this->makePo($pr, 4000, 10); // authorized
         $po->update(['verification_status' => 'pending']); // but not verified
 

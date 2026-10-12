@@ -155,7 +155,7 @@ class IssuanceOrderService
      * possibly-stale instance; this closes the window where a confirm-quote
      * (Draft -> Pending) commits between that read and the write, which would
      * otherwise let a line change land on an order the customer already agreed to.
-     * Mirrors the lock-then-recheck discipline in TransferService and BudgetService.
+     * Mirrors the lock-then-recheck discipline in TransferService.
      *
      * @template T
      * @param  callable():T  $mutation

@@ -2,17 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Exceptions\InsufficientBudgetException;
-use App\Exceptions\NoActiveBudgetException;
 use App\Http\Controllers\Controller;
-use App\Models\BudgetAllocation;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestDetail;
 use App\Models\Supplier;
 use App\Models\Product;
-use App\Services\BudgetService;
 use App\Services\History\RecordHistoryService;
 use App\Support\RealtimeBroadcaster;
 use App\Traits\ApiResponse;
@@ -25,17 +21,12 @@ class PurchaseRequestController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private BudgetService $budgetService)
-    {
-    }
-
     private const WITH_RELATIONS = [
         'location',
         'supplier',
         'status',
         'requester',
         'approver',
-        'budget',
         'convertedPO',
         'details.product.applianceDetail.brand',
         'details.product.installationMaterialDetail.unit',
@@ -268,7 +259,6 @@ class PurchaseRequestController extends Controller
             'status',
             'requester',
             'approver',
-            'budget',
         ])->orderBy('created_at', 'desc')->get();
 
         $filename = 'purchase-requests-' . now()->format('Ymd-His') . '.csv';
@@ -436,31 +426,6 @@ class PurchaseRequestController extends Controller
             ->with('details')
             ->first();
 
-        // Per-warehouse advisory budget check (unlocked; approval re-checks under lock).
-        // Computed on the COMBINED total (existing target lines + new lines) so a
-        // merged PR cannot grow past what the warehouse budget can later approve.
-        $groups = collect($validated['details'])->groupBy('location_id');
-        foreach ($groups as $locId => $lines) {
-            $newSubtotal = collect($lines)->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
-            $existingSubtotal = $mergeTarget
-                ? (float) $mergeTarget->details->where('location_id', (int) $locId)->sum('subtotal')
-                : 0.0;
-            $combined = (float) $newSubtotal + $existingSubtotal;
-
-            $budget = $this->budgetService->resolveActiveBudget((int) $locId);
-            $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
-            if (!$budget) {
-                return $this->error("{$whName} has no active budget for today.", 422);
-            }
-            if (!$this->budgetService->hasAvailable($budget, $combined)) {
-                return $this->error(sprintf(
-                    'Estimated total ₱%s for %s exceeds its available budget ₱%s (%s).',
-                    number_format($combined, 2), $whName,
-                    number_format(max((float) $budget->available, 0), 2), $budget->period_label
-                ), 422);
-            }
-        }
-
         $estimatedTotal = collect($validated['details'])
             ->sum(fn ($d) => $d['quantity'] * $d['estimated_price']);
 
@@ -496,7 +461,6 @@ class PurchaseRequestController extends Controller
                 $pr = PurchaseRequest::create([
                     'location_id'     => null,
                     'supplier_id'     => $supplierId,
-                    'budget_id'       => null,
                     'pr_number'       => 'PR-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
                     'request_date'    => today(),
                     'needed_by_date'  => $validated['needed_by_date'],
@@ -537,7 +501,7 @@ class PurchaseRequestController extends Controller
     }
 
     /**
-     * Admin approves a PR and commits the budget.
+     * Admin approves a PR.
      */
     public function approve(Request $request, $id)
     {
@@ -551,53 +515,12 @@ class PurchaseRequestController extends Controller
 
         $hasLineWarehouses = $pr->details->whereNotNull('location_id')->isNotEmpty();
 
-        if (!$hasLineWarehouses && !$pr->budget_id) {
-            return $this->error(
-                'This purchase request has no budget attached (created before budget enforcement). Reject it and ask the requester to submit a new one.',
-                422
-            );
-        }
-
         try {
-            DB::transaction(function () use ($pr, $request, $hasLineWarehouses) {
-                // Validate availability WITHOUT reserving — reservation now happens
-                // at PO approval. A PR is only a request.
-                if ($hasLineWarehouses) {
-                    $groups = $pr->details->groupBy('location_id');
-                    foreach ($groups as $locId => $lines) {
-                        $subtotal = (float) $lines->sum('subtotal');
-                        $budget = $this->budgetService->resolveActiveBudget((int) $locId);
-                        if (!$budget) {
-                            $whName = \App\Models\Location::where('location_id', $locId)->value('location_name');
-                            throw new NoActiveBudgetException($whName ?? "warehouse #{$locId}");
-                        }
-                        if (!$this->budgetService->hasAvailable($budget, $subtotal)) {
-                            $available = (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent;
-                            throw new InsufficientBudgetException($budget->period_label, $subtotal, $available);
-                        }
-                    }
-                } else {
-                    $budget = \App\Models\BudgetAllocation::find($pr->budget_id);
-                    if (!$budget) {
-                        $whName = \App\Models\Location::where('location_id', $pr->location_id)->value('location_name');
-                        throw new NoActiveBudgetException($whName ?? "warehouse #{$pr->location_id}");
-                    }
-                    if (!$this->budgetService->hasAvailable($budget, (float) $pr->estimated_total)) {
-                        $available = (float) $budget->total_budget - (float) $budget->committed - (float) $budget->spent;
-                        throw new InsufficientBudgetException($budget->period_label, (float) $pr->estimated_total, $available);
-                    }
-                }
-
-                $pr->update([
-                    'status_id'    => 14,
-                    'approved_by'  => $request->user()->user_id,
-                    'approval_date'=> today(),
-                ]);
-            });
-        } catch (NoActiveBudgetException $e) {
-            return $this->error($e->getMessage(), 422);
-        } catch (InsufficientBudgetException $e) {
-            return $this->error($e->getMessage(), 422);
+            $pr->update([
+                'status_id'    => 14,
+                'approved_by'  => $request->user()->user_id,
+                'approval_date'=> today(),
+            ]);
         } catch (\Throwable $e) {
             return $this->error('Approval failed: ' . $e->getMessage(), 500);
         }
@@ -661,7 +584,6 @@ class PurchaseRequestController extends Controller
             'details.product.installationMaterialDetail.unit',
             'details.location',
             'location',
-            'budget',
         ])->find($id);
         if (!$pr) {
             return $this->notFound('Purchase request not found');
@@ -720,8 +642,7 @@ class PurchaseRequestController extends Controller
     }
 
     /**
-     * Archive (soft-delete) a PR. PRs no longer hold budget reservations
-     * (reservation is PO-anchored), so archiving a PR is a plain soft-delete.
+     * Archive (soft-delete) a PR.
      */
     public function destroy(Request $request, $id)
     {

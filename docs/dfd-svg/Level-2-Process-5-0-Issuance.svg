@@ -77,19 +77,19 @@
 <text class="sn" x="880" y="106">Product Catalogue</text>
 <path class="store" d="M834,261 H1154 M834,341 H1154 M834,261 V341"/>
 <line class="ln" x1="870" y1="261" x2="870" y2="341"/>
-<text class="snum" x="852" y="305" text-anchor="middle">D6</text>
+<text class="snum" x="852" y="305" text-anchor="middle">D5</text>
 <text class="sn" x="880" y="305">Inventory and Batches</text>
 <path class="store" d="M834,472 H1154 M834,528 H1154 M834,472 V528"/>
 <line class="ln" x1="870" y1="472" x2="870" y2="528"/>
-<text class="snum" x="852" y="504" text-anchor="middle">D7</text>
+<text class="snum" x="852" y="504" text-anchor="middle">D6</text>
 <text class="sn" x="880" y="504">Issuances and Sales</text>
 <path class="store" d="M834,659 H1154 M834,715 H1154 M834,659 V715"/>
 <line class="ln" x1="870" y1="659" x2="870" y2="715"/>
-<text class="snum" x="852" y="691" text-anchor="middle">D9</text>
+<text class="snum" x="852" y="691" text-anchor="middle">D8</text>
 <text class="sn" x="880" y="691">Incidents and Warranty</text>
 <path class="store" d="M834,846 H1154 M834,902 H1154 M834,846 V902"/>
 <line class="ln" x1="870" y1="846" x2="870" y2="902"/>
-<text class="snum" x="852" y="878" text-anchor="middle">D10</text>
+<text class="snum" x="852" y="878" text-anchor="middle">D9</text>
 <text class="sn" x="880" y="878">Audit and Activity Log</text>
 <text class="fl" x="284" y="99" text-anchor="start">requested items</text>
 <text class="fl" x="828" y="96" text-anchor="end">product set, price</text>

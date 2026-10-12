@@ -104,13 +104,6 @@ class ArchiveController extends Controller
             'code_col' => 'unit_abbreviation',
             'with'     => [],
         ],
-        'budget_allocations' => [
-            'model'    => \App\Models\BudgetAllocation::class,
-            'label'    => 'Budget Allocation',
-            'name_col' => 'period_label',
-            'code_col' => null,
-            'with'     => ['location'],
-        ],
     ];
 
     // GET /api/archive/summary

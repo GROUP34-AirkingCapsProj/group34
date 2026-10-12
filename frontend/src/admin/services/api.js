@@ -2108,65 +2108,6 @@ export const purchaseRequestsAPI = {
 };
 
 /* ======================
-   BUDGET ALLOCATIONS API
-====================== */
-export const budgetAllocationsAPI = {
-  getAll: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(query ? `/budget-allocations?${query}` : '/budget-allocations');
-  },
-
-  getById: async (id) => apiRequest(`/budget-allocations/${id}`),
-
-  /**
-   * Returns { budget_id, total_budget, committed, spent, available }
-   * Use this to show remaining headroom on the PR create form.
-   */
-  getAvailable: async (budgetId) =>
-    apiRequest(`/budget-allocations/${budgetId}/available`),
-
-  /**
-   * Immutable ledger for a budget — every commit/release/spend/adjustment row
-   * with linked PR/PO numbers. Paginated.
-   */
-  getTransactions: async (budgetId, params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(`/budget-allocations/${budgetId}/transactions${query ? `?${query}` : ''}`);
-  },
-
-  /**
-   * Find the most relevant budget for a location.
-   * Tries active period first; if none, returns the most recently started budget.
-   * Does NOT pass active=1 so a budget just created for a future/past period still appears.
-   */
-  getForLocation: async (locationId) => {
-    const query = new URLSearchParams({
-      location_id: locationId,
-      per_page:    5,
-    }).toString();
-    return apiRequest(`/budget-allocations?${query}`);
-  },
-
-  create: async (data) =>
-    apiRequest('/budget-allocations', { method: 'POST', body: JSON.stringify(data) }),
-
-  update: async (id, data) =>
-    apiRequest(`/budget-allocations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-
-  delete: async (id) =>
-    apiRequest(`/budget-allocations/${id}`, { method: 'DELETE' }),
-
-  getArchived: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(query ? `/budget-allocations/archived?${query}` : '/budget-allocations/archived');
-  },
-
-  restore: async (id) =>
-    apiRequest(`/budget-allocations/${id}/restore`, { method: 'POST' }),
-
-};
-
-/* ======================
    NAV BUNDLES API
 ====================== */
 export const navBundlesAPI = {

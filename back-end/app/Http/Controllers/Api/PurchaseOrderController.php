@@ -8,7 +8,6 @@ use App\Traits\ApiResponse;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderDetail;
 use App\Services\AirconLineGrouper;
-use App\Services\BudgetService;
 use App\Services\History\RecordHistoryService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -319,7 +318,7 @@ class PurchaseOrderController extends Controller
             // Completed (11), or Partially Received (12) requires an
             // auditor's verification first. This covers direct transitions
             // that would otherwise bypass verification (e.g. Pending straight
-            // to Completed, which would also trigger budget spend).
+            // to Completed).
             if (isset($validated['status_id'])
                 && in_array((int) $validated['status_id'], [8, 10, 11, 12], true)
                 && $po->verification_status !== 'verified') {
@@ -337,31 +336,7 @@ class PurchaseOrderController extends Controller
 
             $header = Arr::except($validated, ['details']);
             if (!empty($header)) {
-                $prevStatus  = (int) $po->status_id;
-                $nextStatus  = isset($validated['status_id']) ? (int) $validated['status_id'] : $prevStatus;
-                $wasReserved = in_array($prevStatus, [8, 10, 11, 12], true);
-                $entersReserve   = !$wasReserved && in_array($nextStatus, [8, 10, 11, 12], true);
-                $entersComplete  = $prevStatus !== 11 && $nextStatus === 11;
-                $entersRejected  = $prevStatus !== 9 && $nextStatus === 9;
-
                 $po->update($header);
-
-                $budgetService = app(BudgetService::class);
-
-                // Reserve on the transition into a committed state (Approved/Authorized),
-                // or defensively just before spend if the PO jumped straight to Completed
-                // without ever reserving. commitPo is idempotent per (budget, po).
-                if ($entersReserve || ($entersComplete && !$wasReserved)) {
-                    $budgetService->commitPo($po->fresh()->load('details'), $request->user()?->user_id);
-                }
-
-                if ($entersComplete) {
-                    $budgetService->spend($po->fresh()->load('details'), $request->user()?->user_id);
-                }
-
-                if ($entersRejected && $wasReserved) {
-                    $budgetService->releaseCommitment($po->fresh(), 'PO ' . $po->po_number . ' rejected', $request->user()?->user_id);
-                }
             }
 
             if (isset($validated['details'])) {
@@ -392,12 +367,6 @@ class PurchaseOrderController extends Controller
         } catch (ValidationException $e) {
             DB::rollBack();
             return $this->validationError($e->errors());
-        } catch (\App\Exceptions\NoActiveBudgetException $e) {
-            DB::rollBack();
-            return $this->error($e->getMessage(), 422);
-        } catch (\App\Exceptions\InsufficientBudgetException $e) {
-            DB::rollBack();
-            return $this->error($e->getMessage(), 422);
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->error('Failed to update purchase order: ' . $e->getMessage(), 500);

@@ -225,7 +225,7 @@ class InventoryScanTransactionController extends Controller
         // 12 must be allowed because syncPoReceivingStatus() sets it after the very
         // first scan — blocking status 12 would prevent all scans after the first one.
         if ($poId) {
-            $po = PurchaseOrder::with(['status', 'purchaseRequest.budget'])->find($poId);
+            $po = PurchaseOrder::with(['status', 'purchaseRequest'])->find($poId);
             if (! $po) {
                 return $this->success([
                     'action' => 'rejected',
