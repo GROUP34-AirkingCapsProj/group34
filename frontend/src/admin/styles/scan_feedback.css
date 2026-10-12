@@ -2,12 +2,13 @@
 .scan-feedback-context { display: grid; gap: 6px; padding: 14px 16px; border: 1px solid var(--border-color, #d1d5db); border-radius: 10px; background: var(--bg-card, #fff); color: var(--text-dark, #1f2937); overflow-wrap: anywhere; }
 .scan-feedback-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted, #64748b); }
 .scan-feedback-context progress { width: 100%; height: 10px; accent-color: #15803d; }
-.scan-feedback-result { display: grid; gap: 4px; padding: 12px 16px; margin-top: 8px; border-radius: 10px; border: 2px solid; overflow-wrap: anywhere; animation: scan-feedback-arrive .25s ease-out; }
+.scan-feedback-result { display: grid; gap: 4px; padding: 12px 16px; margin-top: 8px; border-radius: 10px; border: 2px solid; overflow-wrap: anywhere; animation: scan-feedback-arrive .25s ease-out, scan-feedback-fade .25s ease-in 2s forwards; }
 .scan-feedback-result--success { background: #dcfce7; color: #14532d; border-color: #15803d; }
 .scan-feedback-result--error { background: #fee2e2; color: #7f1d1d; border-color: #dc2626; }
 .scan-feedback-result--info { background: #dbeafe; color: #1e3a8a; border-color: #2563eb; }
 .scan-feedback-result code { font-size: 12px; }
 @keyframes scan-feedback-arrive { from { opacity: .4; } to { opacity: 1; } }
+@keyframes scan-feedback-fade { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .scan-feedback-result { animation: none; } }
 
 /* Keep scan context and the latest result inside the camera frame. */

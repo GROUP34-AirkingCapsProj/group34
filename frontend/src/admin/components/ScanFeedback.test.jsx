@@ -1,6 +1,23 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import ScanFeedback from './ScanFeedback';
+
+test('expires feedback after the two-second display and fade, restarting for a new scan', () => {
+  jest.useFakeTimers();
+  try {
+    const { rerender } = render(<ScanFeedback product="Air conditioner" feedback={{ accepted: true, message: 'First scan saved.', sequence: 1 }} />);
+    act(() => jest.advanceTimersByTime(2000));
+    expect(screen.getByText('First scan saved.')).toBeInTheDocument();
+    rerender(<ScanFeedback product="Air conditioner" feedback={{ accepted: false, message: 'Already received.', sequence: 2 }} />);
+    act(() => jest.advanceTimersByTime(250));
+    expect(screen.getByText('Already received.')).toBeInTheDocument();
+    act(() => jest.advanceTimersByTime(2000));
+    expect(screen.queryByText('Already received.')).not.toBeInTheDocument();
+    expect(screen.getByText('Air conditioner')).toBeInTheDocument();
+  } finally {
+    jest.useRealTimers();
+  }
+});
 
 test('replaces a successful scan with the red rejection and its reason', () => {
   const { rerender } = render(<ScanFeedback feedback={{ accepted: true, message: 'Added to delivery draft.', sequence: 1 }} />);
