@@ -34,7 +34,7 @@ const Header = ({ searchPlaceholder = "Search...", onSearch }) => {
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
-    navigate('/admin/login');
+    navigate('/login');
   };
 
   return (
@@ -52,10 +52,10 @@ const Header = ({ searchPlaceholder = "Search...", onSearch }) => {
       </div>
       <div className="header-right">
         <span className="role-badge">System Admin</span>
-<button className="icon-btn" onClick={() => navigate('/admin/alerts')}>
+<button className="icon-btn" onClick={() => navigate('/alerts')}>
           Bell
         </button>
-        <button className="icon-btn" onClick={() => navigate('/admin/config')}>
+        <button className="icon-btn" onClick={() => navigate('/config')}>
           Settings
         </button>
         <div className="user-profile">

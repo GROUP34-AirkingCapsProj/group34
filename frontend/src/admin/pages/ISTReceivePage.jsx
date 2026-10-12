@@ -212,13 +212,13 @@ const ISTReceivePage = () => {
               {ist?.transfer_number} has been received successfully.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button type="button" className="po-btn" style={{ background: 'var(--bg-contrast)', color: '#fff' }} onClick={() => navigate(`/admin/ist/${id}/receipt`)}>
+              <button type="button" className="po-btn" style={{ background: 'var(--bg-contrast)', color: '#fff' }} onClick={() => navigate(`/ist/${id}/receipt`)}>
                 View On-Screen Receipt
               </button>
               <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="po-btn" style={{ background: '#f59e0b', color: '#fff', textDecoration: 'none' }}>
                 Download PDF Receipt
               </a>
-              <button type="button" className="po-btn" style={{ background: 'var(--bg-hover)', color: 'var(--ink-blue-700)' }} onClick={() => navigate('/admin/ist')}>
+              <button type="button" className="po-btn" style={{ background: 'var(--bg-hover)', color: 'var(--ink-blue-700)' }} onClick={() => navigate('/ist')}>
                 Back to IST List
               </button>
             </div>
@@ -239,7 +239,7 @@ const ISTReceivePage = () => {
                 type="button"
                 className="po-btn"
                 style={{ padding: '6px 12px', fontSize: 12, marginRight: 12, flexShrink: 0 }}
-                onClick={() => navigate(`/admin/ist/${id}`)}
+                onClick={() => navigate(`/ist/${id}`)}
               >
                 ← Back
               </button>
@@ -265,7 +265,7 @@ const ISTReceivePage = () => {
           <div className="po-submit-error">
             {error}
             <div style={{ marginTop: 10 }}>
-              <button type="button" className="po-btn" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => navigate('/admin/ist')}>
+              <button type="button" className="po-btn" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => navigate('/ist')}>
                 Back to IST List
               </button>
             </div>
@@ -494,7 +494,7 @@ const ISTReceivePage = () => {
                 type="button"
                 className="po-btn"
                 style={{ background: 'var(--bg-hover)', color: 'var(--ink-blue-700)' }}
-                onClick={() => navigate(`/admin/ist/${id}`)}
+                onClick={() => navigate(`/ist/${id}`)}
                 disabled={submitting}
               >
                 Cancel

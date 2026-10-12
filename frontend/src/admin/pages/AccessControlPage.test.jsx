@@ -22,28 +22,28 @@ const renderAt = (path) =>
 
 beforeEach(() => mockNavigate.mockClear());
 
-test('renders Role Permissions panel and active tab at /admin/roles', () => {
-  renderAt('/admin/roles');
+test('renders Role Permissions panel and active tab at /roles', () => {
+  renderAt('/roles');
   expect(screen.getByText('ROLE PANEL')).toBeInTheDocument();
   expect(screen.queryByText('OVERRIDES PANEL')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Role Permissions' }).className).toMatch(/is-active/);
 });
 
-test('renders User Overrides panel and active tab at /admin/user-permissions', () => {
-  renderAt('/admin/user-permissions');
+test('renders User Overrides panel and active tab at /user-permissions', () => {
+  renderAt('/user-permissions');
   expect(screen.getByText('OVERRIDES PANEL')).toBeInTheDocument();
   expect(screen.queryByText('ROLE PANEL')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'User Overrides' }).className).toMatch(/is-active/);
 });
 
 test('clicking the inactive tab navigates to its path', () => {
-  renderAt('/admin/roles');
+  renderAt('/roles');
   fireEvent.click(screen.getByRole('button', { name: 'User Overrides' }));
-  expect(mockNavigate).toHaveBeenCalledWith('/admin/user-permissions');
+  expect(mockNavigate).toHaveBeenCalledWith('/user-permissions');
 });
 
 test('clicking the already-active tab does not navigate', () => {
-  renderAt('/admin/roles');
+  renderAt('/roles');
   fireEvent.click(screen.getByRole('button', { name: 'Role Permissions' }));
   expect(mockNavigate).not.toHaveBeenCalled();
 });

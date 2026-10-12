@@ -140,7 +140,7 @@ const ISTDetailPage = () => {
                 type="button"
                 className="po-btn"
                 style={{ padding: '6px 12px', fontSize: 12, marginRight: 12, flexShrink: 0 }}
-                onClick={() => navigate('/admin/ist')}
+                onClick={() => navigate('/ist')}
               >
                 ← Back
               </button>
@@ -166,7 +166,7 @@ const ISTDetailPage = () => {
                     type="button"
                     className="po-btn"
                     style={{ background: 'var(--bg-contrast)', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
-                    onClick={() => navigate(`/admin/ist/${id}/dispatch`)}
+                    onClick={() => navigate(`/ist/${id}/dispatch`)}
                   >
                     Scan / Dispatch
                   </button>
@@ -176,7 +176,7 @@ const ISTDetailPage = () => {
                     type="button"
                     className="po-btn"
                     style={{ background: 'var(--bg-contrast)', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
-                    onClick={() => navigate(`/admin/ist/${id}/receive`)}
+                    onClick={() => navigate(`/ist/${id}/receive`)}
                   >
                     Confirm Receipt
                   </button>
@@ -187,7 +187,7 @@ const ISTDetailPage = () => {
                       type="button"
                       className="po-btn"
                       style={{ background: 'var(--bg-contrast)', color: '#fff', fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}
-                      onClick={() => navigate(`/admin/ist/${id}/receipt`)}
+                      onClick={() => navigate(`/ist/${id}/receipt`)}
                     >
                       Print Receipt
                     </button>

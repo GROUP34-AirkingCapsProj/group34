@@ -49,7 +49,7 @@ const ISTReceiptPage = () => {
       }}>
         <button
           type="button"
-          onClick={() => navigate(`/admin/ist/${id}`)}
+          onClick={() => navigate(`/ist/${id}`)}
           style={{
             background: 'transparent', border: '1px solid rgba(255,255,255,0.3)',
             color: '#fff', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 12,

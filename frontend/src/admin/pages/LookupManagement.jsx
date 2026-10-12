@@ -35,7 +35,7 @@ const LookupManagement = () => {
     const params = new URLSearchParams(location.search);
     const requested = params.get('tab');
     if (requested && isValidLookup(requested)) return requested;
-    if (location.pathname === '/admin/brands') return 'brands';
+    if (location.pathname === '/brands') return 'brands';
     return 'categories';
   });
 

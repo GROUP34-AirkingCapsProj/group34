@@ -599,7 +599,7 @@ const TransactionManagement = () => {
 
   const handleContinueDraft = () => {
     if (activeIssuanceId == null) return;
-    navigate('/admin/issuance-scan?issuance=' + activeIssuanceId);
+    navigate('/issuance-scan?issuance=' + activeIssuanceId);
   };
 
   const handleCancelIssueOut = async () => {
@@ -976,7 +976,7 @@ const TransactionManagement = () => {
               <article className="txn-metric txn-metric--hero"><span className="txn-metric-kicker">CURRENT INVENTORY · LIVE SNAPSHOT</span><h3>{fmtMoney(overview.stockValue)}</h3><p>Estimated cost value of stock currently on hand</p><div className="txn-metric-foot"><span><strong>{overview.stockUnits.toLocaleString()}</strong> units across <strong>{inventoryRows.length.toLocaleString()}</strong> stock records</span><button onClick={() => setComputationView('stock')}>View computation</button></div></article>
               <article className="txn-metric"><span className="txn-metric-kicker">ISSUED / SALES OUT</span><h3>{fmtMoney(overview.issuedValue)}</h3><p>{overview.issuedUnits.toLocaleString()} units issued from inventory</p><div className="txn-progress"><i style={{ width: `${Math.min(100, overview.movementUnits ? (overview.issuedUnits / overview.movementUnits) * 100 : 0)}%` }} /></div><button className="txn-compute-link" onClick={() => setComputationView('issued')}>View computation →</button></article>
               <article className="txn-metric"><span className="txn-metric-kicker">INTERBRANCH TRANSFERS</span><h3>{fmtMoney(overview.transferredValue)}</h3><p>{overview.transferredUnits.toLocaleString()} units transferred between locations</p><div className="txn-progress txn-progress--blue"><i style={{ width: `${Math.min(100, overview.movementUnits ? (overview.transferredUnits / overview.movementUnits) * 100 : 0)}%` }} /></div><button className="txn-compute-link" onClick={() => setComputationView('transfer')}>View computation →</button></article>
-              <article className="txn-metric txn-metric--incident"><span className="txn-metric-kicker">INCIDENT REPORTS</span><h3>{overview.openIncidents.toLocaleString()} open</h3><p>{overview.incidentUnits.toLocaleString()} units currently involved</p><button onClick={() => navigate('/admin/incidents')}>Review incidents <span>→</span></button></article>
+              <article className="txn-metric txn-metric--incident"><span className="txn-metric-kicker">INCIDENT REPORTS</span><h3>{overview.openIncidents.toLocaleString()} open</h3><p>{overview.incidentUnits.toLocaleString()} units currently involved</p><button onClick={() => navigate('/incidents')}>Review incidents <span>→</span></button></article>
             </div>
             <div className="txn-flow-card">
               <div><h3>Stock flow snapshot</h3><p>A simple operational view based on the loaded transaction ledger.</p><button className="txn-overall-button" onClick={() => setComputationView('overall-actual')}>View actual transaction computation →</button></div>

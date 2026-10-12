@@ -1876,15 +1876,15 @@ const BarcodeScan = () => {
   /* ── select a mode and enter scan view ── */
   const selectMode = (mode, idx) => {
     if (mode.key === 'adjust') {
-      navigate('/admin/barcode-adjustment');
+      navigate('/barcode-adjustment');
       return;
     }
     if (mode.key === 'issue-out') {
-      navigate('/admin/issuance-scan');
+      navigate('/issuance-scan');
       return;
     }
     if (mode.key === 'transfer') {
-      navigate('/admin/transfers');
+      navigate('/transfers');
       return;
     }
     setScanMode(mode);
@@ -3346,7 +3346,7 @@ const BarcodeScan = () => {
             <div className="bs-home-card">
               <div className="bs-home-card-head">
                 <span className="bs-home-card-title">Recent Movement</span>
-                <button className="bs-viewall" type="button" onClick={() => navigate('/admin/inventory?tab=activity')}>VIEW ALL</button>
+                <button className="bs-viewall" type="button" onClick={() => navigate('/inventory?tab=activity')}>VIEW ALL</button>
               </div>
               <div className="bs-movement-list">
                 {recentMovement.map((m, i) => {
@@ -4854,7 +4854,7 @@ const BarcodeScan = () => {
                 ? 'Ship from warehouse. Use “Ship first” so stock only appears at the showroom after someone scans to receive here.'
                 : 'Truck arrived? Pick your showroom and the in-transit transfer, then scan each barcode to add stock at this location.'}
             </p>
-            <button type="button" className="btn-link" style={{ padding: 0, marginTop: 10, fontSize: 13 }} onClick={() => navigate('/admin/ist')}>
+            <button type="button" className="btn-link" style={{ padding: 0, marginTop: 10, fontSize: 13 }} onClick={() => navigate('/ist')}>
               Open IST receive flow →
             </button>
           </div>

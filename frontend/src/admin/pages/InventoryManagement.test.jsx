@@ -93,7 +93,7 @@ beforeEach(() => {
  */
 test('mounts without throwing and loads the inventory list', async () => {
   render(
-    <MemoryRouter initialEntries={['/admin/inventory']}>
+    <MemoryRouter initialEntries={['/inventory']}>
       <InventoryManagement />
     </MemoryRouter>
   );
@@ -105,7 +105,7 @@ test('mounts without throwing and loads the inventory list', async () => {
 
 test('handles an inventory-scan-applied event without crashing', async () => {
   render(
-    <MemoryRouter initialEntries={['/admin/inventory']}>
+    <MemoryRouter initialEntries={['/inventory']}>
       <InventoryManagement />
     </MemoryRouter>
   );
@@ -126,7 +126,7 @@ test('handles an inventory-scan-applied event without crashing', async () => {
 
 test('switching tabs does not crash', async () => {
   render(
-    <MemoryRouter initialEntries={['/admin/inventory']}>
+    <MemoryRouter initialEntries={['/inventory']}>
       <InventoryManagement />
     </MemoryRouter>
   );
@@ -192,7 +192,7 @@ const openSerialsTab = async () => {
   inventoryAPI.getHistory.mockResolvedValue(materialHistory);
 
   render(
-    <MemoryRouter initialEntries={['/admin/inventory?focus=inv:77']}>
+    <MemoryRouter initialEntries={['/inventory?focus=inv:77']}>
       <InventoryManagement />
     </MemoryRouter>
   );
@@ -308,7 +308,7 @@ const openStockInTab = async (receivingHistory) => {
   });
 
   render(
-    <MemoryRouter initialEntries={['/admin/inventory?focus=inv:77']}>
+    <MemoryRouter initialEntries={['/inventory?focus=inv:77']}>
       <InventoryManagement />
     </MemoryRouter>
   );
@@ -445,7 +445,7 @@ test("offers no tag barcode for an appliance whose serial is the manufacturer ow
   });
 
   render(
-    <MemoryRouter initialEntries={['/admin/inventory?focus=inv:78']}>
+    <MemoryRouter initialEntries={['/inventory?focus=inv:78']}>
       <InventoryManagement />
     </MemoryRouter>
   );
@@ -514,7 +514,7 @@ test('keeps the per-unit columns for an appliance, which does fill them', async 
   });
 
   render(
-    <MemoryRouter initialEntries={['/admin/inventory?focus=inv:88']}>
+    <MemoryRouter initialEntries={['/inventory?focus=inv:88']}>
       <InventoryManagement />
     </MemoryRouter>
   );
@@ -567,7 +567,7 @@ const openPoGroupSerials = async () => {
   inventoryAPI.getPoGroupDetail.mockResolvedValue(poGroupDetail);
 
   render(
-    <MemoryRouter initialEntries={['/admin/inventory?tab=inventory']}>
+    <MemoryRouter initialEntries={['/inventory?tab=inventory']}>
       <InventoryManagement />
     </MemoryRouter>
   );

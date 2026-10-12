@@ -906,7 +906,7 @@ export default function BarcodeAdjustmentPage() {
               </div>
             </div>
             <div className="ak-header-aside ak-actions baj-header-actions">
-              <button type="button" className="ak-btn ak-btn--ghost ak-btn--sm baj-back-btn" onClick={() => navigate('/admin/inventory-operation')}>
+              <button type="button" className="ak-btn ak-btn--ghost ak-btn--sm baj-back-btn" onClick={() => navigate('/inventory-operation')}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
                 Back
               </button>

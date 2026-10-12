@@ -696,7 +696,7 @@ const PurchaseOrderPage = () => {
                   <button
                     type="button"
                     style={{ background: 'none', border: 'none', color: 'var(--ink-blue)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', fontSize: 12, padding: 0 }}
-                    onClick={() => navigate('/admin/purchase-requests')}
+                    onClick={() => navigate('/purchase-requests')}
                   >
                     {po.purchase_request.pr_number}
                   </button>
@@ -802,7 +802,7 @@ const PurchaseOrderPage = () => {
               <p style={{ fontSize: 13, color: 'var(--ink-blue-300)', marginBottom: 16 }}>
                 Create a Purchase Request first and get it approved by Admin.
               </p>
-              <button type="button" className="po-btn po-btn-add-product" onClick={() => navigate('/admin/purchase-requests')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <button type="button" className="po-btn po-btn-add-product" onClick={() => navigate('/purchase-requests')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 Go to Purchase Requests
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
               </button>
@@ -1467,7 +1467,7 @@ const PurchaseOrderPage = () => {
                       <button
                         type="button"
                         style={{ background: 'none', border: 'none', color: 'var(--ink-blue)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12, padding: 0 }}
-                        onClick={() => { setSelectedPO(null); navigate('/admin/purchase-requests'); }}
+                        onClick={() => { setSelectedPO(null); navigate('/purchase-requests'); }}
                       >
                         {d.purchase_request.pr_number}
                       </button>

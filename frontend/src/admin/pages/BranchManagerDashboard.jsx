@@ -45,8 +45,8 @@ export default function BranchManagerDashboard() {
               <p className="ak-sub">Live stock, demand and approvals for your location.</p>
             </div>
             <div className="ak-header-aside ak-actions">
-              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/inventory')}>View inventory</button>
-              <button className="ak-btn ak-btn--primary" onClick={() => navigate('/admin/approvals')}>Approvals</button>
+              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/inventory')}>View inventory</button>
+              <button className="ak-btn ak-btn--primary" onClick={() => navigate('/approvals')}>Approvals</button>
             </div>
           </div>
         </header>

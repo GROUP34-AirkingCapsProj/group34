@@ -134,7 +134,7 @@ const Login = () => {
     try {
       const data = await authAPI.verifyOtp(email, code);
       if (data.user) updateUser(data.user);
-      navigate('/admin/dashboard');
+      navigate('/dashboard');
     } catch (err) {
       const message = err.message || 'Invalid or expired code.';
       setError(message);
@@ -179,7 +179,7 @@ const Login = () => {
         return;
       }
       if (data.user) updateUser(data.user);
-      navigate('/admin/dashboard');
+      navigate('/dashboard');
     } catch (err) {
       const message =
         err.errors?.captcha_answer?.[0]
@@ -442,7 +442,7 @@ const Login = () => {
                     <button
                       type="button"
                       className="forgot"
-                      onClick={() => navigate('/admin/forgot-password')}
+                      onClick={() => navigate('/forgot-password')}
                     >
                       Forgot Password?
                     </button>

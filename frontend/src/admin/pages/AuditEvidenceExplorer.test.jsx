@@ -34,7 +34,7 @@ const SUMMARY = {
   cost_basis: { actual: 1000, product_default: 0, derived_weighted_avg: 0, unavailable: 0 },
 };
 
-const renderPage = (path = '/admin/audit-evidence') =>
+const renderPage = (path = '/audit-evidence') =>
   render(
     <MemoryRouter initialEntries={[path]}>
       <AuditEvidenceExplorer />

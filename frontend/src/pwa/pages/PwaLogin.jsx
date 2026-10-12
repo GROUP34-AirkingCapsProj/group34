@@ -137,7 +137,7 @@ export default function PwaLogin() {
         </button>
 
         <p className="pwa-muted" style={{ marginTop: 20, textAlign: 'center' }}>
-          <Link to="/admin/login">← Back to admin (Laravel) login</Link>
+          <Link to="/login">← Back to admin (Laravel) login</Link>
         </p>
       </div>
     </div>

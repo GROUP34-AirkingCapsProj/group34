@@ -174,7 +174,7 @@ const ISTManagementPage = () => {
                 type="button"
                 className="po-btn"
                 style={{ fontSize: 12, padding: '8px 14px' }}
-                onClick={() => navigate('/admin/transfer-requests')}
+                onClick={() => navigate('/transfer-requests')}
               >
                 Transfer Requests
               </button>
@@ -362,7 +362,7 @@ const ISTManagementPage = () => {
                       <tr
                         key={ist.transfer_id}
                         style={{ cursor: 'pointer' }}
-                        onClick={() => navigate(`/admin/ist/${ist.transfer_id}`)}
+                        onClick={() => navigate(`/ist/${ist.transfer_id}`)}
                       >
                         <td>
                           <span style={{ fontWeight: 600, color: 'var(--ink-blue-800-3)' }}>{ist.transfer_number}</span>
@@ -392,7 +392,7 @@ const ISTManagementPage = () => {
                                 type="button"
                                 className="po-btn"
                                 style={{ fontSize: 11, padding: '4px 10px', background: 'var(--bg-contrast)', color: '#fff' }}
-                                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}/receipt`); }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/ist/${ist.transfer_id}/receipt`); }}
                               >
                                 Print Receipt
                               </button>
@@ -413,7 +413,7 @@ const ISTManagementPage = () => {
                                 type="button"
                                 className="po-btn"
                                 style={{ fontSize: 11, padding: '4px 10px' }}
-                                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}`); }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/ist/${ist.transfer_id}`); }}
                               >
                                 View
                               </button>
@@ -421,7 +421,7 @@ const ISTManagementPage = () => {
                                 type="button"
                                 className="po-btn"
                                 style={{ fontSize: 11, padding: '4px 10px', background: 'var(--bg-contrast)', color: '#fff' }}
-                                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}/receive`); }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/ist/${ist.transfer_id}/receive`); }}
                               >
                                 Confirm Receipt
                               </button>
@@ -432,7 +432,7 @@ const ISTManagementPage = () => {
                                 type="button"
                                 className="po-btn"
                                 style={{ fontSize: 11, padding: '4px 10px' }}
-                                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}`); }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/ist/${ist.transfer_id}`); }}
                               >
                                 View
                               </button>
@@ -440,7 +440,7 @@ const ISTManagementPage = () => {
                                 type="button"
                                 className="po-btn"
                                 style={{ fontSize: 11, padding: '4px 10px', background: 'var(--bg-contrast)', color: '#fff' }}
-                                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}/dispatch`); }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/ist/${ist.transfer_id}/dispatch`); }}
                               >
                                 Scan / Dispatch
                               </button>
@@ -450,7 +450,7 @@ const ISTManagementPage = () => {
                               type="button"
                               className="po-btn"
                               style={{ fontSize: 11, padding: '4px 10px' }}
-                              onClick={(e) => { e.stopPropagation(); navigate(`/admin/ist/${ist.transfer_id}`); }}
+                              onClick={(e) => { e.stopPropagation(); navigate(`/ist/${ist.transfer_id}`); }}
                             >
                               View
                             </button>

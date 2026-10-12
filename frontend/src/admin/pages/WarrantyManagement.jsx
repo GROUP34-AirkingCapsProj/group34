@@ -168,7 +168,7 @@ const WarrantyManagement = () => {
 
   const goToClaim = (serialNumber) => {
     const serial = encodeURIComponent(serialNumber || '');
-    window.location.href = `/admin/warranty-claims${serial ? `?serial=${serial}` : ''}`;
+    window.location.href = `/warranty-claims${serial ? `?serial=${serial}` : ''}`;
   };
 
   const handleExport = () => {

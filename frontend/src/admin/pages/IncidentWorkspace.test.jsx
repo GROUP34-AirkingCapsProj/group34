@@ -9,7 +9,7 @@ jest.mock('./IncidentInspectionPage', () => ({ embedded }) => <p>Inspections {em
 jest.mock('./IncidentItemsRegisterPage', () => ({ embedded }) => <p>Items {embedded ? 'embedded' : 'standalone'}</p>);
 
 test('combines three incident tabs in one layout and supports keyboard switching', async () => {
-  render(<MemoryRouter initialEntries={['/admin/incidents']}><IncidentWorkspace /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/incidents']}><IncidentWorkspace /></MemoryRouter>);
   expect(await screen.findByText('Reports embedded')).toBeInTheDocument();
   expect(screen.getAllByRole('tab')).toHaveLength(3);
   fireEvent.click(screen.getByRole('tab', { name: 'Inspections' }));
@@ -22,6 +22,6 @@ test('combines three incident tabs in one layout and supports keyboard switching
 });
 
 test('opens the tab from the URL when revisiting a saved link', async () => {
-  render(<MemoryRouter initialEntries={['/admin/incidents?tab=items']}><IncidentWorkspace /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={['/incidents?tab=items']}><IncidentWorkspace /></MemoryRouter>);
   expect(await screen.findByText('Items embedded')).toBeInTheDocument();
 });

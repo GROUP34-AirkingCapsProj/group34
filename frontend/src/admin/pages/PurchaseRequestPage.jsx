@@ -1387,7 +1387,7 @@ const PurchaseRequestPage = () => {
                     <button
                       type="button"
                       className="pr-convert-btn"
-                      onClick={() => navigate('/admin/draft-po-creator', { state: { prId: pr.pr_id, prNumber: pr.pr_number } })}
+                      onClick={() => navigate('/draft-po-creator', { state: { prId: pr.pr_id, prNumber: pr.pr_number } })}
                     >
                       Convert to PO
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={{ marginLeft: 5 }}><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>

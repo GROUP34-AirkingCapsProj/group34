@@ -395,7 +395,7 @@ const AlertsNotices = () => {
   }, [navigate]);
 
   const { can } = useAuth();
-  // Audit trail is a separate privileged compliance feature (own /admin/audit page).
+  // Audit trail is a separate privileged compliance feature (own /audit page).
   // Only admin/branch_manager/auditor hold audit_trail_viewing.read; IA & WP must still
   // see their location-scoped alerts without that section breaking the page.
   const canViewAudit = can('audit_trail_viewing', 'read');
@@ -644,7 +644,7 @@ const AlertsNotices = () => {
               {canVerifyPo && pendingVerifyPos > 0 && (
                 <button
                   type="button"
-                  onClick={() => navigate('/admin/draft-po-creator')}
+                  onClick={() => navigate('/draft-po-creator')}
                   style={{ textAlign: 'left', background: 'var(--warning-bg)', border: '1px solid var(--line-amber-400-2)', borderRadius: 8, padding: '10px 14px', color: 'var(--warning-text)', fontSize: 14, cursor: 'pointer' }}
                 >
                   {pendingVerifyPos} purchase order(s) awaiting verification →

@@ -18,7 +18,7 @@ function Probe() {
 describe('useFocusTarget', () => {
   it('returns the id for a matching type and clears the param', async () => {
     render(
-      <MemoryRouter initialEntries={['/admin/draft-po-creator?focus=po:42']}>
+      <MemoryRouter initialEntries={['/draft-po-creator?focus=po:42']}>
         <Probe />
       </MemoryRouter>
     );
@@ -30,7 +30,7 @@ describe('useFocusTarget', () => {
 
   it('strips focus but preserves other params', async () => {
     render(
-      <MemoryRouter initialEntries={['/admin/draft-po-creator?focus=po:42&tab=status']}>
+      <MemoryRouter initialEntries={['/draft-po-creator?focus=po:42&tab=status']}>
         <Probe />
       </MemoryRouter>
     );
@@ -42,7 +42,7 @@ describe('useFocusTarget', () => {
 
   it('returns none for a mismatched type', () => {
     render(
-      <MemoryRouter initialEntries={['/admin/draft-po-creator?focus=pr:42']}>
+      <MemoryRouter initialEntries={['/draft-po-creator?focus=pr:42']}>
         <Probe />
       </MemoryRouter>
     );

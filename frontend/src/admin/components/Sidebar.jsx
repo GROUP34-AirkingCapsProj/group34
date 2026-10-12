@@ -13,35 +13,35 @@ const avatarColor = (str = '') => {
 
 // Route-to-chunk prefetch map — mirrors the lazy() imports in App.js
 const routePrefetchMap = {
-  '/admin/dashboard': () => import('../pages/Dashboard'),
-  '/admin/analytics': () => import('../pages/AnalyticsDashboard'),
-  '/admin/roles': () => import('../pages/AccessControlPage'),
-  '/admin/locations': () => import('../pages/LocationManagement'),
-  '/admin/branches': () => import('../pages/LocationManagement'),
-  '/admin/warehouses': () => import('../pages/LocationManagement'),
-  '/admin/categories': () => import('../pages/LookupManagement'),
-  '/admin/brands': () => import('../pages/LookupManagement'),
-  '/admin/items': () => import('../pages/ItemManagement'),
-  '/admin/suppliers': () => import('../pages/SupplierNetwork'),
-  '/admin/purchase-requests': () => import('../pages/PurchaseRequestPage'),
-  '/admin/draft-po-creator': () => import('../pages/PurchaseOrderPage'),
-  '/admin/inventory': () => import('../pages/InventoryManagement'),
-  '/admin/barcode-printing': () => import('../pages/BarcodePrintingPage'),
-  '/admin/transfers': () => import('../pages/TransfersPage'),
-  '/admin/issuances': () => import('../pages/IssuanceManagement'),
-  '/admin/adjustments': () => import('../pages/AdjustmentManagement'),
-  '/admin/inventory-operation': () => import('../pages/BarcodeScan'),
-  '/admin/customers': () => import('../pages/CustomerManagement'),
-  '/admin/transactions': () => import('../pages/TransactionManagement'),
-  '/admin/delivery-receipts': () => import('../pages/DeliveryReceiptManagement'),
-  '/admin/purchase-returns': () => import('../pages/PurchaseReturnManagement'),
-  '/admin/reports': () => import('../pages/ReportsAnalytics'),
-  '/admin/audit': () => import('../pages/AuditTrail'),
-  '/admin/audit-evidence': () => import('../pages/AuditEvidenceExplorer'),
-  '/admin/profit-loss': () => import('../pages/ProfitLossManagement'),
-  '/admin/issuance-scan': () => import('../pages/IssuanceScanPage'),
-  '/admin/warranties': () => import('../pages/WarrantyManagement'),
-  '/admin/warranty-claims': () => import('../pages/WarrantyClaimPage'),
+  '/dashboard': () => import('../pages/Dashboard'),
+  '/analytics': () => import('../pages/AnalyticsDashboard'),
+  '/roles': () => import('../pages/AccessControlPage'),
+  '/locations': () => import('../pages/LocationManagement'),
+  '/branches': () => import('../pages/LocationManagement'),
+  '/warehouses': () => import('../pages/LocationManagement'),
+  '/categories': () => import('../pages/LookupManagement'),
+  '/brands': () => import('../pages/LookupManagement'),
+  '/items': () => import('../pages/ItemManagement'),
+  '/suppliers': () => import('../pages/SupplierNetwork'),
+  '/purchase-requests': () => import('../pages/PurchaseRequestPage'),
+  '/draft-po-creator': () => import('../pages/PurchaseOrderPage'),
+  '/inventory': () => import('../pages/InventoryManagement'),
+  '/barcode-printing': () => import('../pages/BarcodePrintingPage'),
+  '/transfers': () => import('../pages/TransfersPage'),
+  '/issuances': () => import('../pages/IssuanceManagement'),
+  '/adjustments': () => import('../pages/AdjustmentManagement'),
+  '/inventory-operation': () => import('../pages/BarcodeScan'),
+  '/customers': () => import('../pages/CustomerManagement'),
+  '/transactions': () => import('../pages/TransactionManagement'),
+  '/delivery-receipts': () => import('../pages/DeliveryReceiptManagement'),
+  '/purchase-returns': () => import('../pages/PurchaseReturnManagement'),
+  '/reports': () => import('../pages/ReportsAnalytics'),
+  '/audit': () => import('../pages/AuditTrail'),
+  '/audit-evidence': () => import('../pages/AuditEvidenceExplorer'),
+  '/profit-loss': () => import('../pages/ProfitLossManagement'),
+  '/issuance-scan': () => import('../pages/IssuanceScanPage'),
+  '/warranties': () => import('../pages/WarrantyManagement'),
+  '/warranty-claims': () => import('../pages/WarrantyClaimPage'),
 };
 
 const prefetchedRoutes = new Set();
@@ -55,54 +55,54 @@ const adminMenuSections = [
   {
     label: 'ADMINISTRATION',
     items: [
-      { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
+      { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
       // User Management now lives in System Configuration → User Management tab.
-      { name: 'Role & Permissions', path: '/admin/roles', icon: 'roles' },
-      { name: 'Permission Audit', path: '/admin/permission-audit', icon: 'audit' },
-      { name: 'Location Management', path: '/admin/branches', icon: 'location' },
-      { name: 'System Configuration', path: '/admin/config', icon: 'config' },
-      { name: 'Archive Management', path: '/admin/archive', icon: 'archive' },
+      { name: 'Role & Permissions', path: '/roles', icon: 'roles' },
+      { name: 'Permission Audit', path: '/permission-audit', icon: 'audit' },
+      { name: 'Location Management', path: '/branches', icon: 'location' },
+      { name: 'System Configuration', path: '/config', icon: 'config' },
+      { name: 'Archive Management', path: '/archive', icon: 'archive' },
     ],
   },
   {
     label: 'PROCUREMENT & PLANNING',
     items: [
-      { name: 'Purchase Requests', path: '/admin/purchase-requests', icon: 'approval' },
-      { name: 'Purchase Orders', path: '/admin/draft-po-creator', icon: 'procurement' },
-      { name: 'Supplier Network', path: '/admin/suppliers', icon: 'supplier' },
-      { name: 'Item Master', path: '/admin/items', icon: 'items' },
-      { name: 'Item Lookups', path: '/admin/categories', icon: 'category' },
-      { name: 'Set Management', path: '/admin/sets', icon: 'sets' },
+      { name: 'Purchase Requests', path: '/purchase-requests', icon: 'approval' },
+      { name: 'Purchase Orders', path: '/draft-po-creator', icon: 'procurement' },
+      { name: 'Supplier Network', path: '/suppliers', icon: 'supplier' },
+      { name: 'Item Master', path: '/items', icon: 'items' },
+      { name: 'Item Lookups', path: '/categories', icon: 'category' },
+      { name: 'Set Management', path: '/sets', icon: 'sets' },
     ],
   },
   {
     label: 'INVENTORY INTELLIGENCE',
     items: [
-      { name: 'Inventory Monitoring', path: '/admin/inventory', icon: 'inventory' },
-      { name: 'Barcode Printing', path: '/admin/barcode-printing', icon: 'scan' },
-      { name: 'Transfers', path: '/admin/transfers', icon: 'transfer' },
-      { name: 'Incident Reports', path: '/admin/incidents', icon: 'incident' },
+      { name: 'Inventory Monitoring', path: '/inventory', icon: 'inventory' },
+      { name: 'Barcode Printing', path: '/barcode-printing', icon: 'scan' },
+      { name: 'Transfers', path: '/transfers', icon: 'transfer' },
+      { name: 'Incident Reports', path: '/incidents', icon: 'incident' },
     ],
   },
   {
     label: 'SALES & LOGISTICS',
 
     items: [
-      { name: 'Transactions', path: '/admin/transactions', icon: 'globaltransactions' },
-      { name: 'Customer Registry', path: '/admin/customers', icon: 'customers' },
-      { name: 'Scan Barcode', path: '/admin/inventory-operation', icon: 'scan' },
+      { name: 'Transactions', path: '/transactions', icon: 'globaltransactions' },
+      { name: 'Customer Registry', path: '/customers', icon: 'customers' },
+      { name: 'Scan Barcode', path: '/inventory-operation', icon: 'scan' },
     ],
   },
   {
     label: 'COMPLIANCE & SUPPORT',
 
     items: [
-      { name: 'Compliance Review', path: '/admin/compliance', icon: 'compliance' },
-      { name: 'Reports & Analytics', path: '/admin/reports', icon: 'reports' },
-      { name: 'Warranty Records', path: '/admin/warranties', icon: 'warranty' },
-      { name: 'Alerts & Notices', path: '/admin/alerts', icon: 'notifications' },
-      { name: 'Audit & Evidence', path: '/admin/audit-evidence', icon: 'audit' },
-      { name: 'Audit Trail', path: '/admin/audit', icon: 'audit' },
+      { name: 'Compliance Review', path: '/compliance', icon: 'compliance' },
+      { name: 'Reports & Analytics', path: '/reports', icon: 'reports' },
+      { name: 'Warranty Records', path: '/warranties', icon: 'warranty' },
+      { name: 'Alerts & Notices', path: '/alerts', icon: 'notifications' },
+      { name: 'Audit & Evidence', path: '/audit-evidence', icon: 'audit' },
+      { name: 'Audit Trail', path: '/audit', icon: 'audit' },
     ],
   },
 ];
@@ -481,12 +481,12 @@ const Sidebar = ({
             >
               <span className="nav-icon">{renderIcon(item.icon)}</span>
               <span className="nav-text">{item.name}</span>
-              {item.path === '/admin/purchase-requests' && pendingPrCount > 0 && (
+              {item.path === '/purchase-requests' && pendingPrCount > 0 && (
                 <span className="nav-item-badge">
                   {pendingPrCount > 99 ? '99+' : pendingPrCount}
                 </span>
               )}
-              {item.path === '/admin/transfers' && awaitingIstCount > 0 && (
+              {item.path === '/transfers' && awaitingIstCount > 0 && (
                 <span className="nav-item-badge">
                   {awaitingIstCount > 99 ? '99+' : awaitingIstCount}
                 </span>

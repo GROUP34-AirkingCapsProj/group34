@@ -21,7 +21,7 @@ beforeEach(() => {
 test('shows warehouse work and refreshes it when notified, then marks it read', async () => {
   dashboardAPI.getPendingApprovals.mockResolvedValue({ data: {} });
   const notification = { id: 'transfer_receive:4', label: 'TR-4 incoming — ready to receive',
-    description: 'Main → Branch', link: '/admin/transfers?tab=receive', unread: true };
+    description: 'Main → Branch', link: '/transfers?tab=receive', unread: true };
   alertsAPI.getSettings.mockResolvedValue({ data: { warehouse_notifications: [notification] } });
   render(<AlertsNotices />);
   expect(await screen.findByText(notification.label)).toBeInTheDocument();

@@ -27,7 +27,7 @@ function Probe() {
   );
 }
 
-const renderProbe = (initialPath = '/admin/audit-evidence') =>
+const renderProbe = (initialPath = '/audit-evidence') =>
   render(
     <MemoryRouter initialEntries={[initialPath]}>
       <Probe />
@@ -51,7 +51,7 @@ describe('useAuditEvidence', () => {
   });
 
   it('reads the scope out of the URL so a shared link opens the same evidence', async () => {
-    renderProbe('/admin/audit-evidence?from=2026-03-01&to=2026-03-31&lens=finance');
+    renderProbe('/audit-evidence?from=2026-03-01&to=2026-03-31&lens=finance');
 
     await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('no'));
 

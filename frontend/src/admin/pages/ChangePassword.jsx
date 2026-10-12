@@ -63,7 +63,7 @@ const ChangePassword = () => {
 
     setLoading(false);
     toast.success('Password updated. Welcome aboard.');
-    navigate('/admin/dashboard', { replace: true });
+    navigate('/dashboard', { replace: true });
   };
 
   return (

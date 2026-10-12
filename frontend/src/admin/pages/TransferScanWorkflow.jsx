@@ -256,7 +256,7 @@ const TransferScanWorkflow = () => {
         ) : filtered.length === 0 ? (
           <div style={{ background: 'var(--bg-muted)', borderRadius: 10, padding: 16, color: 'var(--ink-blue-500)', fontSize: 14 }}>
             No in-transit transfers for this location. Create one from{' '}
-            <button type="button" className="btn-link" style={{ padding: 0 }} onClick={() => navigate('/admin/transfers')}>
+            <button type="button" className="btn-link" style={{ padding: 0 }} onClick={() => navigate('/transfers')}>
               Stock Transfer
             </button>{' '}
             with &quot;Ship first (showroom receives later)&quot; checked.
@@ -349,7 +349,7 @@ const TransferScanWorkflow = () => {
         )}
 
         <div style={{ marginTop: 20 }}>
-          <button type="button" className="btn-secondary" onClick={() => navigate('/admin/transfers')}>
+          <button type="button" className="btn-secondary" onClick={() => navigate('/transfers')}>
             ← Back to Stock Transfer
           </button>
         </div>

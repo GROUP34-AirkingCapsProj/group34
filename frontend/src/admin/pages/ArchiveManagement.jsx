@@ -242,7 +242,7 @@ const ArchiveManagement = () => {
         {/* Page-level navigation tabs */}
         <div className="am-page-tabs">
           <Link
-            to="/admin/archive"
+            to="/archive"
             className="am-page-tab am-page-tab--active"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
@@ -253,7 +253,7 @@ const ArchiveManagement = () => {
           </Link>
           {isAdmin && (
             <Link
-              to="/admin/archive-settings"
+              to="/archive-settings"
               className="am-page-tab"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">

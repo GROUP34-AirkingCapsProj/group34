@@ -80,7 +80,7 @@ const ForgotPassword = () => {
         password_confirmation: passwordConfirmation,
       });
       toast.success('Password reset. You can log in with your new password.');
-      navigate('/admin/login', { replace: true });
+      navigate('/login', { replace: true });
     } catch (err) {
       setError(
         err.errors?.reset_token?.[0]
@@ -107,7 +107,7 @@ const ForgotPassword = () => {
         password_confirmation: passwordConfirmation,
       });
       toast.success('Password reset. You can log in with your new password.');
-      navigate('/admin/login', { replace: true });
+      navigate('/login', { replace: true });
     } catch (err) {
       setError(
         err.errors?.code?.[0]
@@ -312,7 +312,7 @@ const ForgotPassword = () => {
               </>
             )}
 
-            <button type="button" className="login-back-link" onClick={() => navigate('/admin/login')}>
+            <button type="button" className="login-back-link" onClick={() => navigate('/login')}>
               Back to Login
             </button>
 

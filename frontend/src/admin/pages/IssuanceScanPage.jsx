@@ -402,7 +402,7 @@ export default function IssuanceScanPage() {
                 className="ak-btn ak-btn--ghost"
                 onClick={async () => {
                   await revertIfAbandoned();
-                  navigate('/admin/inventory-operation');
+                  navigate('/inventory-operation');
                 }}
               >
                 ← Back

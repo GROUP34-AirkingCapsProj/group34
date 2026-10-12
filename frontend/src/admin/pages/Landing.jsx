@@ -12,7 +12,7 @@ const roles = [
       </svg>
     ),
     color: 'red',
-    path: '/admin/login'
+    path: '/login'
   },
   {
     title: 'Inventory Analyst',
@@ -25,7 +25,7 @@ const roles = [
       </svg>
     ),
     color: 'purple',
-    path: '/admin/login'
+    path: '/login'
   },
   {
     title: 'Branch Manager',
@@ -39,7 +39,7 @@ const roles = [
       </svg>
     ),
     color: 'green',
-    path: '/admin/login'
+    path: '/login'
   },
   {
     title: 'Warehouse Personnel',
@@ -52,7 +52,7 @@ const roles = [
       </svg>
     ),
     color: 'blue',
-    path: '/admin/login'
+    path: '/login'
   },
   {
     title: 'Auditor',
@@ -64,7 +64,7 @@ const roles = [
       </svg>
     ),
     color: 'indigo',
-    path: '/admin/login'
+    path: '/login'
   }
 ];
 

@@ -211,10 +211,10 @@ const ISTDispatchPage = () => {
               {ist?.transfer_number} is now <strong>In Transit</strong>. The destination can receive it.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button type="button" className="po-btn" style={{ background: 'var(--bg-contrast)', color: '#fff' }} onClick={() => navigate(`/admin/ist/${id}`)}>
+              <button type="button" className="po-btn" style={{ background: 'var(--bg-contrast)', color: '#fff' }} onClick={() => navigate(`/ist/${id}`)}>
                 View IST
               </button>
-              <button type="button" className="po-btn" style={{ background: 'var(--bg-hover)', color: 'var(--ink-blue-700)' }} onClick={() => navigate('/admin/ist')}>
+              <button type="button" className="po-btn" style={{ background: 'var(--bg-hover)', color: 'var(--ink-blue-700)' }} onClick={() => navigate('/ist')}>
                 Back to IST List
               </button>
             </div>
@@ -235,7 +235,7 @@ const ISTDispatchPage = () => {
                 type="button"
                 className="po-btn"
                 style={{ padding: '6px 12px', fontSize: 12, marginRight: 12, flexShrink: 0 }}
-                onClick={() => navigate(`/admin/ist/${id}`)}
+                onClick={() => navigate(`/ist/${id}`)}
               >
                 ← Back
               </button>
@@ -261,7 +261,7 @@ const ISTDispatchPage = () => {
           <div className="po-submit-error">
             {error}
             <div style={{ marginTop: 10 }}>
-              <button type="button" className="po-btn" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => navigate('/admin/ist')}>
+              <button type="button" className="po-btn" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => navigate('/ist')}>
                 Back to IST List
               </button>
             </div>
@@ -466,7 +466,7 @@ const ISTDispatchPage = () => {
                 type="button"
                 className="po-btn"
                 style={{ background: 'var(--bg-hover)', color: 'var(--ink-blue-700)' }}
-                onClick={() => navigate(`/admin/ist/${id}`)}
+                onClick={() => navigate(`/ist/${id}`)}
                 disabled={submitting}
               >
                 Cancel

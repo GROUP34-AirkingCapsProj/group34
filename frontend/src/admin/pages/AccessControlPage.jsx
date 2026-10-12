@@ -6,14 +6,14 @@ import UserPermissionOverrides from './UserPermissionOverrides';
 import '../styles/rbac_console.css';
 
 const TABS = [
-  { key: 'roles',     label: 'Role Permissions', path: '/admin/roles' },
-  { key: 'overrides', label: 'User Overrides',   path: '/admin/user-permissions' },
+  { key: 'roles',     label: 'Role Permissions', path: '/roles' },
+  { key: 'overrides', label: 'User Overrides',   path: '/user-permissions' },
 ];
 
 const AccessControlPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const activeKey = location.pathname === '/admin/user-permissions' ? 'overrides' : 'roles';
+  const activeKey = location.pathname === '/user-permissions' ? 'overrides' : 'roles';
 
   // Segmented toggle, rendered by the active panel in a right-aligned bar
   // below its header (each panel owns its own header).

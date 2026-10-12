@@ -232,7 +232,7 @@ const AdminLayout = ({ children }) => {
   // Soft prefetch: only a couple of likely next pages, after idle — hover still prefetches.
   useEffect(() => {
     const run = () => {
-      ['/admin/inventory', '/admin/draft-po-creator'].forEach(prefetchRoute);
+      ['/inventory', '/draft-po-creator'].forEach(prefetchRoute);
     };
     let idleId;
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
@@ -277,11 +277,11 @@ const AdminLayout = ({ children }) => {
     setMobileNavOpen(false);
     try { await authAPI.logout(); } catch (_) {}
     clearSession();
-    navigate('/admin/login');
+    navigate('/login');
   };
 
   const handleNotificationsClick = () => {
-    navigate('/admin/alerts');
+    navigate('/alerts');
   };
 
   // Permission-driven sidebar: keep items whose nav bundle is granted,
@@ -488,7 +488,7 @@ const AdminLayout = ({ children }) => {
                   <button
                     className="hpd-logout"
                     style={{ marginBottom: 8 }}
-                    onClick={() => { setProfileOpen(false); navigate('/admin/account'); }}
+                    onClick={() => { setProfileOpen(false); navigate('/account'); }}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <circle cx="12" cy="12" r="3" />

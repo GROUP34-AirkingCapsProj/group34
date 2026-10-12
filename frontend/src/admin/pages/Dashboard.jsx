@@ -126,7 +126,7 @@ const AdminDashboard = () => {
             : msg
       );
       if (isAuth) {
-        setTimeout(() => navigate('/admin/login'), 2000);
+        setTimeout(() => navigate('/login'), 2000);
       }
     } finally {
       setLoading(false);
@@ -352,7 +352,7 @@ const AdminDashboard = () => {
             <h3>Pending Approvals Queue</h3>
             <p>There are {pendingActions} items awaiting your authorization.</p>
           </div>
-          <button type="button" className="approval-alert-btn" onClick={() => navigate('/admin/draft-po-creator')}>
+          <button type="button" className="approval-alert-btn" onClick={() => navigate('/draft-po-creator')}>
             GO TO APPROVALS
           </button>
         </div>
@@ -375,7 +375,7 @@ const AdminDashboard = () => {
                 <p className="low-stock-subtitle">{lowStockItems.length} product{lowStockItems.length !== 1 ? 's' : ''} at or below reorder level</p>
               </div>
             </div>
-            <button type="button" className="low-stock-view-all" onClick={() => navigate('/admin/alerts')}>
+            <button type="button" className="low-stock-view-all" onClick={() => navigate('/alerts')}>
               VIEW ALL ALERTS &gt;
             </button>
           </div>
@@ -450,17 +450,17 @@ const AdminDashboard = () => {
               <p className="quick-actions-title">ENTERPRISE QUICK ACTIONS</p>
               <p className="quick-actions-subtitle">Direct access to newly integrated system modules.</p>
             </div>
-            <button type="button" className="quick-actions-view-all" onClick={() => navigate('/admin/config')}>
+            <button type="button" className="quick-actions-view-all" onClick={() => navigate('/config')}>
               VIEW ALL &gt;
             </button>
           </div>
           <div className="quick-actions-grid quick-actions-grid--compact">
             {[
-              { label: 'LOCATIONS', path: '/admin/locations', cls: 'yellow', icon: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></> },
-              { label: 'CUSTOMER', path: '/admin/customers', cls: 'green', icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></> },
-              { label: 'CLAIM', path: '/admin/warranty', cls: 'purple', icon: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> },
-              { label: 'CREATE PR', path: '/admin/purchase-requests', state: { tab: 'create' }, cls: 'grey', icon: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></> },
-              { label: 'SCAN BARCODE', path: '/admin/inventory-operation', cls: 'blue', icon: <><path d="M4 7V5a2 2 0 0 1 2-2h2"/><path d="M16 3h2a2 2 0 0 1 2 2v2"/><path d="M4 17v2a2 2 0 0 0 2 2h2"/><path d="M16 21h2a2 2 0 0 0 2-2v-2"/><line x1="8" y1="8" x2="8" y2="16"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="16" y1="8" x2="16" y2="16"/></> },
+              { label: 'LOCATIONS', path: '/locations', cls: 'yellow', icon: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></> },
+              { label: 'CUSTOMER', path: '/customers', cls: 'green', icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></> },
+              { label: 'CLAIM', path: '/warranty', cls: 'purple', icon: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> },
+              { label: 'CREATE PR', path: '/purchase-requests', state: { tab: 'create' }, cls: 'grey', icon: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></> },
+              { label: 'SCAN BARCODE', path: '/inventory-operation', cls: 'blue', icon: <><path d="M4 7V5a2 2 0 0 1 2-2h2"/><path d="M16 3h2a2 2 0 0 1 2 2v2"/><path d="M4 17v2a2 2 0 0 0 2 2h2"/><path d="M16 21h2a2 2 0 0 0 2-2v-2"/><line x1="8" y1="8" x2="8" y2="16"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="16" y1="8" x2="16" y2="16"/></> },
             ].map(({ label, path, state, cls, icon }) => (
               <button key={label} type="button" className="quick-action-card" onClick={() => navigate(path, state ? { state } : undefined)}>
                 <span className={`quick-action-icon quick-action-icon-${cls}`}>
@@ -479,7 +479,7 @@ const AdminDashboard = () => {
               <h3 className="recent-activity-title">Recent Activity</h3>
               <p className="recent-activity-subtitle">Latest sales, transfers, receivings, and system changes.</p>
             </div>
-            <button type="button" className="recent-activity-view-all" onClick={() => navigate('/admin/audit')}>
+            <button type="button" className="recent-activity-view-all" onClick={() => navigate('/audit')}>
               VIEW ALL &gt;
             </button>
           </div>

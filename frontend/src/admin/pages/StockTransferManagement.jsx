@@ -318,7 +318,7 @@ const StockTransferManagement = () => {
               <p className="ak-sub">Transfer inventory between locations — <strong>In transit</strong> = naka-scan na sa warehouse, papunta sa showroom; <strong>Completed</strong> = natanggap na sa destination.</p>
             </div>
             <div className="ak-header-aside ak-actions">
-              <button type="button" className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/ist')}>
+              <button type="button" className="ak-btn ak-btn--ghost" onClick={() => navigate('/ist')}>
                 IST Receive flow
               </button>
               <button type="button" className="ak-btn ak-btn--primary" onClick={openAddModal}>+ New Transfer</button>
@@ -474,7 +474,7 @@ const StockTransferManagement = () => {
           {getTransferWorkflow(viewingTransfer).key === 'transit' && (
             <p style={{ marginTop: 12, fontSize: 14, color: 'var(--ink-amber)' }}>
               Stock has left the warehouse. The showroom must scan items on{' '}
-              <button type="button" className="btn-link" style={{ padding: 0 }} onClick={() => { setViewingTransfer(null); navigate('/admin/ist'); }}>
+              <button type="button" className="btn-link" style={{ padding: 0 }} onClick={() => { setViewingTransfer(null); navigate('/ist'); }}>
                 IST Receive flow
               </button>
               {' '}before units appear at the destination.

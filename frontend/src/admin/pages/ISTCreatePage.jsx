@@ -101,7 +101,7 @@ const ISTCreatePage = () => {
         products,
       });
       const istId = res?.data?.transfer_id;
-      navigate(istId ? `/admin/ist/${istId}` : '/admin/ist', {
+      navigate(istId ? `/ist/${istId}` : '/ist', {
         state: { success: `IST ${res?.data?.transfer_number || ''} created successfully.` },
       });
     } catch (err) {
@@ -128,7 +128,7 @@ const ISTCreatePage = () => {
         <div className="ak-page po-recommendation-page">
           <div style={{ padding: 40, textAlign: 'center' }}>
             <p style={{ color: 'var(--text-danger)', fontWeight: 600 }}>{loadErr || 'Request not found or not yet approved.'}</p>
-            <button type="button" className="po-btn" style={{ marginTop: 16 }} onClick={() => navigate('/admin/transfer-requests')}>
+            <button type="button" className="po-btn" style={{ marginTop: 16 }} onClick={() => navigate('/transfer-requests')}>
               ← Back to Transfer Requests
             </button>
           </div>
@@ -154,7 +154,7 @@ const ISTCreatePage = () => {
               <button
                 type="button"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-blue-500)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, padding: 0, marginBottom: 8 }}
-                onClick={() => navigate('/admin/transfer-requests')}
+                onClick={() => navigate('/transfer-requests')}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                   <path d="M15 18l-6-6 6-6"/>
@@ -305,7 +305,7 @@ const ISTCreatePage = () => {
           <button
             type="button"
             style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', fontSize: 13, color: 'var(--text-body)' }}
-            onClick={() => navigate('/admin/transfer-requests')}
+            onClick={() => navigate('/transfer-requests')}
             disabled={submitting}
           >
             Cancel

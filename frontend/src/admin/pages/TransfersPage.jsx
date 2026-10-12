@@ -262,7 +262,7 @@ const TransfersPage = () => {
             </div>
             <div className="ak-header-aside">
               <div className="ak-actions">
-                <button type="button" className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/inventory-operation')}>
+                <button type="button" className="ak-btn ak-btn--ghost" onClick={() => navigate('/inventory-operation')}>
                   ← Back
                 </button>
                 <button type="button" className="ak-btn ak-btn--primary" onClick={() => setShowNew(true)}>+ New Request</button>
