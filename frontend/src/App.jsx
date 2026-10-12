@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './admin/context/AuthContext';
 import { SupabaseAuthProvider } from './pwa/context/SupabaseAuthContext';
 import RoleRoute from './admin/components/RoleRoute';
+import LegacyAdminRedirect from './admin/components/LegacyAdminRedirect';
 import SessionIdleGuard from './admin/components/SessionIdleGuard';
 import Loader from './admin/components/Loader';
 import './admin/styles/airking_ds.css';
@@ -87,13 +88,15 @@ function App() {
       <SessionIdleGuard />
       <Suspense fallback={<Loader variant="page" />}>
         <Routes>
-          <Route path="/" element={<Navigate to="/admin/login" replace />} />
-          <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
-          <Route path="/admin/login" element={<Login />} />
-          <Route path="/admin/forgot-password" element={<ForgotPassword />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          {/* Legacy /admin/* URLs — see LegacyAdminRedirect. Also resolves the
+              deep links already stored in notification rows. */}
+          <Route path="/admin/*" element={<LegacyAdminRedirect />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           {/* Outside RoleRoute: the guard inside RoleRoute redirects here, so
               wrapping this route in it would loop. */}
-          <Route path="/admin/change-password" element={<ChangePassword />} />
+          <Route path="/change-password" element={<ChangePassword />} />
 
           {/* Supabase PWA inventory (Vercel + Supabase; optional env) */}
           <Route path="/pwa/login" element={<PwaLogin />} />
@@ -112,82 +115,82 @@ function App() {
           </Route>
 
           {/* Dashboard */}
-          <Route path="/admin/dashboard" element={<RoleRoute><Dashboard /></RoleRoute>} />
-          <Route path="/admin/account" element={<RoleRoute><AccountSettingsPage /></RoleRoute>} />
+          <Route path="/dashboard" element={<RoleRoute><Dashboard /></RoleRoute>} />
+          <Route path="/account" element={<RoleRoute><AccountSettingsPage /></RoleRoute>} />
 
           {/* System Setup */}
-          <Route path="/admin/locations" element={<RoleRoute><LocationManagement /></RoleRoute>} />
-          <Route path="/admin/branches" element={<RoleRoute><LocationManagement /></RoleRoute>} />
-          <Route path="/admin/warehouses" element={<RoleRoute><LocationManagement /></RoleRoute>} />
-          <Route path="/admin/categories" element={<RoleRoute><LookupManagement /></RoleRoute>} />
-          <Route path="/admin/brands" element={<RoleRoute><LookupManagement /></RoleRoute>} />
+          <Route path="/locations" element={<RoleRoute><LocationManagement /></RoleRoute>} />
+          <Route path="/branches" element={<RoleRoute><LocationManagement /></RoleRoute>} />
+          <Route path="/warehouses" element={<RoleRoute><LocationManagement /></RoleRoute>} />
+          <Route path="/categories" element={<RoleRoute><LookupManagement /></RoleRoute>} />
+          <Route path="/brands" element={<RoleRoute><LookupManagement /></RoleRoute>} />
 
           {/* Procurement */}
-          <Route path="/admin/items" element={<RoleRoute><ItemManagement /></RoleRoute>} />
-          <Route path="/admin/suppliers" element={<RoleRoute><SupplierNetwork /></RoleRoute>} />
-          <Route path="/admin/sets" element={<RoleRoute><SetManagementPage /></RoleRoute>} />
-          <Route path="/admin/aircon-models" element={<RoleRoute><AirconModelsPage /></RoleRoute>} />
-          <Route path="/admin/incidents" element={<RoleRoute><IncidentWorkspace /></RoleRoute>} />
-          <Route path="/admin/incident-items" element={<Navigate to="/admin/incidents?tab=items" replace />} />
+          <Route path="/items" element={<RoleRoute><ItemManagement /></RoleRoute>} />
+          <Route path="/suppliers" element={<RoleRoute><SupplierNetwork /></RoleRoute>} />
+          <Route path="/sets" element={<RoleRoute><SetManagementPage /></RoleRoute>} />
+          <Route path="/aircon-models" element={<RoleRoute><AirconModelsPage /></RoleRoute>} />
+          <Route path="/incidents" element={<RoleRoute><IncidentWorkspace /></RoleRoute>} />
+          <Route path="/incident-items" element={<Navigate to="/incidents?tab=items" replace />} />
           {/* Held Stock became a read-only register when the inspection took
               over its Dispose action. Bookmarks and any link still pointing at
               the old path land on the register rather than a blank page. */}
-          <Route path="/admin/held-stock" element={<Navigate to="/admin/incident-items" replace />} />
-          <Route path="/admin/inspections" element={<Navigate to="/admin/incidents?tab=inspections" replace />} />
-          <Route path="/admin/purchase-orders" element={<Navigate to="/admin/draft-po-creator" replace />} />
-          <Route path="/admin/purchase-requests" element={<RoleRoute><PurchaseRequestPage /></RoleRoute>} />
-          <Route path="/admin/draft-po-creator" element={<RoleRoute><PurchaseOrderPage /></RoleRoute>} />
+          <Route path="/held-stock" element={<Navigate to="/incident-items" replace />} />
+          <Route path="/inspections" element={<Navigate to="/incidents?tab=inspections" replace />} />
+          <Route path="/purchase-orders" element={<Navigate to="/draft-po-creator" replace />} />
+          <Route path="/purchase-requests" element={<RoleRoute><PurchaseRequestPage /></RoleRoute>} />
+          <Route path="/draft-po-creator" element={<RoleRoute><PurchaseOrderPage /></RoleRoute>} />
 
           {/* Inventory */}
-          <Route path="/admin/inventory" element={<RoleRoute><InventoryManagement /></RoleRoute>} />
-          <Route path="/admin/barcode-printing" element={<RoleRoute><BarcodePrintingPage /></RoleRoute>} />
-          <Route path="/admin/transfers" element={<RoleRoute><TransfersPage /></RoleRoute>} />
-          {/* /admin/transfer-scan retired — receiving is now handled via IST flow (/admin/ist/:id/receive) */}
-          <Route path="/admin/transfer-scan" element={<Navigate to="/admin/ist" replace />} />
-          <Route path="/admin/transfer-requests" element={<RoleRoute><TransferRequestPage /></RoleRoute>} />
-          <Route path="/admin/issuances" element={<RoleRoute><IssuanceManagement /></RoleRoute>} />
-          <Route path="/admin/ist" element={<RoleRoute><ISTManagementPage /></RoleRoute>} />
-          <Route path="/admin/ist/create/:requestId" element={<RoleRoute><ISTCreatePage /></RoleRoute>} />
-          <Route path="/admin/ist/:id/dispatch" element={<RoleRoute><ISTDispatchPage /></RoleRoute>} />
-          <Route path="/admin/ist/:id/receive" element={<RoleRoute><ISTReceivePage /></RoleRoute>} />
-          <Route path="/admin/ist/:id/receipt" element={<RoleRoute><ISTReceiptPage /></RoleRoute>} />
-          <Route path="/admin/ist/:id" element={<RoleRoute><ISTDetailPage /></RoleRoute>} />
-          <Route path="/admin/adjustments" element={<RoleRoute><AdjustmentManagement /></RoleRoute>} />
-          <Route path="/admin/barcode-adjustment" element={<RoleRoute><BarcodeAdjustmentPage /></RoleRoute>} />
+          <Route path="/inventory" element={<RoleRoute><InventoryManagement /></RoleRoute>} />
+          <Route path="/barcode-printing" element={<RoleRoute><BarcodePrintingPage /></RoleRoute>} />
+          <Route path="/transfers" element={<RoleRoute><TransfersPage /></RoleRoute>} />
+          {/* /transfer-scan retired — receiving is now handled via IST flow (/ist/:id/receive) */}
+          <Route path="/transfer-scan" element={<Navigate to="/ist" replace />} />
+          <Route path="/transfer-requests" element={<RoleRoute><TransferRequestPage /></RoleRoute>} />
+          <Route path="/issuances" element={<RoleRoute><IssuanceManagement /></RoleRoute>} />
+          <Route path="/ist" element={<RoleRoute><ISTManagementPage /></RoleRoute>} />
+          <Route path="/ist/create/:requestId" element={<RoleRoute><ISTCreatePage /></RoleRoute>} />
+          <Route path="/ist/:id/dispatch" element={<RoleRoute><ISTDispatchPage /></RoleRoute>} />
+          <Route path="/ist/:id/receive" element={<RoleRoute><ISTReceivePage /></RoleRoute>} />
+          <Route path="/ist/:id/receipt" element={<RoleRoute><ISTReceiptPage /></RoleRoute>} />
+          <Route path="/ist/:id" element={<RoleRoute><ISTDetailPage /></RoleRoute>} />
+          <Route path="/adjustments" element={<RoleRoute><AdjustmentManagement /></RoleRoute>} />
+          <Route path="/barcode-adjustment" element={<RoleRoute><BarcodeAdjustmentPage /></RoleRoute>} />
 
           {/* Sales & Logistics */}
-          <Route path="/admin/scan" element={<RoleRoute><BarcodeScan /></RoleRoute>} />
-          <Route path="/admin/inventory-operation" element={<RoleRoute><BarcodeScan /></RoleRoute>} />
-          <Route path="/admin/customers" element={<RoleRoute><CustomerManagement /></RoleRoute>} />
-          <Route path="/admin/transactions" element={<RoleRoute><TransactionManagement /></RoleRoute>} />
-          <Route path="/admin/delivery-receipts" element={<RoleRoute><DeliveryReceiptManagement /></RoleRoute>} />
-          <Route path="/admin/purchase-returns" element={<RoleRoute><PurchaseReturnManagement /></RoleRoute>} />
+          <Route path="/scan" element={<RoleRoute><BarcodeScan /></RoleRoute>} />
+          <Route path="/inventory-operation" element={<RoleRoute><BarcodeScan /></RoleRoute>} />
+          <Route path="/customers" element={<RoleRoute><CustomerManagement /></RoleRoute>} />
+          <Route path="/transactions" element={<RoleRoute><TransactionManagement /></RoleRoute>} />
+          <Route path="/delivery-receipts" element={<RoleRoute><DeliveryReceiptManagement /></RoleRoute>} />
+          <Route path="/purchase-returns" element={<RoleRoute><PurchaseReturnManagement /></RoleRoute>} />
 
           {/* Reports & Monitoring */}
-          <Route path="/admin/analytics" element={<RoleRoute><Navigate to="/admin/reports?tab=analytics" replace /></RoleRoute>} />
-          <Route path="/admin/reports" element={<RoleRoute><ReportsAnalytics /></RoleRoute>} />
-          <Route path="/admin/audit" element={<RoleRoute><AuditTrail /></RoleRoute>} />
-          <Route path="/admin/audit-evidence" element={<RoleRoute><AuditEvidenceExplorer /></RoleRoute>} />
-          <Route path="/admin/profit-loss" element={<RoleRoute><ProfitLossManagement /></RoleRoute>} />
+          <Route path="/analytics" element={<RoleRoute><Navigate to="/reports?tab=analytics" replace /></RoleRoute>} />
+          <Route path="/reports" element={<RoleRoute><ReportsAnalytics /></RoleRoute>} />
+          <Route path="/audit" element={<RoleRoute><AuditTrail /></RoleRoute>} />
+          <Route path="/audit-evidence" element={<RoleRoute><AuditEvidenceExplorer /></RoleRoute>} />
+          <Route path="/profit-loss" element={<RoleRoute><ProfitLossManagement /></RoleRoute>} />
 
           {/* Legacy routes */}
-          <Route path="/admin/approval-queue" element={<Navigate to="/admin/draft-po-creator" replace />} />
-          <Route path="/admin/config" element={<RoleRoute><SystemConfiguration /></RoleRoute>} />
-          <Route path="/admin/archive" element={<RoleRoute><ArchiveManagement /></RoleRoute>} />
-          <Route path="/admin/archive-settings" element={<RoleRoute><ArchiveSettingsPage /></RoleRoute>} />
-          <Route path="/admin/backup" element={<RoleRoute><Navigate to="/admin/config?tab=backup" replace /></RoleRoute>} />
-          <Route path="/admin/compliance" element={<RoleRoute><ComplianceReview /></RoleRoute>} />
-          <Route path="/admin/alerts" element={<RoleRoute><AlertsNotices /></RoleRoute>} />
-          <Route path="/admin/notifications" element={<RoleRoute><Navigate to="/admin/alerts" replace /></RoleRoute>} />
-          <Route path="/admin/warranty" element={<RoleRoute><WarrantyManagement /></RoleRoute>} />
-          <Route path="/admin/warranties" element={<RoleRoute><WarrantyManagement /></RoleRoute>} />
-          <Route path="/admin/warranty-claims" element={<RoleRoute><WarrantyClaimPage /></RoleRoute>} />
-          <Route path="/admin/issuance-scan" element={<RoleRoute><IssuanceScanPage /></RoleRoute>} />
+          <Route path="/approval-queue" element={<Navigate to="/draft-po-creator" replace />} />
+          <Route path="/config" element={<RoleRoute><SystemConfiguration /></RoleRoute>} />
+          <Route path="/archive" element={<RoleRoute><ArchiveManagement /></RoleRoute>} />
+          <Route path="/archive-settings" element={<RoleRoute><ArchiveSettingsPage /></RoleRoute>} />
+          <Route path="/backup" element={<RoleRoute><Navigate to="/config?tab=backup" replace /></RoleRoute>} />
+          <Route path="/compliance" element={<RoleRoute><ComplianceReview /></RoleRoute>} />
+          <Route path="/alerts" element={<RoleRoute><AlertsNotices /></RoleRoute>} />
+          <Route path="/notifications" element={<RoleRoute><Navigate to="/alerts" replace /></RoleRoute>} />
+          <Route path="/warranty" element={<RoleRoute><WarrantyManagement /></RoleRoute>} />
+          <Route path="/warranties" element={<RoleRoute><WarrantyManagement /></RoleRoute>} />
+          <Route path="/warranty-claims" element={<RoleRoute><WarrantyClaimPage /></RoleRoute>} />
+          <Route path="/issuance-scan" element={<RoleRoute><IssuanceScanPage /></RoleRoute>} />
 
           {/* SA Permission Editor */}
-          <Route path="/admin/roles" element={<RoleRoute><AccessControlPage /></RoleRoute>} />
-          <Route path="/admin/user-permissions" element={<RoleRoute><AccessControlPage /></RoleRoute>} />
-          <Route path="/admin/permission-audit" element={<RoleRoute><PermissionAuditLog /></RoleRoute>} />
+          <Route path="/roles" element={<RoleRoute><AccessControlPage /></RoleRoute>} />
+          <Route path="/user-permissions" element={<RoleRoute><AccessControlPage /></RoleRoute>} />
+          <Route path="/permission-audit" element={<RoleRoute><PermissionAuditLog /></RoleRoute>} />
         </Routes>
       </Suspense>
     </Router>
