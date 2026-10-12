@@ -31,17 +31,17 @@ admin/
 
 ## Routes
 
-All routes are configured in `src/App.js`:
+All routes are configured in `src/App.jsx`:
 
-- `/admin` - Landing page
-- `/admin/login` - Login page
-- `/admin/dashboard` - Dashboard
-- `/admin/branches` - Branch Management
-- `/admin/inventory` - Inventory Management
-- `/admin/items` - Item Management
-- `/admin/transactions` - Transaction Management
-- `/admin/config` - System Configuration (includes User Management)
-- `/admin/warehouses` - Warehouse Management
+- `/admin/*` - Legacy redirect; strips the prefix and forwards to the new path
+- `/login` - Login page
+- `/dashboard` - Dashboard
+- `/branches` - Branch Management
+- `/inventory` - Inventory Management
+- `/items` - Item Management
+- `/transactions` - Transaction Management
+- `/config` - System Configuration (includes User Management)
+- `/warehouses` - Warehouse Management
 
 ## Features
 

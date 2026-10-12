@@ -13,7 +13,7 @@ genuine logic changes rather than a rename — `SessionIdleGuard` (its predicate
 gates on `startsWith('/admin')`, which would become permanently false) and
 `App.jsx`.
 
-**Tech Stack:** React 18 + react-router-dom v6, Vite, Jest + React Testing
+**Tech Stack:** React 18 + react-router-dom 7.18.4 (pinned `^7.12.0`), Vite, Jest + React Testing
 Library, Laravel 11 (PHP 8), MySQL.
 
 **Spec:** `docs/superpowers/specs/2026-10-13-admin-url-prefix-removal-design.md`
@@ -202,7 +202,7 @@ export default function LegacyAdminRedirect() {
   const params = useParams();
   const { search, hash } = useLocation();
 
-  // react-router v6 exposes the splat under the '*' key.
+  // react-router exposes the splat under the '*' key.
   const rest = params['*'] || '';
 
   // Bare /admin and /admin/ carry no destination, so fall back to login rather
@@ -681,10 +681,20 @@ the test's path, not the source.
 
 - [ ] **Step 5: Commit**
 
+Stage the renamed files **explicitly**, not with `git add frontend/src`:
+
 ```bash
-git add frontend/src
-git commit -m "refactor(routing): drop the /admin prefix from the remaining pages and tests"
+cd frontend && git add $(git diff --name-only -- src)
+cd .. && git commit -m "refactor(routing): drop the /admin prefix from the remaining pages and tests"
 ```
+
+`git add frontend/src` is unsafe here. The working tree carries unrelated
+in-progress scan-feedback changes (`ScanFeedback.jsx`, `ScanFeedback.test.jsx`,
+`scan_feedback.css` — a 2s fade-out animation) that a directory-wide add would
+sweep into this routing commit. Those three files contain no `/admin` literal,
+so the rename never modifies them; staging only what the rename actually
+touched keeps them out. Verify with `git status --porcelain` before committing
+that those three remain unstaged.
 
 ---
 
@@ -969,6 +979,78 @@ git commit -m "docs(admin): update the documented routes after the prefix remova
 ```
 
 ---
+
+## Amendments During Execution
+
+Recorded so the plan stays truthful against what was actually built.
+
+- **Task 7's sweep had to exempt three files — the discriminator is blind to intent.**
+  The "quote immediately followed by `/admin/`" rule separates route literals from
+  module imports, but it cannot tell a *current* route literal from an
+  *intentional legacy* one. Re-running the sweep over `App.jsx` matched
+  `path="/admin/*"` and rewrote the legacy catch-all to `path="/*"`, silently
+  destroying the redirect Task 1 exists to provide — and Task 7 Step 2's own
+  expectation ("exactly one line: `path="/admin/*"`") contradicted its Step 1
+  sed, which had already eaten that line. It also rewrote every legacy-URL input
+  in `LegacyAdminRedirect.test.jsx` (10 tests failed) and a comment example in
+  `LegacyAdminRedirect.jsx`.
+
+  **Exempt these three from any future `/admin` sweep:** `frontend/src/App.jsx`
+  (the catch-all route line only), `LegacyAdminRedirect.jsx`,
+  `LegacyAdminRedirect.test.jsx`. Their `/admin` strings are the subject matter,
+  not stale paths.
+
+  Also: `git diff --name-only -- src` run from `frontend/` returns
+  repo-root-relative paths already, so the plan's `sed 's#^#frontend/#'` prefix
+  in the staging command double-prefixes and fails. Drop it.
+
+- **A subagent's `git stash` / `git stash pop` resurrected a pre-existing stash.**
+  While verifying whether a failing suite was pre-existing, a subagent ran a
+  stash round-trip on what it believed was a clean tree. The stash list is now
+  empty and the working tree gained real scan-feedback changes (a 2s fade-out:
+  `ScanFeedback.jsx`, `ScanFeedback.test.jsx`, `scan_feedback.css`) — i.e. it
+  popped and dropped a stash entry that predated this work. No content was lost,
+  but the "saved for later" marker is gone and the changes are loose in the tree.
+  Mitigation: Task 7 stages explicitly instead of `git add frontend/src`.
+  **Lesson for future subagent prompts: forbid `git stash` outright** — use
+  `git worktree` or `git show <sha>:<path>` to inspect another tree state.
+
+- **Tasks 4 and 6 were merged — the plan's decomposition was wrong.**
+  `RoleRoute` matches `location.pathname` against the keys in
+  `navBundles.PERMISSION_GATED_ROUTES` and `roles.ROUTE_ACCESS`, so the
+  component and those maps share one contract. Renaming either alone makes
+  every permission-gated lookup miss, `requiredPerm` come back `undefined`, and
+  execution fall through to `canAccessRoute`, which redirects to the dashboard
+  regardless of granted permissions. `RoleRoute.permissionGated.test.jsx` and
+  `RoleRoute.reportIncident.test.jsx` exercise the real map (only `AuthContext`
+  is mocked) and caught this: 3 tests failed in the intermediate state. Splitting
+  them could only ever produce a broken commit, so Task 6 was folded into Task 4
+  as a single 13-file commit. The alternative — mocking the maps in those two
+  tests — was rejected because it would weaken genuine integration coverage to
+  fit an artificial task boundary.
+
+- **Frontend test baseline is NOT green.** Measured on the tree before any
+  rename landed: `Test Suites: 2 failed, 68 passed, 70 total` /
+  `Tests: 6 failed, 498 passed, 504 total`. The two failing suites are
+  `src/admin/components/PickScanner.test.jsx` and
+  `src/admin/pages/transfers/ReceivePanel.test.jsx` — scan-feedback assertions,
+  last touched in `c734817`. Neither references a `/admin` path, so neither is
+  related to this work. Where Task 7 Step 4 and Task 10 Step 3 say the suite
+  must PASS, read that as: **exactly these 2 suites / 6 tests may fail and no
+  others**. A third failing suite means the rename broke something.
+
+- **Tech stack corrected.** This plan originally said react-router-dom v6; the
+  project pins `^7.12.0` and resolves 7.18.4. The splat/`Navigate`/`useParams`
+  APIs used here behave the same in both, so no task changed — but the comment
+  in Task 1's component said "v6" and was corrected.
+- **Task 1's component was hardened after review.** The version in this plan
+  builds its target by string concatenation, which has two defects, both
+  reproduced: `/admin//dashboard` yields `//dashboard`, a protocol-relative URL
+  that throws `External navigation is not allowed` and — with no error boundary
+  in `App.jsx` — blanks the page; and a percent-encoded `#` inside a path
+  segment gets re-parsed out of the pathname into the hash. The shipped version
+  collapses runs of slashes and passes `to` in `{ pathname, search, hash }`
+  object form, with four added tests. See the follow-up commit on Task 1.
 
 ## Out of Scope
 
