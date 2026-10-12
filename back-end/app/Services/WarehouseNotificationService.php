@@ -34,7 +34,7 @@ class WarehouseNotificationService
                     $po->po_number . ' approved for receiving',
                     ($po->supplier?->supplier_name ?? 'Supplier') . ' → ' . ($po->location?->location_name ?? 'Warehouse')
                         . ($po->expected_delivery_date ? '. Expected delivery: ' . $po->expected_delivery_date->toDateString() : ''),
-                    '/admin/inventory-operation?mode=receive-po', $statusTimes[$po->po_id] ?? $po->updated_at ?? $po->created_at);
+                    '/inventory-operation?mode=receive-po', $statusTimes[$po->po_id] ?? $po->updated_at ?? $po->created_at);
             }
         }
 
@@ -58,7 +58,7 @@ class WarehouseNotificationService
                 $notifications[] = $this->notification($user, $type . ':' . $transfer->transfer_id, $type,
                     $transfer->transfer_number . ($dispatch ? ' ready to dispatch' : ' incoming — ready to receive'),
                     ($transfer->fromLocation?->location_name ?? 'Source') . ' → ' . ($transfer->toLocation?->location_name ?? 'Destination'),
-                    '/admin/transfers?tab=' . ($dispatch ? 'send' : 'receive') . '&focus=transfer:' . $transfer->transfer_id,
+                    '/transfers?tab=' . ($dispatch ? 'send' : 'receive') . '&focus=transfer:' . $transfer->transfer_id,
                     $statusTimes[$transfer->transfer_id] ?? $transfer->updated_at ?? $transfer->created_at);
             }
         }
