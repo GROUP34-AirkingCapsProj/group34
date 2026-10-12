@@ -279,14 +279,14 @@ const apiRequest = async (endpoint, options = {}) => {
     if (response.status === 401) {
       removeToken();
       if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/admin/login';
+        window.location.href = '/login';
       }
     }
     // Server says the temporary password must be replaced. Can happen mid-session
     // if an admin resets this user's password while they are logged in.
     if (response.status === 403 && data.code === 'password_change_required') {
       if (typeof window !== 'undefined' && !window.location.pathname.includes('/change-password')) {
-        window.location.href = '/admin/change-password';
+        window.location.href = '/change-password';
       }
     }
     const err = new Error(data.message || 'API request failed');
@@ -331,7 +331,7 @@ const uploadRequest = async (endpoint, formData, method = 'POST') => {
     if (response.status === 401) {
       removeToken();
       if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/admin/login';
+        window.location.href = '/login';
       }
     }
     const err = new Error(data.message || 'Request failed');
