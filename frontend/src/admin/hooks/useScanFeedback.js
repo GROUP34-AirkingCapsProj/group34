@@ -27,7 +27,7 @@ export default function useScanFeedback() {
   const sequence = useRef(0);
   const reportScan = useCallback((accepted, message, barcode = '', product = '') => {
     setFeedback({ accepted, message, barcode, product, sequence: ++sequence.current });
-    signalScan(accepted);
+    if (accepted === true || accepted === false) signalScan(accepted);
   }, []);
   return { feedback, reportScan };
 }
