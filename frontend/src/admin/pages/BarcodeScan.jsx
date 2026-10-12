@@ -1,3 +1,4 @@
+import { canAutoFocusScanInput, focusScanInput } from '../utils/scanInputFocus';
 import ScanFeedback from '../components/ScanFeedback';
 import useScanFeedback from '../hooks/useScanFeedback';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -1254,7 +1255,7 @@ const BarcodeScan = () => {
             return next;
           });
           setBarcodeInput('');
-          setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+          setTimeout(() => focusScanInput(inputRef.current), 50);
           try {
             await barcodeScanAPI.create({
               barcode: code,
@@ -1321,7 +1322,7 @@ const BarcodeScan = () => {
             return next;
           });
           setBarcodeInput('');
-          setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+          setTimeout(() => focusScanInput(inputRef.current), 50);
           queueMicrotask(() => {
             void mergeFreshInventoryForSession(item.product_id ?? item.id, txForm.location_id, code, result.scannedAt);
             reloadRecentMovement();
@@ -1429,7 +1430,7 @@ const BarcodeScan = () => {
           return next;
         });
         setBarcodeInput('');
-        setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+        setTimeout(() => focusScanInput(inputRef.current), 50);
 
         {
           const pidMerge = item.product_id ?? item.id;
@@ -1584,7 +1585,7 @@ const BarcodeScan = () => {
         return next;
       });
       setBarcodeInput('');
-      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+      setTimeout(() => focusScanInput(inputRef.current), 50);
 
       /* ── save to DB (graceful fallback) ── */
       try {
@@ -1601,7 +1602,7 @@ const BarcodeScan = () => {
     } finally {
       operationInFlight.current = false;
       setScanning(false);
-      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+      setTimeout(() => focusScanInput(inputRef.current), 50);
     }
   }, [
     modeIndex,
@@ -1891,7 +1892,7 @@ const BarcodeScan = () => {
     setModeIndex(idx);
     setScanResult(null);
     setBarcodeInput('');
-    setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 100);
+    setTimeout(() => focusScanInput(inputRef.current), 100);
   };
 
   const exitScanMode = () => {
@@ -2009,7 +2010,7 @@ const BarcodeScan = () => {
       }
     }
 
-    setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 100);
+    setTimeout(() => focusScanInput(bsrInputRef.current), 100);
   };
 
   /**
@@ -2111,7 +2112,7 @@ const BarcodeScan = () => {
     const rejectScan = (alert) => {
       reportReceivingScan(false, alert.message || alert.title || 'This barcode was not accepted.', raw.trim(), bsrActiveLine?.product?.product_name || '');
       bsrProcessingRef.current = false;
-      setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+      setTimeout(() => focusScanInput(bsrInputRef.current), 80);
     };
     // Synchronous ref lock — blocks any second invocation that arrives before
     // the first one's React state update (bsrScanning) has propagated.
@@ -2238,7 +2239,7 @@ const BarcodeScan = () => {
       // No blocking success modal in the staging flow (the staged list below is
       // the feedback), so release the lock here rather than on a modal dismiss.
       bsrProcessingRef.current = false;
-      setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+      setTimeout(() => focusScanInput(bsrInputRef.current), 80);
     } catch (e) {
       rejectScan({ type: 'error', title: 'Scan Failed', message: e?.data?.data?.reason || e?.data?.reason || e?.message || 'Scan failed.' });
     } finally {
@@ -2461,13 +2462,13 @@ const BarcodeScan = () => {
     if (result?.lineComplete) {
       if (result.nextLine) {
         setBsrActiveLine(result.nextLine);
-        setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+        setTimeout(() => focusScanInput(bsrInputRef.current), 80);
       } else {
         setBsrActiveLine(null);
         setBsrAlertModal({ type: 'success', title: 'All Items Received!', message: 'All items on this PO are fully received!' });
       }
     } else {
-      setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+      setTimeout(() => focusScanInput(bsrInputRef.current), 80);
     }
   }, [bsrScanSuccess]);
 
@@ -2477,7 +2478,7 @@ const BarcodeScan = () => {
       return null;
     });
     bsrProcessingRef.current = false;
-    setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+    setTimeout(() => focusScanInput(bsrInputRef.current), 80);
   }, []);
 
   /** Remove a staged row. This is the fix for a mis-selected line. */
@@ -2610,7 +2611,7 @@ const BarcodeScan = () => {
     } catch { /* keep empty */ }
     finally { setIstLoadingStatus(false); }
 
-    setTimeout(() => istInputRef.current?.focus({ preventScroll: true }), 100);
+    setTimeout(() => focusScanInput(istInputRef.current), 100);
   }, []);
 
   const handleIstScan = useCallback(async (raw) => {
@@ -2704,13 +2705,13 @@ const BarcodeScan = () => {
       });
       if (nextLine) setIstActiveLine(nextLine);
     }
-    setTimeout(() => istInputRef.current?.focus({ preventScroll: true }), 80);
+    setTimeout(() => focusScanInput(istInputRef.current), 80);
   }, [istScanSuccess, istSelectedIst, istActiveLine, istProgress]);
 
   const handleIstAlertDismiss = useCallback(() => {
     setIstAlertModal(null);
     istProcessingRef.current = false;
-    setTimeout(() => istInputRef.current?.focus({ preventScroll: true }), 80);
+    setTimeout(() => focusScanInput(istInputRef.current), 80);
   }, []);
 
   const handleIstRemoveScan = useCallback(async (item) => {
@@ -4812,7 +4813,7 @@ const BarcodeScan = () => {
                 }
               }}
               disabled={scanning}
-              autoFocus
+              autoFocus={canAutoFocusScanInput()}
             />
             {scanning && <span className="bs-spin"/>}
           </div>
@@ -5299,7 +5300,7 @@ const BarcodeScan = () => {
           onClose={() => {
             setNotFoundPromptOpen(false);
             setPendingRegisterBarcode('');
-            setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+            setTimeout(() => focusScanInput(inputRef.current), 50);
           }}
           title="Barcode not found"
         >
@@ -5313,7 +5314,7 @@ const BarcodeScan = () => {
               onClick={() => {
                 setNotFoundPromptOpen(false);
                 setPendingRegisterBarcode('');
-                setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+                setTimeout(() => focusScanInput(inputRef.current), 50);
               }}
             >
               Cancel
@@ -5336,7 +5337,7 @@ const BarcodeScan = () => {
           onClose={() => {
             setRegisterProductOpen(false);
             setPendingRegisterBarcode('');
-            setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+            setTimeout(() => focusScanInput(inputRef.current), 50);
           }}
           editingItem={null}
           initialBarcode={pendingRegisterBarcode}
@@ -5346,7 +5347,7 @@ const BarcodeScan = () => {
             setRegisterProductOpen(false);
             setPendingRegisterBarcode('');
             toast.success('Product saved. Scan the barcode again to receive into stock.');
-            setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+            setTimeout(() => focusScanInput(inputRef.current), 50);
           }}
         />
       </div>

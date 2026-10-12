@@ -150,12 +150,12 @@ test('accepted scans keep feedback visible when the final product is completed',
   expect(screen.getByText(/Next scan:/)).toHaveTextContent('2 pieces');
   fireEvent.change(screen.getByLabelText(/scan barcode/i), { target: { value: 'GOOD-1' } });
   await act(async () => { fireEvent.submit(screen.getByLabelText(/scan barcode/i).closest('form')); });
-  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan recorded successfully/)).toBeInTheDocument();
   expect(screen.getByText('GOOD-1')).toBeInTheDocument();
   expect(screen.getByLabelText(/scan barcode/i)).toHaveFocus();
   rerender(<PickScanner plan={[]} onScan={onScan} />);
   expect(screen.getByText('All items picked')).toBeInTheDocument();
-  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan recorded successfully/)).toBeInTheDocument();
 });
 
 test('rejects scans visibly and permits an immediate retry without dismissing feedback', async () => {
@@ -165,11 +165,11 @@ test('rejects scans visibly and permits an immediate retry without dismissing fe
   const input = screen.getByLabelText(/scan barcode/i);
   fireEvent.change(input, { target: { value: 'WRONG' } });
   await act(async () => { fireEvent.submit(input.closest('form')); });
-  expect(screen.getByText(/Scan not accepted/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan error/)).toBeInTheDocument();
   expect(screen.getByText('Wrong product')).toBeInTheDocument();
   fireEvent.change(input, { target: { value: 'RIGHT' } });
   await act(async () => { fireEvent.submit(input.closest('form')); });
-  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan recorded successfully/)).toBeInTheDocument();
   expect(onScan).toHaveBeenCalledTimes(2);
 });
 
@@ -184,7 +184,7 @@ test('prevents overlapping submissions before the parent busy state updates', as
   fireEvent.submit(input.closest('form'));
   expect(onScan).toHaveBeenCalledTimes(1);
   await act(async () => { resolveScan({ scan_result: { status: 'ACCEPTED' } }); });
-  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan recorded successfully/)).toBeInTheDocument();
 });
 
 

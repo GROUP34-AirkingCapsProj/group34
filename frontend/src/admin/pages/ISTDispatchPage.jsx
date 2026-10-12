@@ -1,3 +1,4 @@
+import { focusScanInput } from '../utils/scanInputFocus';
 import ScanFeedback from '../components/ScanFeedback';
 import useScanFeedback from '../hooks/useScanFeedback';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -147,7 +148,7 @@ const ISTDispatchPage = () => {
     }
   }, [id, activeLine, ist, activeDetail, reportScan]);
 
-  useEffect(() => { if (!scanning) scanFieldRef.current?.focus({ preventScroll: true }); }, [scanning, activeLine]);
+  useEffect(() => { if (!scanning) focusScanInput(scanFieldRef.current); }, [scanning, activeLine]);
 
   const submitManual = async () => {
     const v = scanInput.trim();

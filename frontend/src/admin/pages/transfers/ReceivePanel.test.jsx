@@ -13,6 +13,26 @@ const transfer = { transfer_id: 1, details: [{
   product: { product_name: 'Copper tube', product_type: 'installation_material' },
 }] };
 
+test.each([true, false])('mobile scanner does not focus the keyboard field after a scan (accepted=%s)', async (accepted) => {
+  const originalMatchMedia = window.matchMedia;
+  window.matchMedia = jest.fn(() => ({ matches: true }));
+  try {
+    transfersAPI.receiveScan.mockResolvedValue(accepted
+      ? { success: true, data: { transfer_detail_id: 8, scan_id: 4, quantity: 1, quantity_received: 1, remaining: 9 } }
+      : { success: false, message: 'Wrong product barcode' });
+    render(<ReceivePanel transfer={transfer} />);
+    fireEvent.click(screen.getByText('Copper tube'));
+    const input = screen.getByPlaceholderText(/Scan or type barcode/);
+    expect(input).not.toHaveFocus();
+    fireEvent.change(input, { target: { value: 'TUBE' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Submit' })); });
+    expect(screen.getByText(accepted ? /Scan recorded successfully/ : /Scan error/)).toBeInTheDocument();
+    expect(input).not.toHaveFocus();
+  } finally {
+    window.matchMedia = originalMatchMedia;
+  }
+});
+
 test('shows the selected product and package quantity, then updates progress without a popup', async () => {
   transfersAPI.receiveScan.mockResolvedValue({ success: true, data: {
     transfer_detail_id: 8, scan_id: 4, quantity: 5, quantity_received: 5, remaining: 5,
@@ -26,7 +46,7 @@ test('shows the selected product and package quantity, then updates progress wit
   const input = screen.getByPlaceholderText(/Scan or type barcode/);
   fireEvent.change(input, { target: { value: 'TUBE-01' } });
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Submit' })); });
-  expect(within(status).getByText(/Scan successful/)).toBeInTheDocument();
+  expect(within(status).getByText(/Scan recorded successfully/)).toBeInTheDocument();
   expect(within(status).getByText(/Recorded:/)).toHaveTextContent('5 / 10 pieces');
   expect(input).toHaveFocus();
   expect(transfersAPI.receiveScan).toHaveBeenCalledWith(1, expect.objectContaining({ quantity: 1, quantity_unit: 'package' }));
@@ -39,7 +59,7 @@ test('a rejected scan leaves quantities unchanged and allows a retry', async () 
   const input = screen.getByPlaceholderText(/Scan or type barcode/);
   fireEvent.change(input, { target: { value: 'WRONG' } });
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Submit' })); });
-  expect(screen.getByText(/Scan not accepted/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan error/)).toBeInTheDocument();
   expect(screen.getByText('Wrong product barcode')).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Scanning status' })).toHaveTextContent('0 / 10 pieces');
   expect(input).toBeEnabled();
@@ -52,7 +72,7 @@ test('a server rejection in a resolved response never displays success', async (
   fireEvent.click(screen.getByText('Copper tube'));
   fireEvent.change(screen.getByPlaceholderText(/Scan or type barcode/), { target: { value: 'TUBE' } });
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Submit' })); });
-  expect(screen.getByText(/Scan not accepted/)).toBeInTheDocument();
-  expect(screen.queryByText(/Scan successful/)).not.toBeInTheDocument();
+  expect(screen.getByText(/Scan error/)).toBeInTheDocument();
+  expect(screen.queryByText(/Scan recorded successfully/)).not.toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Scanning status' })).toHaveTextContent('0 / 10 pieces');
 });

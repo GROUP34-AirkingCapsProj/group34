@@ -1,3 +1,4 @@
+import { focusScanInput } from '../../utils/scanInputFocus';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CameraScanner from '../CameraScanner';
 import ScanFeedback from '../ScanFeedback';
@@ -167,7 +168,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   // Keep the input focused at all times — a picker with a scanner gun never
   // touches the mouse. Re-focus after the plan changes or a scan resolves.
   useEffect(() => {
-    if (!busy) inputRef.current?.focus({ preventScroll: true });
+    if (!busy) focusScanInput(inputRef.current);
   }, [busy, plan, verdict]);
 
   const zoneList = useMemo(() => {
@@ -222,7 +223,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
       });
     } finally {
       scanInFlight.current = false;
-      if (mountedRef.current) inputRef.current?.focus({ preventScroll: true });
+      if (mountedRef.current) focusScanInput(inputRef.current);
     }
   };
 
