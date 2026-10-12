@@ -23,10 +23,16 @@ use Tests\TestCase;
  * The inspection endpoints, exercised as the roles that actually use them.
  *
  * Never as an `admin`: PermissionResolver::isAdmin() passes structurally, so an
- * admin would sail through a permission bug instead of exposing it. The
- * inspector here is a branch_manager (inspect, no resolve) and the approver an
- * inventory_analyst (resolve), which is exactly the separation the client's two
- * signature lines describe.
+ * admin would sail through a permission bug instead of exposing it. Both the
+ * inspector and the approver here are branch_managers, because that role now
+ * holds inspect and resolve together - the inventory analyst was pulled out of
+ * both when grants were realigned with each role's responsibility.
+ *
+ * The client's two signature lines are therefore enforced per USER and not per
+ * role: IncidentInspectionController refuses a confirmation from the same
+ * person who submitted the inspection, which
+ * test_the_inspector_cannot_confirm_their_own_report covers. If that control
+ * should be a role boundary again, resolve has to leave branch_manager.
  */
 class IncidentInspectionEndpointTest extends TestCase
 {
@@ -131,6 +137,16 @@ class IncidentInspectionEndpointTest extends TestCase
         return IncidentItem::where('incident_id', $incident->incident_id)->orderBy('item_id')->get();
     }
 
+    /**
+     * A second branch_manager at the scenario's location: holds resolve, and is
+     * a different user from the inspector, which is what lets a confirmation
+     * through. Scoped to the location because branch_manager is location-strict.
+     */
+    private function makeApprover(): User
+    {
+        return $this->makeUser('branch_manager', (int) Location::query()->firstOrFail()->location_id);
+    }
+
     // ------------------------------------------------------------------ tests
 
     public function test_repair_completion_is_authorized_validated_and_cannot_be_repeated(): void
@@ -139,7 +155,7 @@ class IncidentInspectionEndpointTest extends TestCase
         $item = $this->items($incident)->first();
         $svc = app(\App\Services\IncidentItemService::class);
         $svc->setOutcome($item, IncidentItem::OUTCOME_REPAIR, 'Repair required');
-        $approver = $this->makeUser('inventory_analyst');
+        $approver = $this->makeApprover();
         $svc->applyOutcomes($incident, (int) $approver->user_id);
         $url = "/api/incident-reports/{$incident->incident_id}/items/{$item->item_id}/complete-repair";
         $this->actingAs($this->makeUser('auditor'), 'sanctum')->postJson($url, ['note' => 'Done'])->assertForbidden();
@@ -152,7 +168,7 @@ class IncidentInspectionEndpointTest extends TestCase
     public function test_an_admin_cannot_confirm_a_report_that_is_still_open(): void
     {
         ['incident' => $incident] = $this->makeScenario('defective');
-        $approver = $this->makeUser('inventory_analyst');
+        $approver = $this->makeApprover();
 
         $this->actingAs($approver, 'sanctum')
             ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
@@ -172,7 +188,7 @@ class IncidentInspectionEndpointTest extends TestCase
     public function test_a_zone_mismatch_is_confirmable_straight_from_open(): void
     {
         ['incident' => $incident] = $this->makeScenario('zone_mismatch');
-        $approver = $this->makeUser('inventory_analyst');
+        $approver = $this->makeApprover();
 
         $this->actingAs($approver, 'sanctum')
             ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
@@ -189,7 +205,7 @@ class IncidentInspectionEndpointTest extends TestCase
             = $this->makeScenario('defective', itemCount: 2);
 
         $inspector = $this->makeUser('branch_manager', (int) $location->location_id);
-        $approver  = $this->makeUser('inventory_analyst');
+        $approver  = $this->makeApprover();
         $items     = $this->items($incident);
 
         $this->actingAs($inspector, 'sanctum')
@@ -232,7 +248,7 @@ class IncidentInspectionEndpointTest extends TestCase
         ['incident' => $incident, 'location' => $location] = $this->makeScenario('defective');
 
         $inspector = $this->makeUser('branch_manager', (int) $location->location_id);
-        $approver  = $this->makeUser('inventory_analyst');
+        $approver  = $this->makeApprover();
         $item      = $this->items($incident)->first();
 
         $this->actingAs($inspector, 'sanctum')
@@ -266,13 +282,13 @@ class IncidentInspectionEndpointTest extends TestCase
     {
         ['incident' => $incident] = $this->makeScenario('defective');
 
-        // An inventory_analyst holds BOTH inspect and resolve, so this user
-        // could otherwise inspect and approve alone.
-        $inspector = $this->makeUser('inventory_analyst');
+        // A branch_manager holds BOTH inspect and resolve, so this user could
+        // otherwise inspect and approve alone.
+        $inspector = $this->makeApprover();
         // …and a second holder of `resolve` exists, which is what arms the rule.
         // With nobody else able to confirm, a single-admin install would be
         // permanently unable to close a report, so the rule stands down.
-        $this->makeUser('inventory_analyst');
+        $this->makeApprover();
 
         $item = $this->items($incident)->first();
 
@@ -348,9 +364,10 @@ class IncidentInspectionEndpointTest extends TestCase
                 ['inspection_findings' => 'unit does not power on'])
             ->assertOk();
 
-        // Read back as the APPROVER, who holds resolve + read but not the
-        // inspect permission the write routes are gated on — the admin must be
-        // able to see what they are being asked to confirm.
+        // Read back as a role holding `read` but neither inspect nor resolve —
+        // the inventory analyst, since the realignment. Whoever is being asked
+        // to look at an inspection must be able to see it without any write
+        // permission on the report.
         $this->actingAs($this->makeUser('inventory_analyst'), 'sanctum')
             ->getJson("/api/incident-reports/{$incident->incident_id}")
             ->assertOk()
@@ -377,7 +394,7 @@ class IncidentInspectionEndpointTest extends TestCase
      */
     public function test_a_rejected_report_is_distinguishable_from_a_resolved_one(): void
     {
-        $approver = $this->makeUser('inventory_analyst');
+        $approver = $this->makeApprover();
 
         ['incident' => $rejected, 'location' => $location] = $this->makeScenario('defective');
         $inspector = $this->makeUser('branch_manager', (int) $location->location_id);

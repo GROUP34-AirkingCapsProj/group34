@@ -8,7 +8,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Auditors may only use read-only HTTP methods (GET/HEAD/OPTIONS).
- * Allows auth maintenance: logout and token refresh.
+ *
+ * Carve-outs, each justified at its check below: auth maintenance (logout,
+ * token refresh), self-service account routes, PO verification, resolving an
+ * Audit & Evidence drift finding, and running a report.
  */
 class AuditorReadOnly
 {
@@ -44,7 +47,7 @@ class AuditorReadOnly
             return $next($request);
         }
 
-        // PO verification is one of the auditor's two write capabilities — the
+        // PO verification is the auditor's substantive write capability — the
         // permission middleware on these routes still enforces who may call them.
         if (preg_match('#^/api/purchase-orders/\d+/(verify|reject)$#', $path)) {
             return $next($request);
@@ -57,6 +60,16 @@ class AuditorReadOnly
         // be able to write the note. permission:audit_evidence,resolve_exception on
         // the route still decides who may.
         if (preg_match('#^/api/audit-evidence/exceptions/\d+/resolve$#', $path)) {
+            return $next($request);
+        }
+
+        // Report generation. The matrix grants the auditor report_viewing.create
+        // deliberately, but this middleware blocked the POST, so the role could
+        // only read reports somebody else had already run — which is no use to
+        // the person whose job is checking for discrepancies. It is an export,
+        // not a mutation: it writes a file and a report_runs row and touches no
+        // business data. permission:report_viewing,create still decides who may.
+        if ($path === '/api/reports/generate') {
             return $next($request);
         }
 

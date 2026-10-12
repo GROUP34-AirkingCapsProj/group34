@@ -99,11 +99,11 @@ class PermissionSeeder extends Seeder
                 // client's form carries two signature lines precisely so one
                 // person cannot both examine the goods and approve their
                 // write-off. `auditor` stays read-only.
-                'inspect' => ['admin', 'inventory_analyst', 'branch_manager'],
+                'inspect' => ['admin', 'branch_manager'],
                 // Confirming or rejecting a submitted inspection — the moment
                 // stock actually moves. Retired with the stock-holds work:
                 // `dispose`, which the inspection replaces.
-                'resolve' => ['admin', 'inventory_analyst'],
+                'resolve' => ['admin', 'branch_manager'],
             ],
             'location_based_inventory' => [
                 'read'    => ['admin'],
@@ -123,15 +123,18 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'archive' => ['admin'],
             ],
+            // Supplier master data is purchasing's, which is the inventory analyst.
+            // The branch manager keeps read so they can see who a PO is going to
+            // when they approve the request behind it.
             'supplier_management' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
-                'create'  => ['admin', 'inventory_analyst', 'branch_manager'],
-                'update'  => ['admin', 'inventory_analyst', 'branch_manager'],
+                'create'  => ['admin', 'inventory_analyst'],
+                'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
             ],
             'item_supplier_mapping' => [
-                'create' => ['admin', 'inventory_analyst', 'branch_manager'],
-                'update' => ['admin', 'inventory_analyst', 'branch_manager'],
+                'create' => ['admin', 'inventory_analyst'],
+                'update' => ['admin', 'inventory_analyst'],
             ],
             'purchase_order_creation' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
@@ -139,13 +142,19 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
             ],
+            // read is granted to branch_manager as well: they approve PRs, and the
+            // index/show/history endpoints are gated on this action, so without it
+            // the approver cannot open the request they are being asked to approve.
             'purchase_request_creation' => [
-                'read'    => ['admin', 'inventory_analyst'],
+                'read'    => ['admin', 'inventory_analyst', 'branch_manager'],
                 'create'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
             ],
+            // The branch manager is the approver in the PR workflow - the procurement
+            // flowchart's "Manager approves?" decision. This group also gates
+            // GET /purchase-requests/pending/list, which is their work queue.
             'purchase_request_approval' => [
-                'approve' => ['admin'],
+                'approve' => ['admin', 'branch_manager'],
             ],
             'purchase_order_verification' => [
                 'read'   => ['admin', 'auditor'],
@@ -174,17 +183,22 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'archive' => ['admin'],
             ],
+            // Warehouse personnel pick, scan and print the delivery receipt, but the
+            // sale itself is recorded by the branch manager. Read stays with them so
+            // the issuance screens can show what a unit was sold against.
             'sales_recording' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
-                'create'  => ['admin', 'branch_manager', 'warehouse_personnel'],
-                'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
+                'create'  => ['admin', 'branch_manager'],
+                'update'  => ['admin', 'branch_manager'],
                 'archive' => ['admin'],
             ],
             // Customer Registry (/admin/customers).
+            // Read stays with warehouse personnel - the delivery receipt needs the
+            // customer - but the registry is maintained by the branch manager.
             'customer_management' => [
                 'read'    => ['admin', 'branch_manager', 'warehouse_personnel', 'auditor'],
-                'create'  => ['admin', 'branch_manager', 'warehouse_personnel'],
-                'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
+                'create'  => ['admin', 'branch_manager'],
+                'update'  => ['admin', 'branch_manager'],
                 'archive' => ['admin'],
             ],
             'delivery_receipt_generation' => [
@@ -212,7 +226,7 @@ class PermissionSeeder extends Seeder
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
                 'create'  => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel'],
                 'update'  => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel'],
-                'approve' => ['admin', 'inventory_analyst'],
+                'approve' => ['admin'],
             ],
             // Inventory Monitoring read-only view (/admin/inventory).
             'inventory_monitoring' => [
@@ -253,14 +267,19 @@ class PermissionSeeder extends Seeder
             // Warranty records (currently open to all authenticated users — reproduced here).
             'warranty_records' => [
                 'read'   => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
-                'update' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+                // PUT /warranties/{id}/claim - marking a unit claimed is branch work.
+                // The auditor is read-only (AuditorReadOnly blocks the write anyway)
+                // and the analyst does not handle units, so neither holds it.
+                'update' => ['admin', 'branch_manager', 'warehouse_personnel'],
             ],
             // Warranty claim workflow (currently role:admin,branch_manager,warehouse_personnel).
             'warranty_claims' => [
                 'read'    => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'create'  => ['admin', 'branch_manager', 'warehouse_personnel'],
                 'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
-                'approve' => ['admin', 'branch_manager', 'warehouse_personnel'],
+                // Not warehouse_personnel: they file the claim, so approving it too
+                // would make the maker the approver.
+                'approve' => ['admin', 'branch_manager'],
             ],
             'report_viewing' => [
                 'read'   => ['admin', 'inventory_analyst', 'auditor'],

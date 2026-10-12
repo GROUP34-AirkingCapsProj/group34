@@ -5,6 +5,7 @@ export default function ScanFeedback({ feedback, product, quantity, unit = 'piec
   const hasProgress = Number.isFinite(Number(target)) && target != null;
   const done = Number(completed) || 0;
   const total = Number(target) || 0;
+  const outcome = feedback?.accepted === true ? 'success' : feedback?.accepted === false ? 'error' : 'info';
   return (
     <section className={`scan-feedback${overlay ? ' scan-feedback--overlay' : ''}`} aria-label="Scanning status">
       <div className="scan-feedback-context">
@@ -21,10 +22,10 @@ export default function ScanFeedback({ feedback, product, quantity, unit = 'piec
         {busy && <span role="status">Checking barcode…</span>}
       </div>
       <div role="status" aria-live="polite" aria-atomic="true">
-        {feedback && (
-          <div key={feedback.sequence} className={`scan-feedback-result scan-feedback-result--${feedback.accepted ? 'success' : 'error'}`}>
+        {feedback && !busy && (
+          <div key={feedback.sequence} className={`scan-feedback-result scan-feedback-result--${outcome}`}>
             <span className="scan-feedback-label">Last scan result</span>
-            <strong>{feedback.accepted ? '✓ Scan successful' : '✕ Scan not accepted'}</strong>
+            <strong>{outcome === 'success' ? '✓ Scan recorded successfully' : outcome === 'error' ? '✕ Scan error' : 'Barcode identified — confirmation required'}</strong>
             <span>{feedback.message}</span>
             {feedback.product && (!overlay || feedback.product !== product) && <span>{feedback.product}</span>}
             {feedback.barcode && <code>{feedback.barcode}</code>}

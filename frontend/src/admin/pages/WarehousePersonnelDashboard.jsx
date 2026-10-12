@@ -34,7 +34,7 @@ export default function WarehousePersonnelDashboard() {
               <p className="ak-sub">Receiving, dispatch and stock health for your warehouse.</p>
             </div>
             <div className="ak-header-aside ak-actions">
-              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/ist')}>Transfers</button>
+              <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/admin/transfers')}>Transfers</button>
               <button className="ak-btn ak-btn--primary" onClick={() => navigate('/admin/inventory-operation')}>Scan</button>
             </div>
           </div>

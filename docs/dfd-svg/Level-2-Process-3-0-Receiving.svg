@@ -22,27 +22,27 @@
 <text class="cap" x="451" y="34">PROCESSES</text>
 <text class="cap" x="928" y="34">DATA STORES</text>
 <path class="ln" d="M240,110 L310,110 L310,118 L451,118" marker-end="url(#ar)"/>
-<path class="ln" d="M928,287 L854,287 L854,133 L741,133" marker-end="url(#ar)"/>
+<path class="ln" d="M928,476 L854,476 L854,133 L741,133" marker-end="url(#ar)"/>
 <path class="ln" d="M741,103 L779,103 L779,90 L928,90" marker-end="url(#ar)"/>
-<path class="ln" d="M240,854 L381,854 L381,281 L451,281" marker-end="url(#ar)"/>
+<path class="ln" d="M240,476 L310,476 L310,251 L451,251" marker-end="url(#ar)"/>
 <path class="ln" d="M596,310 L596,370" marker-end="url(#ar)"/>
-<path class="ln" d="M928,303 L891,303 L891,414 L741,414" marker-end="url(#ar)"/>
-<path class="ln" d="M741,436 L816,436 L816,496 L928,496" marker-end="url(#ar)"/>
+<path class="ln" d="M928,492 L816,492 L816,436 L741,436" marker-end="url(#ar)"/>
+<path class="ln" d="M741,414 L891,414 L891,299 L928,299" marker-end="url(#ar)"/>
 <path class="ln" d="M741,392 L816,392 L816,106 L928,106" marker-end="url(#ar)"/>
-<path class="ln" d="M451,251 L310,251 L310,547 L451,547" marker-end="url(#ar)"/>
+<path class="ln" d="M451,281 L381,281 L381,547 L451,547" marker-end="url(#ar)"/>
 <path class="ln" d="M928,122 L779,122 L779,547 L741,547" marker-end="url(#ar)"/>
 <path class="ln" d="M741,577 L779,577 L779,685 L928,685" marker-end="url(#ar)"/>
 <path class="ln" d="M596,606 L596,666" marker-end="url(#ar)"/>
-<path class="ln" d="M741,695 L854,695 L854,319 L928,319" marker-end="url(#ar)"/>
+<path class="ln" d="M741,695 L854,695 L854,508 L928,508" marker-end="url(#ar)"/>
 <path class="ln" d="M741,725 L779,725 L779,874 L928,874" marker-end="url(#ar)"/>
-<path class="ln" d="M451,577 L310,577 L310,843 L451,843" marker-end="url(#ar)"/>
-<path class="ln" d="M451,873 L310,873 L310,878 L240,878" marker-end="url(#ar)"/>
+<path class="ln" d="M451,577 L381,577 L381,873 L451,873" marker-end="url(#ar)"/>
+<path class="ln" d="M451,843 L310,843 L310,500 L240,500" marker-end="url(#ar)"/>
 <rect class="ext" x="40" y="74" width="200" height="72"/>
 <text class="en" x="140" y="114" text-anchor="middle">Supplier</text>
 <rect class="ext" x="40" y="452" width="200" height="72"/>
-<text class="en" x="140" y="492" text-anchor="middle">Administrator</text>
+<text class="en" x="140" y="492" text-anchor="middle">Warehouse Personnel</text>
 <rect class="ext" x="40" y="830" width="200" height="72"/>
-<text class="en" x="140" y="870" text-anchor="middle">Warehouse Personnel</text>
+<text class="en" x="140" y="870" text-anchor="middle">Administrator</text>
 <rect class="proc" x="451" y="74" width="290" height="88" rx="9"/>
 <line class="ln" x1="451" y1="99" x2="741" y2="99"/>
 <text class="pnum" x="596" y="92" text-anchor="middle">3.1</text>
@@ -71,14 +71,14 @@
 <line class="ln" x1="964" y1="74" x2="964" y2="138"/>
 <text class="snum" x="946" y="110" text-anchor="middle">D4</text>
 <text class="sn" x="974" y="110">Receiving Records</text>
-<path class="store" d="M928,271 H1248 M928,335 H1248 M928,271 V335"/>
-<line class="ln" x1="964" y1="271" x2="964" y2="335"/>
-<text class="snum" x="946" y="307" text-anchor="middle">D3</text>
-<text class="sn" x="974" y="307">Purchase Requests and Orders</text>
-<path class="store" d="M928,468 H1248 M928,524 H1248 M928,468 V524"/>
-<line class="ln" x1="964" y1="468" x2="964" y2="524"/>
-<text class="snum" x="946" y="500" text-anchor="middle">D8</text>
-<text class="sn" x="974" y="500">Incidents and Warranty</text>
+<path class="store" d="M928,271 H1248 M928,327 H1248 M928,271 V327"/>
+<line class="ln" x1="964" y1="271" x2="964" y2="327"/>
+<text class="snum" x="946" y="303" text-anchor="middle">D8</text>
+<text class="sn" x="974" y="303">Incidents and Warranty</text>
+<path class="store" d="M928,460 H1248 M928,524 H1248 M928,460 V524"/>
+<line class="ln" x1="964" y1="460" x2="964" y2="524"/>
+<text class="snum" x="946" y="496" text-anchor="middle">D3</text>
+<text class="sn" x="974" y="496">Purchase Requests and Orders</text>
 <path class="store" d="M928,657 H1248 M928,713 H1248 M928,657 V713"/>
 <line class="ln" x1="964" y1="657" x2="964" y2="713"/>
 <text class="snum" x="946" y="689" text-anchor="middle">D5</text>
@@ -90,17 +90,17 @@
 <text class="fl" x="316" y="112" text-anchor="start">delivery note</text>
 <text class="fl" x="848" y="127" text-anchor="end">open order lines</text>
 <text class="fl" x="785" y="84" text-anchor="start">empty draft</text>
-<text class="fl" x="246" y="848" text-anchor="start">barcode scan, counted quantity</text>
+<text class="fl" x="246" y="470" text-anchor="start">barcode scan, counted quantity</text>
 <text class="fl" x="604" y="340" text-anchor="start">scanned line</text>
-<text class="fl" x="885" y="408" text-anchor="end">expected product and quantity</text>
-<text class="fl" x="822" y="490" text-anchor="start">discrepancy incident</text>
+<text class="fl" x="922" y="486" text-anchor="end">expected product and quantity</text>
+<text class="fl" x="747" y="408" text-anchor="start">discrepancy incident</text>
 <text class="fl" x="822" y="100" text-anchor="start">staged row</text>
-<text class="fl" x="445" y="245" text-anchor="end">submit draft</text>
+<text class="fl" x="445" y="275" text-anchor="end">submit draft</text>
 <text class="fl" x="922" y="116" text-anchor="end">all staged rows</text>
 <text class="fl" x="785" y="666" text-anchor="start">batch, serials, tags</text>
 <text class="fl" x="604" y="636" text-anchor="start">posted quantities</text>
 <text class="fl" x="747" y="689" text-anchor="start">partially received / completed</text>
 <text class="fl" x="785" y="868" text-anchor="start">audit entry</text>
 <text class="fl" x="445" y="571" text-anchor="end">posted receipt</text>
-<text class="fl" x="445" y="867" text-anchor="end">goods received note, barcode labels</text>
+<text class="fl" x="445" y="837" text-anchor="end">goods received note, barcode labels</text>
 </svg>

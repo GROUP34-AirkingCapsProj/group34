@@ -1242,8 +1242,10 @@ const BarcodeScan = () => {
             auditSnapshot: null,
           };
           setScanResult(result);
-          reportOperationScan(true, result.transactionEngineApplied
-            ? 'Scan recorded. Inventory updated.' : 'Barcode identified. Review the product before confirming any stock change.',
+          reportOperationScan(result.transactionEngineApplied || result.auditSnapshot ? true : null, result.transactionEngineApplied
+            ? 'Scan recorded. Inventory updated.' : result.auditSnapshot
+              ? 'Audit scan recorded. Inventory quantities were not changed.'
+              : 'Barcode identified. No stock change has been recorded. Review and confirm the transaction.',
             code, result.item?.product_name || result.item?.name || '');
           setTxLogs([]);
           setScanHistory((prev) => {
@@ -1276,8 +1278,8 @@ const BarcodeScan = () => {
             scanRejected('Invalid transaction engine response.');
             return;
           }
-          if (eng.action === 'rejected') {
-            scanRejected(eng.reason || 'Use the product barcode to choose quantity, or check serial/stock.');
+          if (eng.action !== 'applied') {
+            scanRejected(eng.reason || 'The server did not confirm issuance. Check the barcode and stock before trying again.');
             return;
           }
           (Array.isArray(eng.warnings) ? eng.warnings : []).forEach((w) => scanWarning(w));
@@ -1307,8 +1309,10 @@ const BarcodeScan = () => {
             issuedQuantity: qtyEngine,
           };
           setScanResult(result);
-          reportOperationScan(true, result.transactionEngineApplied
-            ? 'Scan recorded. Inventory updated.' : 'Barcode identified. Review the product before confirming any stock change.',
+          reportOperationScan(result.transactionEngineApplied || result.auditSnapshot ? true : null, result.transactionEngineApplied
+            ? 'Scan recorded. Inventory updated.' : result.auditSnapshot
+              ? 'Audit scan recorded. Inventory quantities were not changed.'
+              : 'Barcode identified. No stock change has been recorded. Review and confirm the transaction.',
             code, result.item?.product_name || result.item?.name || '');
           setTxLogs([]);
           setScanHistory((prev) => {
@@ -1376,8 +1380,8 @@ const BarcodeScan = () => {
           scanRejected('Invalid transaction engine response.');
           return;
         }
-        if (eng.action === 'rejected') {
-          scanRejected(eng.reason || 'Scan rejected.');
+        if (eng.action !== 'applied') {
+          scanRejected(eng.reason || 'The server did not confirm that this scan was recorded. Please check before trying again.');
           return;
         }
         (Array.isArray(eng.warnings) ? eng.warnings : []).forEach((w) => scanWarning(w));
@@ -1413,8 +1417,10 @@ const BarcodeScan = () => {
         };
 
         setScanResult(result);
-          reportOperationScan(true, result.transactionEngineApplied
-            ? 'Scan recorded. Inventory updated.' : 'Barcode identified. Review the product before confirming any stock change.',
+          reportOperationScan(result.transactionEngineApplied || result.auditSnapshot ? true : null, result.transactionEngineApplied
+            ? 'Scan recorded. Inventory updated.' : result.auditSnapshot
+              ? 'Audit scan recorded. Inventory quantities were not changed.'
+              : 'Barcode identified. No stock change has been recorded. Review and confirm the transaction.',
             code, result.item?.product_name || result.item?.name || '');
         setTxLogs([]);
         setScanHistory((prev) => {
@@ -1566,8 +1572,10 @@ const BarcodeScan = () => {
       };
 
       setScanResult(result);
-          reportOperationScan(true, result.transactionEngineApplied
-            ? 'Scan recorded. Inventory updated.' : 'Barcode identified. Review the product before confirming any stock change.',
+          reportOperationScan(result.transactionEngineApplied || result.auditSnapshot ? true : null, result.transactionEngineApplied
+            ? 'Scan recorded. Inventory updated.' : result.auditSnapshot
+              ? 'Audit scan recorded. Inventory quantities were not changed.'
+              : 'Barcode identified. No stock change has been recorded. Review and confirm the transaction.',
             code, result.item?.product_name || result.item?.name || '');
       setTxLogs([]);
       setScanHistory((prev) => {
@@ -1589,7 +1597,7 @@ const BarcodeScan = () => {
       } catch {}
 
     } catch (err) {
-      scanRejected(err.message || 'Scan failed');
+      scanRejected(err?.data?.data?.reason || err?.data?.reason || err.message || 'Scan failed');
     } finally {
       operationInFlight.current = false;
       setScanning(false);
@@ -2101,7 +2109,7 @@ const BarcodeScan = () => {
 
   const handleBsrScan = useCallback(async (raw, acceptOverage = false) => {
     const rejectScan = (alert) => {
-      reportReceivingScan(false, alert.message || alert.title, raw.trim(), bsrActiveLine?.product?.product_name || '');
+      reportReceivingScan(false, alert.message || alert.title || 'This barcode was not accepted.', raw.trim(), bsrActiveLine?.product?.product_name || '');
       bsrProcessingRef.current = false;
       setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
     };
@@ -2220,8 +2228,8 @@ const BarcodeScan = () => {
         );
       }
 
-      if (!payload?.draft) {
-        rejectScan({ message: 'The server did not confirm this scan. Please try again.' });
+      if (payload?.action !== 'staged' || !payload?.item || !payload?.draft) {
+        rejectScan({ message: 'The server did not confirm that this scan was saved to the delivery draft. Check the draft before trying again.' });
         return;
       }
       setBsrDraft(payload.draft);
@@ -2232,7 +2240,7 @@ const BarcodeScan = () => {
       bsrProcessingRef.current = false;
       setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
     } catch (e) {
-      rejectScan({ type: 'error', title: 'Scan Failed', message: e?.message || 'Scan failed.' });
+      rejectScan({ type: 'error', title: 'Scan Failed', message: e?.data?.data?.reason || e?.data?.reason || e?.message || 'Scan failed.' });
     } finally {
       setBsrScanning(false);
       bsrProcessingRef.current = false;

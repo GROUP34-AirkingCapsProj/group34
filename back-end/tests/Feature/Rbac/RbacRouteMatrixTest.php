@@ -134,7 +134,7 @@ class RbacRouteMatrixTest extends TestCase
             // Feature: category_management.create
             'categories store'                  => ['POST',  '/api/categories',                      'inventory_analyst',   'warehouse_personnel'],
             // Feature: supplier_management.create
-            'suppliers store'                   => ['POST',  '/api/suppliers',                       'branch_manager',      'warehouse_personnel'],
+            'suppliers store'                   => ['POST',  '/api/suppliers',                       'inventory_analyst',   'branch_manager'],
             // Feature: purchase_order_creation.create
             'purchase-orders store'             => ['POST',  '/api/purchase-orders',                 'inventory_analyst',   'branch_manager'],
             // Feature: inventory_adjustments.create
@@ -150,9 +150,9 @@ class RbacRouteMatrixTest extends TestCase
             // moved into System Configuration (auditor read access was removed).
             'users index'                       => ['GET',   '/api/users',                           'admin',               'auditor'],
             // Feature: purchase_request_approval.approve
-            'purchase-requests approve'         => ['PATCH', '/api/purchase-requests/999999/approve', 'admin',              'inventory_analyst'],
+            'purchase-requests approve'         => ['PATCH', '/api/purchase-requests/999999/approve', 'branch_manager',     'inventory_analyst'],
             // Feature: inventory_transfers.approve
-            'transfers verify'                  => ['POST',  '/api/transfers/999999/verify',         'inventory_analyst',  'branch_manager'],
+            'transfers verify'                  => ['POST',  '/api/transfers/999999/verify',         'admin',              'inventory_analyst'],
             // Feature: exception_detection.read
             'compliance logs'                   => ['GET',   '/api/compliance/logs',                 'branch_manager',      'inventory_analyst'],
             // Feature: audit_trail_viewing.read
@@ -170,7 +170,7 @@ class RbacRouteMatrixTest extends TestCase
             // Feature: barcode_assignment.create
             'serials store'                     => ['POST',  '/api/serials',                         'warehouse_personnel', 'inventory_analyst'],
             // Feature: item_supplier_mapping.create
-            'supplier products map'             => ['POST',  '/api/suppliers/999999/products',       'branch_manager',      'warehouse_personnel'],
+            'supplier products map'             => ['POST',  '/api/suppliers/999999/products',       'inventory_analyst',   'branch_manager'],
             // Feature: delivery_receipt_generation.create
             'delivery-receipts store'           => ['POST',  '/api/delivery-receipts',               'branch_manager',      'inventory_analyst'],
             // Feature: location_based_inventory.create (admin-only)
