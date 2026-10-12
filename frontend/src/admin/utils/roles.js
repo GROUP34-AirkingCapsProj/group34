@@ -61,42 +61,42 @@ export const ROLE_META = {
  */
 export const ROUTE_ACCESS = {
   // Core
-  '/admin/dashboard': Object.values(ROLES),
-  '/admin/analytics': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
-  '/admin/reports': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
-  '/admin/audit': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
-  '/admin/compliance': Object.values(ROLES),
-  '/admin/alerts': [ROLES.ADMIN],
-  '/admin/notifications': [ROLES.ADMIN],
+  '/dashboard': Object.values(ROLES),
+  '/analytics': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
+  '/reports': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
+  '/audit': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
+  '/compliance': Object.values(ROLES),
+  '/alerts': [ROLES.ADMIN],
+  '/notifications': [ROLES.ADMIN],
 
   // Admin/security
-  '/admin/config': [ROLES.ADMIN],
-  '/admin/archive': [ROLES.ADMIN, ROLES.AUDITOR],
-  '/admin/archive-settings': [ROLES.ADMIN],
-  '/admin/backup': [ROLES.ADMIN],
+  '/config': [ROLES.ADMIN],
+  '/archive': [ROLES.ADMIN, ROLES.AUDITOR],
+  '/archive-settings': [ROLES.ADMIN],
+  '/backup': [ROLES.ADMIN],
 
   // Item/barcode/classification
-  '/admin/items': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
-  '/admin/pending-installation-materials': [ROLES.ADMIN, ROLES.BRANCH_MANAGER],
-  '/admin/categories': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
-  '/admin/brands': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
-  '/admin/inventory-operation': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
-  '/admin/scan': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
+  '/items': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
+  '/pending-installation-materials': [ROLES.ADMIN, ROLES.BRANCH_MANAGER],
+  '/categories': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
+  '/brands': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
+  '/inventory-operation': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
+  '/scan': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
   /* Reprinting a damaged label is warehouse work, so it matches the scan
      pages rather than the read-only reports. The queue endpoints behind it
      are auth-only and already scoped to the user's location; an unlisted
      path here would fall back to admin-only and hide the page from exactly
      the people who print. */
-  '/admin/barcode-printing': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
+  '/barcode-printing': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
 
   // Inventory operations
-  '/admin/inventory': Object.values(ROLES),
-  '/admin/transfers': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
-  '/admin/issuances': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
-  '/admin/adjustments': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
+  '/inventory': Object.values(ROLES),
+  '/transfers': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
+  '/issuances': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
+  '/adjustments': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
 
   // Purchase Orders (Approval Queue — PO tab: upcoming / pending; warehouse is view-only there)
-  '/admin/purchase-orders': [
+  '/purchase-orders': [
     ROLES.ADMIN,
     ROLES.INVENTORY_ANALYST,
     ROLES.BRANCH_MANAGER,
@@ -105,32 +105,32 @@ export const ROUTE_ACCESS = {
   ],
 
   // Procurement & restocking
-  '/admin/suppliers': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
-  '/admin/purchase-requests': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST],
-  '/admin/draft-po-creator': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
-  '/admin/purchase-returns': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
+  '/suppliers': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
+  '/purchase-requests': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST],
+  '/draft-po-creator': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
+  '/purchase-returns': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
 
   // POS / sales
-  '/admin/customers': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
-  '/admin/transactions': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
-  '/admin/delivery-receipts': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
-  '/admin/profit-loss': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
+  '/customers': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
+  '/transactions': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
+  '/delivery-receipts': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL, ROLES.AUDITOR],
+  '/profit-loss': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.AUDITOR],
 
   // Issuance scan (barcode-driven issuance)
-  '/admin/issuance-scan': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
+  '/issuance-scan': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
 
   // Warranties
-  '/admin/warranties': Object.values(ROLES),
+  '/warranties': Object.values(ROLES),
 
   // SA Permission Editor
-  '/admin/roles': [ROLES.ADMIN],
-  '/admin/user-permissions': [ROLES.ADMIN],
-  '/admin/permission-audit': [ROLES.ADMIN],
+  '/roles': [ROLES.ADMIN],
+  '/user-permissions': [ROLES.ADMIN],
+  '/permission-audit': [ROLES.ADMIN],
 
   // Legacy pages
-  '/admin/branches': [ROLES.ADMIN],
-  '/admin/warehouses': [ROLES.ADMIN],
-  '/admin/warranty': [ROLES.ADMIN],
+  '/branches': [ROLES.ADMIN],
+  '/warehouses': [ROLES.ADMIN],
+  '/warranty': [ROLES.ADMIN],
 
 };
 

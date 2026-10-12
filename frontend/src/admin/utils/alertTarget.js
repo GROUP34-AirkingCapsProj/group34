@@ -3,21 +3,21 @@
 // { path, focusKey } where focusKey is "<type>:<id>", or null when not navigable.
 
 const AUDIT_TABLE_TARGETS = {
-  purchase_orders:   (id) => ({ path: '/admin/draft-po-creator', focusKey: `po:${id}` }),
-  purchase_requests: (id) => ({ path: '/admin/purchase-requests', focusKey: `pr:${id}` }),
-  transfers:         (id) => ({ path: '/admin/transfers',         focusKey: `transfer:${id}` }),
-  products:          (id) => ({ path: '/admin/items',             focusKey: `product:${id}` }),
-  inventory:         (id) => ({ path: '/admin/inventory',         focusKey: `inv:${id}` }),
+  purchase_orders:   (id) => ({ path: '/draft-po-creator', focusKey: `po:${id}` }),
+  purchase_requests: (id) => ({ path: '/purchase-requests', focusKey: `pr:${id}` }),
+  transfers:         (id) => ({ path: '/transfers',         focusKey: `transfer:${id}` }),
+  products:          (id) => ({ path: '/items',             focusKey: `product:${id}` }),
+  inventory:         (id) => ({ path: '/inventory',         focusKey: `inv:${id}` }),
 };
 
 export function pendingPoTarget(po) {
   const id = po?.id ?? po?.po_id;
-  return id != null ? { path: '/admin/draft-po-creator', focusKey: `po:${id}` } : null;
+  return id != null ? { path: '/draft-po-creator', focusKey: `po:${id}` } : null;
 }
 
 export function pendingPrTarget(pr) {
   const id = pr?.id ?? pr?.pr_id;
-  return id != null ? { path: '/admin/purchase-requests', focusKey: `pr:${id}` } : null;
+  return id != null ? { path: '/purchase-requests', focusKey: `pr:${id}` } : null;
 }
 
 // No wired approval destination yet — intentionally non-clickable.
@@ -28,7 +28,7 @@ export function pendingRegistrationTarget(/* _item */) {
 export function lowStockTarget(item) {
   const id = item?.product_id ?? item?.inventory_id;
   return id != null
-    ? { path: '/admin/purchase-requests', query: 'tab=create' }
+    ? { path: '/purchase-requests', query: 'tab=create' }
     : null;
 }
 

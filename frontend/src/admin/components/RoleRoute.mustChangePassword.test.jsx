@@ -27,9 +27,9 @@ const renderAt = (path) =>
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/admin/dashboard" element={<RoleRoute><div>Dashboard Page</div></RoleRoute>} />
-        <Route path="/admin/change-password" element={<div>Change Password Page</div>} />
-        <Route path="/admin/login" element={<div>Login Page</div>} />
+        <Route path="/dashboard" element={<RoleRoute><div>Dashboard Page</div></RoleRoute>} />
+        <Route path="/change-password" element={<div>Change Password Page</div>} />
+        <Route path="/login" element={<div>Login Page</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -39,7 +39,7 @@ const admin = { user_id: 1, role: { role_name: 'admin', role_id: 1 } };
 test('a user holding a temporary password is sent to the change-password screen', () => {
   mockAuth.user = { ...admin, must_change_password: true };
 
-  renderAt('/admin/dashboard');
+  renderAt('/dashboard');
 
   expect(screen.getByText('Change Password Page')).toBeInTheDocument();
   expect(screen.queryByText('Dashboard Page')).not.toBeInTheDocument();
@@ -48,7 +48,7 @@ test('a user holding a temporary password is sent to the change-password screen'
 test('a user who has chosen their own password passes through', () => {
   mockAuth.user = { ...admin, must_change_password: false };
 
-  renderAt('/admin/dashboard');
+  renderAt('/dashboard');
 
   expect(screen.getByText('Dashboard Page')).toBeInTheDocument();
 });
@@ -59,7 +59,7 @@ test('a user payload without the field at all is not gated', () => {
   // every already-signed-in user to the change-password screen.
   mockAuth.user = { ...admin };
 
-  renderAt('/admin/dashboard');
+  renderAt('/dashboard');
 
   expect(screen.getByText('Dashboard Page')).toBeInTheDocument();
 });

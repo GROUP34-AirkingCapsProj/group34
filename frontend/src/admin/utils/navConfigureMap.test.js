@@ -42,7 +42,7 @@ describe('navConfigureMap coverage', () => {
 
 describe('configureFeatures', () => {
   const bundle = {
-    route_path: '/admin/items',
+    route_path: '/items',
     permissions: [
       { feature: 'item_master_management', action: 'read', is_required: true },
       { feature: 'item_master_management', action: 'create', is_required: false },
@@ -54,7 +54,7 @@ describe('configureFeatures', () => {
   });
 
   test('de-duplicates if an extra repeats the required feature', () => {
-    const b = { route_path: '/admin/x', permissions: [{ feature: 'foo', is_required: true }] };
+    const b = { route_path: '/x', permissions: [{ feature: 'foo', is_required: true }] };
     expect(configureFeatures(b)).toEqual(['foo']);
   });
 
@@ -64,7 +64,7 @@ describe('configureFeatures', () => {
   });
 
   test('a page with no extras shows only its required feature', () => {
-    const b = { route_path: '/admin/reports', permissions: [{ feature: 'report_viewing', is_required: true }] };
+    const b = { route_path: '/reports', permissions: [{ feature: 'report_viewing', is_required: true }] };
     expect(configureFeatures(b)).toEqual(['report_viewing']);
   });
 });

@@ -3,7 +3,7 @@ import { canAccessRoute, getRoleKey, ROLES } from './roles';
 
 /** Pages with no permission bundle that remain visible to all authenticated roles.
  *  Self-service account settings must be reachable by every user (own account). */
-export const ROLE_OPEN_PATHS = new Set(['/admin/account']);
+export const ROLE_OPEN_PATHS = new Set(['/account']);
 
 /**
  * Build sidebar sections: keep a page if its bundle is visible (perm granted),

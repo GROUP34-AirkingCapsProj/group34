@@ -13,10 +13,10 @@ jest.mock('../context/AuthContext', () => ({
 
 test('redirects to dashboard when the role cannot access the route', () => {
   render(
-    <MemoryRouter initialEntries={['/admin/items']}>
+    <MemoryRouter initialEntries={['/items']}>
       <Routes>
-        <Route path="/admin/items" element={<RoleRoute><div>Items Page</div></RoleRoute>} />
-        <Route path="/admin/dashboard" element={<div>Dashboard Page</div>} />
+        <Route path="/items" element={<RoleRoute><div>Items Page</div></RoleRoute>} />
+        <Route path="/dashboard" element={<div>Dashboard Page</div>} />
       </Routes>
     </MemoryRouter>
   );

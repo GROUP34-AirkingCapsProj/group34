@@ -10,16 +10,16 @@
  * permission catalog + NavBundleSeeder.
  */
 export const EXTRA_FEATURES_BY_ROUTE = {
-  '/admin/config':              ['user_account_management'],
-  '/admin/draft-po-creator':    ['purchase_order_verification'],
-  '/admin/archive':             ['data_archiving'],
-  '/admin/purchase-requests':   ['purchase_request_approval', 'po_recommendations'],
-  '/admin/suppliers':           ['item_supplier_mapping'],
-  '/admin/items':               ['barcode_assignment'],
-  '/admin/categories':          ['category_management', 'brand_management'],
-  '/admin/transactions':        ['delivery_receipt_generation'],
-  '/admin/inventory-operation': ['delivery_receiving', 'inventory_issuance', 'inventory_adjustments'],
-  '/admin/warranties':          ['warranty_claims'],
+  '/config':              ['user_account_management'],
+  '/draft-po-creator':    ['purchase_order_verification'],
+  '/archive':             ['data_archiving'],
+  '/purchase-requests':   ['purchase_request_approval', 'po_recommendations'],
+  '/suppliers':           ['item_supplier_mapping'],
+  '/items':               ['barcode_assignment'],
+  '/categories':          ['category_management', 'brand_management'],
+  '/transactions':        ['delivery_receipt_generation'],
+  '/inventory-operation': ['delivery_receiving', 'inventory_issuance', 'inventory_adjustments'],
+  '/warranties':          ['warranty_claims'],
 };
 
 /**

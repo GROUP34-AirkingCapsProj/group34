@@ -11,17 +11,17 @@ import {
 describe('alertTarget', () => {
   it('maps a pending PO to the status tab', () => {
     expect(pendingPoTarget({ id: 42 })).toEqual({
-      path: '/admin/draft-po-creator', focusKey: 'po:42',
+      path: '/draft-po-creator', focusKey: 'po:42',
     });
     expect(pendingPoTarget({ po_id: 7 })).toEqual({
-      path: '/admin/draft-po-creator', focusKey: 'po:7',
+      path: '/draft-po-creator', focusKey: 'po:7',
     });
     expect(pendingPoTarget({})).toBeNull();
   });
 
   it('maps a pending PR to the approvals page', () => {
     expect(pendingPrTarget({ id: 5 })).toEqual({
-      path: '/admin/purchase-requests', focusKey: 'pr:5',
+      path: '/purchase-requests', focusKey: 'pr:5',
     });
   });
 
@@ -31,23 +31,23 @@ describe('alertTarget', () => {
 
   it('maps low stock to purchase requests', () => {
     expect(lowStockTarget({ inventory_id: 8, product_id: 2 })).toEqual({
-      path: '/admin/purchase-requests', query: 'tab=create',
+      path: '/purchase-requests', query: 'tab=create',
     });
     expect(lowStockTarget({ inventory_id: 8 })).toEqual({
-      path: '/admin/purchase-requests', query: 'tab=create',
+      path: '/purchase-requests', query: 'tab=create',
     });
     expect(lowStockTarget({})).toBeNull();
   });
 
   it('maps audit entries only for mappable tables', () => {
     expect(auditTarget({ table_name: 'purchase_orders', record_id: 12, action: 'update' }))
-      .toEqual({ path: '/admin/draft-po-creator', focusKey: 'po:12' });
+      .toEqual({ path: '/draft-po-creator', focusKey: 'po:12' });
     expect(auditTarget({ table_name: 'transfers', record_id: 4, action: 'create' }))
-      .toEqual({ path: '/admin/transfers', focusKey: 'transfer:4' });
+      .toEqual({ path: '/transfers', focusKey: 'transfer:4' });
     expect(auditTarget({ table_name: 'products', record_id: 9, action: 'update' }))
-      .toEqual({ path: '/admin/items', focusKey: 'product:9' });
+      .toEqual({ path: '/items', focusKey: 'product:9' });
     expect(auditTarget({ table_name: 'inventory', record_id: 3, action: 'update' }))
-      .toEqual({ path: '/admin/inventory', focusKey: 'inv:3' });
+      .toEqual({ path: '/inventory', focusKey: 'inv:3' });
   });
 
   it('returns null for unmappable audit entries', () => {
@@ -59,9 +59,9 @@ describe('alertTarget', () => {
   });
 
   it('builds an href from a target', () => {
-    expect(targetHref({ path: '/admin/inventory', focusKey: 'inv:8' }))
-      .toBe('/admin/inventory?focus=inv%3A8');
-    expect(targetHref({ path: '/admin/purchase-requests', query: 'tab=create' }))
-      .toBe('/admin/purchase-requests?tab=create');
+    expect(targetHref({ path: '/inventory', focusKey: 'inv:8' }))
+      .toBe('/inventory?focus=inv%3A8');
+    expect(targetHref({ path: '/purchase-requests', query: 'tab=create' }))
+      .toBe('/purchase-requests?tab=create');
   });
 });
