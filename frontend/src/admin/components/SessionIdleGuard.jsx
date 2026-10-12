@@ -11,10 +11,23 @@ import { toast } from '../utils/toast';
 
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'wheel'];
 
+/**
+ * Paths reachable without a session. Everything else in the admin app is behind
+ * a login, so the idle timer applies.
+ */
+const UNPROTECTED_PATHS = new Set(['/', '/login', '/forgot-password']);
+
+/**
+ * Was `pathname.startsWith('/admin')` plus two exemptions. Once the /admin
+ * prefix was dropped from every route that test matched nothing, which disabled
+ * the idle logout app-wide — so the check is now an explicit deny-list.
+ *
+ * The Supabase PWA is excluded because it manages its own session; this guard
+ * only speaks for the Laravel-backed admin app.
+ */
 function isLaravelAdminProtectedRoute(pathname) {
-  if (!pathname.startsWith('/admin')) return false;
-  if (pathname === '/admin/login' || pathname === '/admin/forgot-password') return false;
-  return true;
+  if (pathname.startsWith('/pwa')) return false;
+  return !UNPROTECTED_PATHS.has(pathname);
 }
 
 /**
@@ -41,7 +54,7 @@ export default function SessionIdleGuard() {
       // Token may already be invalid; still clear client session.
     }
     clearSession();
-    navigate('/admin/login', { replace: true });
+    navigate('/login', { replace: true });
     toast.warning('You were logged out due to inactivity.');
   }, [clearSession, clearTimer, navigate]);
 
