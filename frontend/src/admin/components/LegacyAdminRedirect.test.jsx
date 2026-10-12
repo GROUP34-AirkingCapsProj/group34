@@ -44,3 +44,20 @@ test('sends bare /admin to the login page', () => {
 test('sends a trailing-slash /admin/ to the login page', () => {
   expect(renderAt('/admin/')).toBe('/login');
 });
+
+test('collapses a double slash instead of producing a protocol-relative URL', () => {
+  expect(renderAt('/admin//dashboard')).toBe('/dashboard');
+});
+
+test('collapses a long run of slashes', () => {
+  expect(renderAt('/admin///ist///42')).toBe('/ist/42');
+});
+
+test('keeps an encoded hash inside a path segment out of the hash slot', () => {
+  // A '#' that arrived percent-encoded is part of the path, not a fragment.
+  expect(renderAt('/admin/report%23summary')).toBe('/report%23summary');
+});
+
+test('resolves a nested admin path without looping', () => {
+  expect(renderAt('/admin/admin/x')).toBe('/x');
+});
