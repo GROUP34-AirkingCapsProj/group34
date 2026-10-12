@@ -197,4 +197,30 @@ class NavBundleTest extends TestCase
             );
         }
     }
+
+    public function test_no_active_bundle_retains_the_admin_prefix(): void
+    {
+        $prefixed = NavPermissionBundle::where('is_active', true)
+            ->where('route_path', 'like', '/admin/%')
+            ->pluck('route_path')
+            ->all();
+
+        $this->assertSame(
+            [],
+            $prefixed,
+            'These nav bundles still carry the /admin prefix, so RoleRoute will '
+            . 'not match them against the router paths: ' . implode(', ', $prefixed)
+        );
+    }
+
+    public function test_every_active_bundle_route_path_is_absolute(): void
+    {
+        // Guards against a double-strip turning '/admin/items' into 'items'.
+        $relative = NavPermissionBundle::where('is_active', true)
+            ->where('route_path', 'not like', '/%')
+            ->pluck('route_path')
+            ->all();
+
+        $this->assertSame([], $relative, 'Bundle route paths must start with "/".');
+    }
 }
