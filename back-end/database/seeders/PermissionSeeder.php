@@ -28,21 +28,21 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin'],
                 'archive' => ['admin'],
             ],
-            // Permission audit log viewer (/admin/permission-audit) — admin only.
+            // Permission audit log viewer (/permission-audit) — admin only.
             'permission_audit' => [
                 'read' => ['admin'],
             ],
-            // System Configuration page (/admin/config) — admin only. Hosts user
+            // System Configuration page (/config) — admin only. Hosts user
             // management + system settings.
             'system_configuration' => [
                 'read'   => ['admin'],
                 'update' => ['admin'],
             ],
-            // Main dashboard (/admin/dashboard) — every role has a landing dashboard.
+            // Main dashboard (/dashboard) — every role has a landing dashboard.
             'dashboard_access' => [
                 'read' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
             ],
-            // Analytics dashboard (/admin/analytics).
+            // Analytics dashboard (/analytics).
             'analytics_dashboard' => [
                 'read' => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
             ],
@@ -52,7 +52,7 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
             ],
-            // Unified Item Lookups page (/admin/categories). Covers all six
+            // Unified Item Lookups page (/categories). Covers all six
             // lookups on the page: categories, brands, variants, capacities,
             // units of measure and issuable unit presets. The older
             // category_management / brand_management keys are retained and
@@ -70,7 +70,7 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
             ],
-            // Set/BOQ catalog (/admin/sets) — admin maintains, IA and warehouse read
+            // Set/BOQ catalog (/sets) — admin maintains, IA and warehouse read
             // so the issuance picker can list sets.
             'product_set_management' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
@@ -78,7 +78,7 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin'],
                 'archive' => ['admin'],
             ],
-            // Aircon model catalogue (/admin/aircon-models) — admin maintains;
+            // Aircon model catalogue (/aircon-models) — admin maintains;
             // everyone who builds an order needs to read it so the picker can
             // list models.
             'aircon_model_management' => [
@@ -87,8 +87,8 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin'],
                 'archive' => ['admin'],
             ],
-            // Incident Reports (/admin/incidents) — pickers file, IA and admin resolve.
-            // Incident Reports (/admin/incidents) — pickers and anyone who spots a
+            // Incident Reports (/incidents) — pickers file, IA and admin resolve.
+            // Incident Reports (/incidents) — pickers and anyone who spots a
             // problem file; IA and admin resolve. `auditor` stays read-only: filing
             // rows would break the read-only guarantee that role carries elsewhere.
             'incident_reports' => [
@@ -160,7 +160,7 @@ class PermissionSeeder extends Seeder
                 'read'   => ['admin', 'auditor'],
                 'verify' => ['auditor'],
             ],
-            // Audit & Evidence Explorer (page /admin/audit-evidence). Both lenses
+            // Audit & Evidence Explorer (page /audit-evidence). Both lenses
             // (inventory and finance) are visible to anyone holding read — the split
             // is a view concern, not a permission boundary. The page is read-only
             // apart from resolving a drift finding, which is the auditor's own act
@@ -192,7 +192,7 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'branch_manager'],
                 'archive' => ['admin'],
             ],
-            // Customer Registry (/admin/customers).
+            // Customer Registry (/customers).
             // Read stays with warehouse personnel - the delivery receipt needs the
             // customer - but the registry is maintained by the branch manager.
             'customer_management' => [
@@ -228,11 +228,11 @@ class PermissionSeeder extends Seeder
                 'update'  => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel'],
                 'approve' => ['admin'],
             ],
-            // Inventory Monitoring read-only view (/admin/inventory).
+            // Inventory Monitoring read-only view (/inventory).
             'inventory_monitoring' => [
                 'read' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
             ],
-            // Stock Transfers page (/admin/transfers). Every role that works
+            // Stock Transfers page (/transfers). Every role that works
             // stock reaches this page, so it is granted as widely as
             // inventory_monitoring above — which is what the live database
             // already holds, and what the frontend has been enforcing all

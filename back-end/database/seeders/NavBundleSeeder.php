@@ -43,7 +43,7 @@ class NavBundleSeeder extends Seeder
             // Gated on `read`, not `inspect`: the page shows what is waiting,
             // and the write actions on it check `inspect` for themselves.
             ['Inspections',          '/inspections',          'INVENTORY INTELLIGENCE',  'incident',           'incident_reports',        'read'],
-            // Was 'Held Stock' at /admin/held-stock. It is a read-only register
+            // Was 'Held Stock' at /held-stock. It is a read-only register
             // now — the inspection took over the Dispose action it existed for.
             ['Incident Items',       '/incident-items',       'INVENTORY INTELLIGENCE',  'incident',           'incident_reports',        'read'],
 
@@ -102,7 +102,7 @@ class NavBundleSeeder extends Seeder
 
                 // Prune links to any OTHER permission on this bundle. Without
                 // this the seeder only ever adds: changing a bundle's feature
-                // (as when /admin/categories moved from category_management to
+                // (as when /categories moved from category_management to
                 // lookup_management) leaves the old link in place, and the
                 // bundle then requires BOTH permissions — silently hiding the
                 // nav item from users who hold only the new one.
