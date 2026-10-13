@@ -52,6 +52,10 @@ return new class extends Migration
             ->where('action', 'read')
             ->value('permission_id');
 
+        // The sequence name is explicit because this table's primary key is
+        // bundle_id, not id. Laravel's PostgreSQL grammar defaults insertGetId
+        // to `returning "id"`, so omitting it works on MySQL and fails on the
+        // Aiven database this project deploys to.
         $bundleId = DB::table('nav_permission_bundles')->insertGetId([
             'name'            => 'Interbranch Transfers',
             'route_path'      => self::ROUTE_PATH,
@@ -61,7 +65,7 @@ return new class extends Migration
             'is_active'       => true,
             'created_at'      => now(),
             'updated_at'      => now(),
-        ]);
+        ], 'bundle_id');
 
         if ($permissionId) {
             DB::table('nav_bundle_permissions')->insert([
