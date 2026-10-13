@@ -17,7 +17,6 @@ export const NAV_BUNDLES = [
   { name: 'Inventory Monitoring',  routePath: '/inventory',        required: ['inventory_monitoring.read'] },
   { name: 'Transfer Requests',     routePath: '/transfer-requests',required: ['inventory_transfers.read'] },
   { name: 'Stock Transfers',       routePath: '/transfers',        required: ['stock_transfers.read'] },
-  { name: 'Interbranch Transfers', routePath: '/ist',              required: ['inventory_transfers.read'] },
   { name: 'Incident Reports',      routePath: '/incidents',        required: ['incident_reports.read'] },
   { name: 'Transactions',          routePath: '/transactions',     required: ['sales_recording.read'] },
   { name: 'Customer Registry',     routePath: '/customers',        required: ['customer_management.read'] },

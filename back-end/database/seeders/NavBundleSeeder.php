@@ -39,7 +39,6 @@ class NavBundleSeeder extends Seeder
             ['Inventory Monitoring', '/inventory',            'INVENTORY INTELLIGENCE',  'inventory',          'inventory_monitoring',    'read'],
             ['Transfer Requests',    '/transfer-requests',    'INVENTORY INTELLIGENCE',  'transfer',           'inventory_transfers',     'read'],
             ['Stock Transfers',      '/transfers',            'INVENTORY INTELLIGENCE',  'transfer',           'stock_transfers',         'read'],
-            ['Interbranch Transfers','/ist',                  'INVENTORY INTELLIGENCE',  'transfer',           'inventory_transfers',     'read'],
             ['Incident Reports',     '/incidents',            'INVENTORY INTELLIGENCE',  'incident',           'incident_reports',        'read'],
             // Gated on `read`, not `inspect`: the page shows what is waiting,
             // and the write actions on it check `inspect` for themselves.

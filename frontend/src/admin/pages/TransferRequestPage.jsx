@@ -419,9 +419,9 @@ const TransferRequestPage = () => {
                       type="button"
                       className="po-btn"
                       style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }}
-                      onClick={() => navigate(`/ist/create/${r.transfer_id}`)}
+                      onClick={() => navigate(`/transfers?focus=transfer:${r.transfer_id}`)}
                     >
-                      + CREATE IST
+                      OPEN TRANSFER
                     </button>
                   )}
                 </div>

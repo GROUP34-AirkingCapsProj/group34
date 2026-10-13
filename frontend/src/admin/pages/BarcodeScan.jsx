@@ -1,3 +1,4 @@
+import { canAutoFocusScanInput, focusScanInput } from '../utils/scanInputFocus';
 import ScanFeedback from '../components/ScanFeedback';
 import useScanFeedback from '../hooks/useScanFeedback';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -18,7 +19,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import {
   itemsAPI, productsAPI, inventoryAPI, categoriesAPI, brandsAPI,
   receivingsAPI, issuancesAPI, transfersAPI, adjustmentsAPI, barcodeScanAPI, locationsAPI, purchaseOrdersAPI,
-  istAPI, openApiFile, receivingDraftsAPI,
+  openApiFile, receivingDraftsAPI,
 } from '../services/api';
 import { toast } from '../utils/toast';
 import { useAuth, useUserLocation } from '../context/AuthContext';
@@ -849,24 +850,6 @@ const BarcodeScan = () => {
       .finally(() => setHistoryLoading(false));
   };
 
-  // ── IST Transfer Scan state ──────────────────────────────────────────────
-  const [istList,          setIstList]          = useState([]);
-  const [istLoading,       setIstLoading]       = useState(false);
-  const [istSelectedIst,   setIstSelectedIst]   = useState(null);
-  const [istProgress,      setIstProgress]      = useState({});  // { [transfer_detail_id]: qty_scanned }
-  const [istScannedItems,  setIstScannedItems]  = useState([]);
-  const [istScanInput,     setIstScanInput]     = useState('');
-  const [istScanning,      setIstScanning]      = useState(false);
-  const [istAlertModal,    setIstAlertModal]    = useState(null);
-  const [istScanSuccess,   setIstScanSuccess]   = useState(null);
-  const [istActiveLine,    setIstActiveLine]    = useState(null);
-  const [istConfirmOpen,   setIstConfirmOpen]   = useState(false);
-  const [istConfirming,    setIstConfirming]    = useState(false);
-  const [istLoadingStatus, setIstLoadingStatus] = useState(false);
-  const istInputRef       = useRef(null);
-  const istScanTimerRef   = useRef(null);
-  const istProcessingRef  = useRef(false);
-
   const showPricingFields = roleKey === ROLES.ADMIN || roleKey === ROLES.BRANCH_MANAGER;
   const [notFoundPromptOpen, setNotFoundPromptOpen] = useState(false);
   const [pendingRegisterBarcode, setPendingRegisterBarcode] = useState('');
@@ -1254,7 +1237,7 @@ const BarcodeScan = () => {
             return next;
           });
           setBarcodeInput('');
-          setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+          setTimeout(() => focusScanInput(inputRef.current), 50);
           try {
             await barcodeScanAPI.create({
               barcode: code,
@@ -1321,7 +1304,7 @@ const BarcodeScan = () => {
             return next;
           });
           setBarcodeInput('');
-          setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+          setTimeout(() => focusScanInput(inputRef.current), 50);
           queueMicrotask(() => {
             void mergeFreshInventoryForSession(item.product_id ?? item.id, txForm.location_id, code, result.scannedAt);
             reloadRecentMovement();
@@ -1429,7 +1412,7 @@ const BarcodeScan = () => {
           return next;
         });
         setBarcodeInput('');
-        setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+        setTimeout(() => focusScanInput(inputRef.current), 50);
 
         {
           const pidMerge = item.product_id ?? item.id;
@@ -1584,7 +1567,7 @@ const BarcodeScan = () => {
         return next;
       });
       setBarcodeInput('');
-      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+      setTimeout(() => focusScanInput(inputRef.current), 50);
 
       /* ── save to DB (graceful fallback) ── */
       try {
@@ -1601,7 +1584,7 @@ const BarcodeScan = () => {
     } finally {
       operationInFlight.current = false;
       setScanning(false);
-      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+      setTimeout(() => focusScanInput(inputRef.current), 50);
     }
   }, [
     modeIndex,
@@ -1891,7 +1874,7 @@ const BarcodeScan = () => {
     setModeIndex(idx);
     setScanResult(null);
     setBarcodeInput('');
-    setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 100);
+    setTimeout(() => focusScanInput(inputRef.current), 100);
   };
 
   const exitScanMode = () => {
@@ -1908,14 +1891,6 @@ const BarcodeScan = () => {
     setBsrPoSearchQ('');
     setBsrScanInput('');
     setBsrActiveLine(null);
-    setIstSelectedIst(null);
-    setIstScannedItems([]);
-    setIstProgress({});
-    setIstScanInput('');
-    setIstActiveLine(null);
-    setIstAlertModal(null);
-    setIstScanSuccess(null);
-    istProcessingRef.current = false;
   };
 
   const handleBsrSelectPo = async (po) => {
@@ -2009,7 +1984,7 @@ const BarcodeScan = () => {
       }
     }
 
-    setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 100);
+    setTimeout(() => focusScanInput(bsrInputRef.current), 100);
   };
 
   /**
@@ -2111,7 +2086,7 @@ const BarcodeScan = () => {
     const rejectScan = (alert) => {
       reportReceivingScan(false, alert.message || alert.title || 'This barcode was not accepted.', raw.trim(), bsrActiveLine?.product?.product_name || '');
       bsrProcessingRef.current = false;
-      setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+      setTimeout(() => focusScanInput(bsrInputRef.current), 80);
     };
     // Synchronous ref lock — blocks any second invocation that arrives before
     // the first one's React state update (bsrScanning) has propagated.
@@ -2238,7 +2213,7 @@ const BarcodeScan = () => {
       // No blocking success modal in the staging flow (the staged list below is
       // the feedback), so release the lock here rather than on a modal dismiss.
       bsrProcessingRef.current = false;
-      setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+      setTimeout(() => focusScanInput(bsrInputRef.current), 80);
     } catch (e) {
       rejectScan({ type: 'error', title: 'Scan Failed', message: e?.data?.data?.reason || e?.data?.reason || e?.message || 'Scan failed.' });
     } finally {
@@ -2461,13 +2436,13 @@ const BarcodeScan = () => {
     if (result?.lineComplete) {
       if (result.nextLine) {
         setBsrActiveLine(result.nextLine);
-        setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+        setTimeout(() => focusScanInput(bsrInputRef.current), 80);
       } else {
         setBsrActiveLine(null);
         setBsrAlertModal({ type: 'success', title: 'All Items Received!', message: 'All items on this PO are fully received!' });
       }
     } else {
-      setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+      setTimeout(() => focusScanInput(bsrInputRef.current), 80);
     }
   }, [bsrScanSuccess]);
 
@@ -2477,7 +2452,7 @@ const BarcodeScan = () => {
       return null;
     });
     bsrProcessingRef.current = false;
-    setTimeout(() => bsrInputRef.current?.focus({ preventScroll: true }), 80);
+    setTimeout(() => focusScanInput(bsrInputRef.current), 80);
   }, []);
 
   /** Remove a staged row. This is the fix for a mis-selected line. */
@@ -2564,205 +2539,6 @@ const BarcodeScan = () => {
       if (raw.length >= 4) handleBsrScan(raw);
     }
   };
-
-  // ── IST Transfer Scan handlers ────────────────────────────────────────────
-
-  const handleIstSelectIst = useCallback(async (ist) => {
-    setIstSelectedIst(ist);
-    setIstScannedItems([]);
-    setIstActiveLine(null);
-    setIstScanInput('');
-    setIstAlertModal(null);
-    setIstScanSuccess(null);
-    istProcessingRef.current = false;
-    lastCodeRef.current = '';
-    lastTimeRef.current = 0;
-
-    const prog = {};
-    (ist.details || []).forEach((d) => {
-      prog[d.transfer_detail_id] = d.quantity_scanned || 0;
-    });
-    setIstProgress(prog);
-
-    setIstLoadingStatus(true);
-    try {
-      const res = await istAPI.scanStatus(ist.transfer_id);
-      const details  = Array.isArray(res?.data?.details)      ? res.data.details      : [];
-      const history  = Array.isArray(res?.data?.scan_history) ? res.data.scan_history : [];
-
-      const updatedProg = {};
-      details.forEach((d) => { updatedProg[d.transfer_detail_id] = d.quantity_scanned || 0; });
-      setIstProgress(updatedProg);
-
-      const restored = history.map((scan) => {
-        const matchDetail = details.find((d) => d.product_id === scan.product_id);
-        return {
-          id:        scan.id,
-          scanId:    scan.id,
-          barcode:   scan.barcode || '',
-          productName: scan.product?.product_name || 'Unknown',
-          productId: scan.product_id,
-          detailId:  matchDetail?.transfer_detail_id,
-          at:        scan.scanned_at ? new Date(scan.scanned_at).toLocaleTimeString() : '—',
-        };
-      });
-      setIstScannedItems(restored);
-    } catch { /* keep empty */ }
-    finally { setIstLoadingStatus(false); }
-
-    setTimeout(() => istInputRef.current?.focus({ preventScroll: true }), 100);
-  }, []);
-
-  const handleIstScan = useCallback(async (raw) => {
-    if (istProcessingRef.current) return;
-    if (!raw.trim()) return;
-    if (!istActiveLine) {
-      istProcessingRef.current = true;
-      setIstAlertModal({ type: 'error', title: 'No Item Selected', message: 'Select an item from the left panel first.' });
-      setIstScanInput('');
-      return;
-    }
-    if (istScanTimerRef.current) { clearTimeout(istScanTimerRef.current); istScanTimerRef.current = null; }
-
-    // Session duplicate guard
-    const normalizedCode = raw.trim().toLowerCase();
-    const inSession = istScannedItems.some((i) => i.barcode.trim().toLowerCase() === normalizedCode);
-    if (inSession) {
-      istProcessingRef.current = true;
-      setIstAlertModal({ type: 'error', title: 'Already Scanned', message: `Barcode "${raw.trim()}" was already scanned in this session.` });
-      setIstScanInput('');
-      return;
-    }
-
-    // Over-scan pre-check
-    const detailId  = istActiveLine.transfer_detail_id;
-    const already   = istProgress[detailId] || 0;
-    const requested = parseInt(istActiveLine.quantity_requested) || 0;
-    if (already >= requested) {
-      istProcessingRef.current = true;
-      setIstAlertModal({ type: 'error', title: 'Already Fully Scanned', message: `All ${requested} unit(s) for this item have already been scanned.` });
-      setIstScanInput('');
-      return;
-    }
-
-    istProcessingRef.current = true;
-    setIstScanInput('');
-    setIstScanning(true);
-    try {
-      const res  = await istAPI.scan(istSelectedIst.transfer_id, {
-        barcode:            raw.trim(),
-        transfer_detail_id: detailId,
-        quantity:           1,
-        quantity_unit:      istActiveLine.product?.product_type === 'appliance' ? 'piece' : 'package',
-      });
-      const data = res?.data ?? res;
-
-      const totalScanned  = data?.total_scanned    ?? (already + 1);
-      const quantityReq   = data?.quantity_requested ?? requested;
-      const remaining     = data?.remaining          ?? (quantityReq - totalScanned);
-      const lineComplete  = totalScanned >= quantityReq;
-      const istFull       = !!data?.ist_fully_scanned;
-
-      setIstProgress((prev) => ({ ...prev, [detailId]: totalScanned }));
-      setIstScannedItems((prev) => [{
-        id:          data?.scan_id ?? Date.now(),
-        scanId:      data?.scan_id ?? null,
-        barcode:     raw.trim(),
-        productName: istActiveLine.product?.product_name || data?.product_name || 'Unknown',
-        productId:   istActiveLine.product_id,
-        detailId,
-        at:          new Date().toLocaleTimeString(),
-      }, ...prev]);
-
-      setIstScanSuccess({
-        productName:  istActiveLine.product?.product_name || data?.product_name || 'Unknown',
-        barcode:      raw.trim(),
-        totalScanned,
-        quantityReq,
-        remaining,
-        lineComplete,
-        istFull,
-      });
-    } catch (e) {
-      setIstAlertModal({ type: 'error', title: 'Scan Failed', message: e?.message || 'Scan failed.' });
-    } finally {
-      setIstScanning(false);
-    }
-  }, [istActiveLine, istSelectedIst, istScannedItems, istProgress]);
-
-  const handleIstScanSuccessDone = useCallback(() => {
-    const result = istScanSuccess;
-    setIstScanSuccess(null);
-    istProcessingRef.current = false;
-    if (result?.lineComplete && !result?.istFull) {
-      // Auto-advance to next incomplete line
-      const details = istSelectedIst?.details || [];
-      const nextLine = details.find((d) => {
-        if (d.transfer_detail_id === istActiveLine?.transfer_detail_id) return false;
-        const prog = istProgress[d.transfer_detail_id] || 0;
-        return prog < (parseInt(d.quantity_requested) || 0);
-      });
-      if (nextLine) setIstActiveLine(nextLine);
-    }
-    setTimeout(() => istInputRef.current?.focus({ preventScroll: true }), 80);
-  }, [istScanSuccess, istSelectedIst, istActiveLine, istProgress]);
-
-  const handleIstAlertDismiss = useCallback(() => {
-    setIstAlertModal(null);
-    istProcessingRef.current = false;
-    setTimeout(() => istInputRef.current?.focus({ preventScroll: true }), 80);
-  }, []);
-
-  const handleIstRemoveScan = useCallback(async (item) => {
-    if (!item.scanId || !istSelectedIst) return;
-    try {
-      await istAPI.removeScan(istSelectedIst.transfer_id, item.scanId);
-      setIstScannedItems((prev) => prev.filter((i) => i.id !== item.id));
-      setIstProgress((prev) => ({
-        ...prev,
-        [item.detailId]: Math.max(0, (prev[item.detailId] || 1) - 1),
-      }));
-    } catch (e) {
-      setIstAlertModal({ type: 'error', title: 'Remove Failed', message: e?.message || 'Could not remove scan.' });
-    }
-  }, [istSelectedIst]);
-
-  const handleIstConfirmDispatch = useCallback(async () => {
-    if (!istSelectedIst) return;
-    setIstConfirming(true);
-    try {
-      const res = await istAPI.confirmDispatch(istSelectedIst.transfer_id);
-      const num = res?.data?.transfer_number || istSelectedIst.transfer_number;
-      toast.success(`${num} is now In Transit.`);
-      setIstConfirmOpen(false);
-      // Reset back to IST list and reload
-      setIstSelectedIst(null);
-      setIstScannedItems([]);
-      setIstProgress({});
-      setIstActiveLine(null);
-      istProcessingRef.current = false;
-      setIstLoading(true);
-      istAPI.getAll({ per_page: 100 })
-        .then((r) => {
-          const all     = Array.isArray(r?.data) ? r.data : [];
-          const locId   = String(enforcedLocationId || '');
-          const filtered = isAdminRole
-            ? all.filter(t => t.status?.status_name === 'Approved')
-            : all.filter(t =>
-                t.status?.status_name === 'Approved' &&
-                (!locId || String(t.from_location_id) === locId)
-              );
-          setIstList(filtered);
-        })
-        .catch(() => {})
-        .finally(() => setIstLoading(false));
-    } catch (e) {
-      setIstAlertModal({ type: 'error', title: 'Dispatch Failed', message: e?.message || 'Failed to confirm dispatch.' });
-      setIstConfirmOpen(false);
-    } finally {
-      setIstConfirming(false);
-    }
-  }, [istSelectedIst, enforcedLocationId, isAdminRole]);
 
   useEffect(() => {
     handleScanRef.current = (scanMode?.key === 'receive-po' && bsrSelectedPo) ? handleBsrScan : handleScan;
@@ -4812,7 +4588,7 @@ const BarcodeScan = () => {
                 }
               }}
               disabled={scanning}
-              autoFocus
+              autoFocus={canAutoFocusScanInput()}
             />
             {scanning && <span className="bs-spin"/>}
           </div>
@@ -4854,9 +4630,6 @@ const BarcodeScan = () => {
                 ? 'Ship from warehouse. Use “Ship first” so stock only appears at the showroom after someone scans to receive here.'
                 : 'Truck arrived? Pick your showroom and the in-transit transfer, then scan each barcode to add stock at this location.'}
             </p>
-            <button type="button" className="btn-link" style={{ padding: 0, marginTop: 10, fontSize: 13 }} onClick={() => navigate('/ist')}>
-              Open IST receive flow →
-            </button>
           </div>
         )}
 
@@ -5299,7 +5072,7 @@ const BarcodeScan = () => {
           onClose={() => {
             setNotFoundPromptOpen(false);
             setPendingRegisterBarcode('');
-            setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+            setTimeout(() => focusScanInput(inputRef.current), 50);
           }}
           title="Barcode not found"
         >
@@ -5313,7 +5086,7 @@ const BarcodeScan = () => {
               onClick={() => {
                 setNotFoundPromptOpen(false);
                 setPendingRegisterBarcode('');
-                setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+                setTimeout(() => focusScanInput(inputRef.current), 50);
               }}
             >
               Cancel
@@ -5336,7 +5109,7 @@ const BarcodeScan = () => {
           onClose={() => {
             setRegisterProductOpen(false);
             setPendingRegisterBarcode('');
-            setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+            setTimeout(() => focusScanInput(inputRef.current), 50);
           }}
           editingItem={null}
           initialBarcode={pendingRegisterBarcode}
@@ -5346,7 +5119,7 @@ const BarcodeScan = () => {
             setRegisterProductOpen(false);
             setPendingRegisterBarcode('');
             toast.success('Product saved. Scan the barcode again to receive into stock.');
-            setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 50);
+            setTimeout(() => focusScanInput(inputRef.current), 50);
           }}
         />
       </div>

@@ -1208,35 +1208,6 @@ export const transfersAPI = {
     `${getApiBaseUrl()}/transfers/${id}/receipt/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`,
 };
 
-/* ======================
-   IST API
-====================== */
-export const istAPI = {
-  getAll: async (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return apiRequest(query ? `/ist?${query}` : '/ist');
-  },
-  getById:         async (id)         => apiRequest(`/ist/${id}`),
-  prepare:         async (requestId)  => apiRequest(`/ist/prepare/${requestId}`),
-  create:          async (data)       => apiRequest('/ist', { method: 'POST', body: JSON.stringify(data) }),
-  scanStatus:      async (id)         => apiRequest(`/ist/${id}/scan-status`),
-  scan:            async (id, data)   => apiRequest(`/ist/${id}/scan`, { method: 'POST', body: JSON.stringify(data) }),
-  removeScan:      async (id, scanId) => apiRequest(`/ist/${id}/scan/${scanId}`, { method: 'DELETE' }),
-  confirmDispatch: async (id)         => apiRequest(`/ist/${id}/confirm-dispatch`, { method: 'POST' }),
-  receiveForm:       async (id)         => apiRequest(`/ist/${id}/receive`),
-  receive:           async (id, data)   => apiRequest(`/ist/${id}/receive`, { method: 'POST', body: JSON.stringify(data) }),
-  receiveScan:       async (id, data)   => apiRequest(`/ist/${id}/receive-scan`, { method: 'POST', body: JSON.stringify(data) }),
-  removeReceiveScan: async (id, scanId) => apiRequest(`/ist/${id}/receive-scan/${scanId}`, { method: 'DELETE' }),
-  receipt:           async (id)         => apiRequest(`/ist/${id}/receipt`),
-  receiptPdfUrl:     (id, paperSize = null) => {
-    const token = getToken();
-    const params = new URLSearchParams();
-    if (token) params.set('token', token);
-    if (paperSize) params.set('paper_size', paperSize);
-    const query = params.toString();
-    return `${getApiBaseUrl()}/transfers/${id}/receipt/pdf${query ? `?${query}` : ''}`;
-  },
-};
 
 /* ======================
    TRANSFER REQUESTS API

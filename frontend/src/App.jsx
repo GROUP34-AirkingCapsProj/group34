@@ -4,6 +4,7 @@ import { AuthProvider } from './admin/context/AuthContext';
 import { SupabaseAuthProvider } from './pwa/context/SupabaseAuthContext';
 import RoleRoute from './admin/components/RoleRoute';
 import LegacyAdminRedirect from './admin/components/LegacyAdminRedirect';
+import ErrorBoundary from './admin/components/ErrorBoundary';
 import SessionIdleGuard from './admin/components/SessionIdleGuard';
 import Loader from './admin/components/Loader';
 import './admin/styles/airking_ds.css';
@@ -32,12 +33,6 @@ const BarcodePrintingPage = lazy(() => import('./admin/pages/BarcodePrintingPage
 const StockTransferManagement = lazy(() => import('./admin/pages/StockTransferManagement'));
 const TransfersPage = lazy(() => import('./admin/pages/TransfersPage'));
 const TransferRequestPage = lazy(() => import('./admin/pages/TransferRequestPage'));
-const ISTCreatePage = lazy(() => import('./admin/pages/ISTCreatePage'));
-const ISTManagementPage = lazy(() => import('./admin/pages/ISTManagementPage'));
-const ISTDetailPage = lazy(() => import('./admin/pages/ISTDetailPage'));
-const ISTReceivePage = lazy(() => import('./admin/pages/ISTReceivePage'));
-const ISTDispatchPage = lazy(() => import('./admin/pages/ISTDispatchPage'));
-const ISTReceiptPage = lazy(() => import('./admin/pages/ISTReceiptPage'));
 const IssuanceManagement = lazy(() => import('./admin/pages/IssuanceManagement'));
 const AdjustmentManagement = lazy(() => import('./admin/pages/AdjustmentManagement'));
 const BarcodeAdjustmentPage = lazy(() => import('./admin/pages/BarcodeAdjustmentPage'));
@@ -86,6 +81,9 @@ function App() {
     <SupabaseAuthProvider>
     <Router>
       <SessionIdleGuard />
+      {/* Catches a render-time throw in any page. Without it React unmounts the
+          whole tree and the user gets a white screen with nothing to report. */}
+      <ErrorBoundary>
       <Suspense fallback={<Loader variant="page" />}>
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
@@ -145,16 +143,13 @@ function App() {
           <Route path="/inventory" element={<RoleRoute><InventoryManagement /></RoleRoute>} />
           <Route path="/barcode-printing" element={<RoleRoute><BarcodePrintingPage /></RoleRoute>} />
           <Route path="/transfers" element={<RoleRoute><TransfersPage /></RoleRoute>} />
-          {/* /transfer-scan retired — receiving is now handled via IST flow (/ist/:id/receive) */}
-          <Route path="/transfer-scan" element={<Navigate to="/ist" replace />} />
+          {/* /transfer-scan and the former /ist pages are both retired. Receiving
+              now lives in TransfersPage's receive bucket, which is where the
+              working ReceivePanel/DispatchPanel/VerifyPanel actually are. */}
+          <Route path="/transfer-scan" element={<Navigate to="/transfers" replace />} />
+          <Route path="/ist/*" element={<Navigate to="/transfers" replace />} />
           <Route path="/transfer-requests" element={<RoleRoute><TransferRequestPage /></RoleRoute>} />
           <Route path="/issuances" element={<RoleRoute><IssuanceManagement /></RoleRoute>} />
-          <Route path="/ist" element={<RoleRoute><ISTManagementPage /></RoleRoute>} />
-          <Route path="/ist/create/:requestId" element={<RoleRoute><ISTCreatePage /></RoleRoute>} />
-          <Route path="/ist/:id/dispatch" element={<RoleRoute><ISTDispatchPage /></RoleRoute>} />
-          <Route path="/ist/:id/receive" element={<RoleRoute><ISTReceivePage /></RoleRoute>} />
-          <Route path="/ist/:id/receipt" element={<RoleRoute><ISTReceiptPage /></RoleRoute>} />
-          <Route path="/ist/:id" element={<RoleRoute><ISTDetailPage /></RoleRoute>} />
           <Route path="/adjustments" element={<RoleRoute><AdjustmentManagement /></RoleRoute>} />
           <Route path="/barcode-adjustment" element={<RoleRoute><BarcodeAdjustmentPage /></RoleRoute>} />
 
@@ -193,6 +188,7 @@ function App() {
           <Route path="/permission-audit" element={<RoleRoute><PermissionAuditLog /></RoleRoute>} />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
     </Router>
     </SupabaseAuthProvider>
     </AuthProvider>
