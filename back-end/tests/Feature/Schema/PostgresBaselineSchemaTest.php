@@ -25,7 +25,13 @@ class PostgresBaselineSchemaTest extends TestCase
 {
     // 87 -> 89 on 2026-09-30: the audit evidence trail added inventory_ledger and
     // ledger_drift_findings.
-    private const EXPECTED_TABLES = 89;
+    /**
+     * Was 89 until `drop_budget_management` removed budget_allocations and its
+     * sibling. A migration that adds or drops a table has to move this number
+     * too, or the only signal is this assertion failing with no explanation of
+     * which table changed.
+     */
+    private const EXPECTED_TABLES = 87;
 
     private string $sql;
 
