@@ -30,7 +30,6 @@ const IncidentWorkspace = lazy(() => import('./admin/pages/IncidentWorkspace'));
 // Inventory
 const InventoryManagement = lazy(() => import('./admin/pages/InventoryManagement'));
 const BarcodePrintingPage = lazy(() => import('./admin/pages/BarcodePrintingPage'));
-const StockTransferManagement = lazy(() => import('./admin/pages/StockTransferManagement'));
 const TransfersPage = lazy(() => import('./admin/pages/TransfersPage'));
 const TransferRequestPage = lazy(() => import('./admin/pages/TransferRequestPage'));
 const IssuanceManagement = lazy(() => import('./admin/pages/IssuanceManagement'));
