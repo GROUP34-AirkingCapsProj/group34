@@ -509,3 +509,38 @@ html[data-theme='dark'] .ak-btn--danger:hover:not(:disabled) {
 }
 
 html[data-theme='dark'] .ak-page .ak-eyebrow { color: #eb6b7d; }
+
+/* ========================= ERROR BOUNDARY =============================== */
+/* The fallback replaces the entire route — sidebar included — so it owns the
+   viewport and centres itself rather than sitting in a page slot. Tokens only:
+   the dark overrides above re-tint it with no extra rules here. */
+.ak-error-boundary {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 2rem; background: var(--ak-bg);
+}
+.ak-error-boundary__card {
+  max-width: 34rem; width: 100%; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 0.9rem;
+  padding: 2.4rem 2rem; border-radius: var(--ak-radius);
+  border: 1px solid var(--ak-line); background: var(--ak-card);
+  box-shadow: var(--ak-shadow-lg); color: var(--ak-crimson);
+}
+.ak-error-boundary__title {
+  font-family: var(--ak-display); font-weight: 800; font-size: 1.3rem;
+  letter-spacing: -0.02em; margin: 0; color: var(--ak-ink);
+}
+.ak-error-boundary__body {
+  margin: 0; max-width: 46ch; font-size: 0.9rem; line-height: 1.55;
+  color: var(--ak-ink-soft);
+}
+.ak-error-boundary__message {
+  font-family: var(--ak-mono); font-size: 0.78rem; line-height: 1.5;
+  width: 100%; padding: 0.7rem 0.9rem; border-radius: var(--ak-radius-sm);
+  border: 1px solid var(--ak-line); background: var(--ak-band);
+  color: var(--ak-ink-soft); text-align: left;
+  overflow-wrap: anywhere;
+}
+.ak-error-boundary__actions {
+  display: flex; gap: 0.7rem; flex-wrap: wrap; justify-content: center;
+  margin-top: 0.4rem;
+}

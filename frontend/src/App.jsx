@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './admin/context/AuthContext';
 import { SupabaseAuthProvider } from './pwa/context/SupabaseAuthContext';
 import RoleRoute from './admin/components/RoleRoute';
+import ErrorBoundary from './admin/components/ErrorBoundary';
 import SessionIdleGuard from './admin/components/SessionIdleGuard';
 import Loader from './admin/components/Loader';
 import './admin/styles/airking_ds.css';
@@ -85,6 +86,9 @@ function App() {
     <SupabaseAuthProvider>
     <Router>
       <SessionIdleGuard />
+      {/* Catches a render-time throw in any page. Without it React unmounts the
+          whole tree and the user gets a white screen with nothing to report. */}
+      <ErrorBoundary>
       <Suspense fallback={<Loader variant="page" />}>
         <Routes>
           <Route path="/" element={<Navigate to="/admin/login" replace />} />
@@ -190,6 +194,7 @@ function App() {
           <Route path="/admin/permission-audit" element={<RoleRoute><PermissionAuditLog /></RoleRoute>} />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
     </Router>
     </SupabaseAuthProvider>
     </AuthProvider>
