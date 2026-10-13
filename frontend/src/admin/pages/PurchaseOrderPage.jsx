@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import { useProcurementDraft } from '../hooks/useProcurementDraft';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
@@ -175,6 +176,20 @@ const PurchaseOrderPage = () => {
   const [isNewShapePR, setIsNewShapePR] = useState(false);
   const [lockedSupplierId, setLockedSupplierId] = useState(null);
 
+  const draft = useProcurementDraft(authUser?.user_id, 'po', {
+    selectedSupplierId: [selectedSupplierId, setSelectedSupplierId],
+    paymentTerms: [paymentTerms, setPaymentTerms],
+    notes: [notes, setNotes],
+    referencesNote: [referencesNote, setReferencesNote],
+    shipToName: [shipToName, setShipToName],
+    shipToAddress: [shipToAddress, setShipToAddress],
+    expectedDeliveryDate: [expectedDeliveryDate, setExpectedDeliveryDate],
+    selectedPR: [selectedPR, setSelectedPR],
+    lineItems: [lineItems, setLineItems],
+    isNewShapePR: [isNewShapePR, setIsNewShapePR],
+    lockedSupplierId: [lockedSupplierId, setLockedSupplierId],
+  }, canCreatePO);
+
   // Submit
   const [submitting,     setSubmitting]     = useState(false);
 
@@ -248,7 +263,7 @@ const PurchaseOrderPage = () => {
         if (!mounted) return;
         const list = Array.isArray(res?.data) ? res.data : [];
         setSuppliers(list);
-        if (list.length) setSelectedSupplierId(String(list[0].supplier_id ?? list[0].id ?? ''));
+        if (list.length) setSelectedSupplierId(current => current || String(list[0].supplier_id ?? list[0].id ?? ''));
       })
       .catch(() => {})
       .finally(() => { if (mounted) setLoadingSuppliers(false); });
@@ -510,6 +525,7 @@ const PurchaseOrderPage = () => {
       } else {
         toast.success('Purchase Order created', `${poNum} from ${selectedPR.pr_number} — waiting for admin approval`);
       }
+      draft.clear(true);
       setApprovedPRs(prev => prev.filter(p => p.pr_id !== selectedPR.pr_id));
       setSelectedPR(null);
       setLineItems([]);
@@ -1395,7 +1411,12 @@ const PurchaseOrderPage = () => {
         </div>
 
         {activeTab === 'status' && renderPoStatusView()}
-        {activeTab === 'create' && renderConvertPRTab()}
+        {activeTab === 'create' && <><div role="status" style={{ marginBottom: 12 }}>
+          {draft.status || 'Changes are saved automatically in this browser.'}
+          {draft.hasDraft && <button type="button" className="ak-btn" disabled={submitting} onClick={async () => {
+            if (await confirmAction({ title: 'Discard this draft?', confirmText: 'Discard draft', tone: 'danger' })) draft.clear(true);
+          }} style={{ marginLeft: 12 }}>Discard draft</button>}
+        </div>{renderConvertPRTab()}</>}
         {activeTab === 'history' && (
           <div className="ak-card" style={{ padding: 16 }}>
             {loadingPOStatus ? (

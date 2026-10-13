@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import { useProcurementDraft } from '../hooks/useProcurementDraft';
 import Loader from '../components/Loader';
 import Modal from '../components/Modal';
 import ArchiveButton from '../components/ArchiveButton';
@@ -213,6 +214,13 @@ const PurchaseRequestPage = () => {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [warehouseBlocks, setWarehouseBlocks] = useState([newBlock()]);
   const [submitting,  setSubmitting]  = useState(false);
+
+  const draft = useProcurementDraft(user?.user_id, 'pr', {
+    selectedSupplierId: [selectedSupplierId, setSelectedSupplierId],
+    neededByDate: [neededByDate, setNeededByDate],
+    purpose: [purpose, setPurpose],
+    warehouseBlocks: [warehouseBlocks, setWarehouseBlocks],
+  }, canCreate);
 
   // Warehouse-only destinations for the per-line selector
   const warehouseLocations = useMemo(
@@ -659,8 +667,7 @@ const PurchaseRequestPage = () => {
       const res = await purchaseRequestsAPI.create(payload);
       const prNum = res?.data?.pr_number || 'Purchase Request';
       toast.success('Purchase Request sent', res?.message || `${prNum} — waiting for admin approval`);
-      setWarehouseBlocks([newBlock()]);
-      setPurpose('');
+      draft.clear(true);
     } catch (err) {
       const msg = err?.errors
         ? Object.values(err.errors).flat().join(' ')
@@ -816,6 +823,12 @@ const PurchaseRequestPage = () => {
   // ── Tab 1: Create Request ─────────────────────────────────────────────────
   const renderCreateTab = () => (
     <div className="pr-create-form-layout">
+      <div role="status" style={{ marginBottom: 12 }}>
+          {draft.status || 'Changes are saved automatically in this browser.'}
+          {draft.hasDraft && <button type="button" className="ak-btn" disabled={submitting} onClick={async () => {
+            if (await confirmAction({ title: 'Discard this draft?', confirmText: 'Discard draft', tone: 'danger' })) draft.clear(true);
+          }} style={{ marginLeft: 12 }}>Discard draft</button>}
+        </div>
       {/* Request details card */}
       <div className="po-details-card">
         <div className="pr-form-grid">
