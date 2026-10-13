@@ -31,6 +31,7 @@ const ReceivePanel = ({ transfer, onDone }) => {
   const [scanning, setScanning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [received, setReceived] = useState(false);
+  const [receiptStatus, setReceiptStatus] = useState('Received');
 
   const receivedTotalsRef = useRef({});
   useEffect(() => { receivedTotalsRef.current = receivedTotals; }, [receivedTotals]);
@@ -125,9 +126,11 @@ const ReceivePanel = ({ transfer, onDone }) => {
     }))) return;
     setSubmitting(true);
     try {
-      await transfersAPI.receiveConfirm(id, {});
+      const response = await transfersAPI.receiveConfirm(id, {});
+      const status = response?.data?.status || 'Received';
+      setReceiptStatus(status);
       setReceived(true);
-      toast.success('Receipt confirmed', `${transfer.transfer_number} has been received.`);
+      toast.success('Receipt confirmed', status === 'Partial' ? 'Partial receipt recorded. Outstanding quantities remain open.' : `${transfer.transfer_number} has been received.`);
     } catch (err) {
       toast.error("Couldn't confirm receipt", err?.message || 'Failed to confirm receipt.');
     } finally {
@@ -147,7 +150,9 @@ const ReceivePanel = ({ transfer, onDone }) => {
       <div className="tf-drawer" style={{ textAlign: 'center', padding: '1.5rem 0' }}>
         <div style={{ fontSize: 36, marginBottom: 10 }}>✓</div>
         <h3 style={{ color: 'var(--ink-green)', fontWeight: 700, margin: '0 0 6px' }}>Receipt Confirmed</h3>
-        <p className="ak-muted" style={{ marginBottom: 18 }}>{transfer?.transfer_number} has been received successfully.</p>
+        <p className="ak-muted" style={{ marginBottom: 18 }}>{receiptStatus === 'Partial'
+          ? 'Partial receipt recorded. Return to the Partial tab to complete outstanding quantities.'
+          : `${transfer?.transfer_number} has been received successfully.`}</p>
         <div className="tf-actions-row" style={{ justifyContent: 'center' }}>
           <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="ak-btn ak-btn--primary" style={{ textDecoration: 'none' }}>
             Download PDF Receipt

@@ -24,13 +24,21 @@ const STATUS_META = {
   Approved:     { tab: 'send',    badge: 'ak-badge--blue',   action: 'Dispatch' },
   'In Transit': { tab: 'receive', badge: 'ak-badge--violet', action: 'Receive' },
   Received:     { tab: 'done',    badge: 'ak-badge--green',  action: 'View' },
-  Rejected:     { tab: 'done',    badge: 'ak-badge--red',    action: 'View' },
+  Rejected:     { tab: 'rejected', badge: 'ak-badge--red',    action: 'Edit' },
+  Draft:        { tab: 'mine', badge: 'ak-badge--gray', action: 'Edit' },
+  Partial:      { tab: 'partial', badge: 'ak-badge--amber', action: 'Continue' },
 };
 
 const INTENT_CLASS = { pull: 'tf-intent--pull', offload: 'tf-intent--offload', demand: 'tf-intent--demand' };
 const INTENT_LABEL = { pull: 'Pull', offload: 'Offload', demand: 'IA-demand' };
 
 const statusName = (t) => t?.status?.status_name || t?.status_name || 'Pending';
+const personName = (person, fallback) => {
+  if (!person) return fallback;
+  if (typeof person !== 'object') return `User #${person}`;
+  return [person.first_name, person.last_name].filter(Boolean).join(' ').trim()
+    || person.username || `User #${person.user_id ?? person.id}`;
+};
 const fmtDate = (v) => {
   if (!v) return '—';
   const d = new Date(v);
@@ -52,6 +60,8 @@ const TransfersPage = () => {
     ...(canVerify ? [{ key: 'verify', label: 'To Verify' }] : []),
     { key: 'send', label: 'To Send' },
     { key: 'receive', label: 'To Receive' },
+    { key: 'partial', label: 'Partial' },
+    { key: 'rejected', label: 'Rejected' },
     { key: 'done', label: 'Done' },
   ]), [canVerify]);
 
@@ -85,14 +95,14 @@ const TransfersPage = () => {
   }, []);
 
   const grouped = useMemo(() => {
-    const g = { mine: [], verify: [], send: [], receive: [], done: [] };
+    const g = { mine: [], verify: [], send: [], receive: [], partial: [], rejected: [], done: [] };
     rows.forEach((t) => {
-      const bucket = STATUS_META[statusName(t)]?.tab || 'done';
+      const bucket = STATUS_META[statusName(t)]?.tab || 'mine';
       // To Send is the dispatch worklist — only the assigned source location
       // (or admin/IA) belongs there; others will see it in To Receive once shipped.
       const isSourceUser = myLoc != null && String(t.from_location_id) === String(myLoc);
       const excludeFromSend = bucket === 'send' && !isAdmin && !isIA && !isSourceUser;
-      if (!excludeFromSend) g[bucket].push(t);
+      if (!excludeFromSend && bucket !== 'mine') g[bucket].push(t);
       // NOTE: the eager-loaded `requestedBy` relation serializes to the key
       // `requested_by`, shadowing the scalar FK — so this may be a user object.
       const reqBy = t.requested_by;
@@ -116,7 +126,7 @@ const TransfersPage = () => {
   useEffect(() => {
     const query = new URLSearchParams(search);
     const tab = query.get('tab');
-    if (['mine', 'send', 'receive', 'done'].includes(tab)) setActiveTab(tab);
+    if (['mine', 'send', 'receive', 'partial', 'rejected', 'done'].includes(tab)) setActiveTab(tab);
     const focus = /^transfer:(\d+)$/.exec(query.get('focus') || '');
     if (!focus) return;
     let mounted = true;
@@ -132,7 +142,7 @@ const TransfersPage = () => {
   const handleCancel = async (t) => {
     const ok = await confirmAction({
       title: `Cancel ${t.transfer_number || 'this request'}?`,
-      text: 'This withdraws the request and cannot be undone.',
+      text: 'This returns the request to My Requests as an editable draft. You can submit it again later.',
       confirmText: 'Cancel request',
       tone: 'danger',
     });
@@ -140,6 +150,7 @@ const TransfersPage = () => {
     try {
       await transfersAPI.cancelRequest(t.transfer_id);
       toast.success('Request cancelled');
+      setActiveTab('mine');
       afterAction();
     } catch (err) {
       toast.error("Couldn't cancel request", err?.message || '');
@@ -168,6 +179,8 @@ const TransfersPage = () => {
         </td>
         <td><span className={`tf-intent ${INTENT_CLASS[t.intent] || 'tf-intent--pull'}`}>{INTENT_LABEL[t.intent] || t.intent}</span></td>
         <td className="ak-muted">{fmtDate(t.transfer_date)}</td>
+        <td>{personName(t.requestedBy || t.requested_by, 'Not recorded')}</td>
+        <td>{personName(t.approvedBy || t.approved_by, 'Not yet approved')}</td>
         <td><span className={`ak-badge ${meta.badge}`}>{sName}</span></td>
         <td style={{ textAlign: 'right' }}>
           <button type="button" className="ak-btn ak-btn--sm" onClick={(e) => { e.stopPropagation(); openDrawer(t); }}>
@@ -195,13 +208,17 @@ const TransfersPage = () => {
     const reqById = reqBy && typeof reqBy === 'object' ? (reqBy.user_id ?? reqBy.id) : reqBy;
     const uid = user?.user_id ?? user?.id;
     const isRequester = uid != null && reqById != null && String(reqById) === String(uid);
-    const canEditReq = sName === 'Pending' && (isRequester || isAdmin || isIA);
+    const canManage = isRequester || isAdmin || isIA;
+    const canEditReq = ['Pending', 'Draft', 'Rejected'].includes(sName) && canManage;
+    const canCancel = canManage && (sName === 'Pending' || (sName === 'Approved' && selected.intent === 'demand'));
 
     return (
       <div className="ak-page" style={{ padding: 0 }}>
         <div className="tf-drawer-meta">
           <div className="tf-meta-item"><span className="tf-meta-label">Number</span><span className="tf-meta-value">{selected.transfer_number}</span></div>
           <div className="tf-meta-item"><span className="tf-meta-label">Intent</span><span className="tf-meta-value">{INTENT_LABEL[selected.intent] || selected.intent}</span></div>
+          <div className="tf-meta-item"><span className="tf-meta-label">Requested by</span><span className="tf-meta-value">{personName(selected.requestedBy || selected.requested_by, 'Not recorded')}</span></div>
+          <div className="tf-meta-item"><span className="tf-meta-label">Approved by</span><span className="tf-meta-value">{personName(selected.approvedBy || selected.approved_by, 'Not yet approved')}</span></div>
           <div className="tf-meta-item"><span className="tf-meta-label">From</span><span className="tf-meta-value">{from || 'Unassigned'}</span></div>
           <div className="tf-meta-item"><span className="tf-meta-label">To</span><span className="tf-meta-value">{to}</span></div>
           <div className="tf-meta-item"><span className="tf-meta-label">Status</span><span className={`ak-badge ${STATUS_META[sName]?.badge || 'ak-badge--gray'}`}>{sName}</span></div>
@@ -215,10 +232,10 @@ const TransfersPage = () => {
         {bucket === 'verify' && !canVerify && (
           <p className="ak-muted">This transfer is awaiting analyst verification.</p>
         )}
-        {canEditReq && (
+        {(canEditReq || canCancel) && (
           <div className="tf-actions-row" style={{ marginTop: 8 }}>
-            <button type="button" className="ak-btn ak-btn--danger" onClick={() => handleCancel(selected)}>Cancel request</button>
-            <button type="button" className="ak-btn ak-btn--primary" onClick={() => { setEditing(selected); setSelected(null); }}>Edit request</button>
+            {canCancel && <button type="button" className="ak-btn ak-btn--danger" onClick={() => handleCancel(selected)}>Cancel request</button>}
+            {canEditReq && <button type="button" className="ak-btn ak-btn--primary" onClick={() => { setEditing(selected); setSelected(null); }}>Edit request</button>}
           </div>
         )}
         {bucket === 'send' && canDispatchThis && <DispatchPanel transfer={selected} onDone={afterAction} />}
@@ -226,8 +243,42 @@ const TransfersPage = () => {
           <p className="ak-muted">Awaiting dispatch by {from || 'the assigned warehouse'}.</p>
         )}
         {bucket === 'receive' && <ReceivePanel transfer={selected} onDone={afterAction} />}
-        {bucket === 'done' && (
+        {bucket === 'partial' && (
           <div>
+            <h4 className="tf-panel-section-title">Request fulfillment</h4>
+            {(selected.fulfillment?.lines || []).map((line) => (
+              <div className="tf-line" key={line.product_id}>
+                <b>{line.product_name || `Product #${line.product_id}`}</b>
+                <span>Requested {line.quantity_requested} · received {line.quantity_received} · remaining {line.remaining}</span>
+              </div>
+            ))}
+            {(selected.details || []).some((d) => Number(d.quantity_transferred) > Number(d.quantity_receipt_posted || 0)) && (
+              <ReceivePanel transfer={selected} onDone={afterAction} />
+            )}
+            {(selected.fulfillment?.continuations || []).map((next) => (
+              <button key={next.transfer_id} type="button" className="ak-btn" onClick={() => openDrawer(next)}>
+                {next.transfer_number} — {next.status_name}
+              </button>
+            ))}
+            {canManage && !selected.continuation_of_transfer_id && selected.fulfillment?.lines?.some((l) => l.remaining_to_send > 0) && (
+              <button type="button" className="ak-btn ak-btn--primary" onClick={async () => {
+                try {
+                  const result = await transfersAPI.continueRequest(selected.transfer_id);
+                  load();
+                  openDrawer(result.data);
+                  toast.success('Remaining request submitted', 'The analyst will review available source stock.');
+                } catch (err) { toast.error("Couldn't continue request", err?.message || 'Please try again.'); }
+              }}>Continue remaining request</button>
+            )}
+          </div>
+        )}
+        {['done', 'rejected', 'mine'].includes(bucket) && (
+          <div>
+            {bucket === 'done' && !selected.continuation_of_transfer_id && (selected.fulfillment?.lines || []).map((line) => (
+              <div className="tf-line" key={line.product_id}>
+                <b>{line.product_name}</b><span>Requested {line.quantity_requested} · received {line.quantity_received} · remaining {line.remaining}</span>
+              </div>
+            ))}
             <h4 className="tf-panel-section-title">Lines</h4>
             {(selected.details || []).map((d) => (
               <div key={d.transfer_detail_id} className="tf-line">
@@ -298,6 +349,8 @@ const TransfersPage = () => {
                   <th>Route</th>
                   <th>Intent</th>
                   <th>Date</th>
+                  <th>Requested by</th>
+                  <th>Approved by</th>
                   <th>Status</th>
                   <th></th>
                 </tr>
@@ -314,8 +367,8 @@ const TransfersPage = () => {
         </Modal>
       )}
 
-      <NewRequestModal isOpen={showNew} onClose={() => setShowNew(false)} onCreated={() => { setActiveTab('mine'); load(); }} />
-      <NewRequestModal isOpen={!!editing} editTransfer={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+      <NewRequestModal isOpen={showNew} onDraftSaved={load} onClose={() => { setShowNew(false); setActiveTab('mine'); }} onCreated={() => { setActiveTab('mine'); load(); }} />
+      <NewRequestModal isOpen={!!editing} editTransfer={editing} onDraftSaved={load} onClose={() => { setEditing(null); setActiveTab('mine'); }} onSaved={() => { setEditing(null); load(); }} />
     </AdminLayout>
   );
 };

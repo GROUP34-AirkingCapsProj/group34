@@ -20,6 +20,10 @@ class Transfer extends Model
     protected $primaryKey = 'transfer_id';
 
     protected $fillable = [
+        'requested_products',
+        'draft_form',
+        'draft_key',
+        'continuation_of_transfer_id',
         'transfer_request_id',
         'from_location_id',
         'to_location_id',
@@ -39,6 +43,8 @@ class Transfer extends Model
     ];
 
     protected $casts = [
+        'requested_products' => 'array',
+        'draft_form' => 'array',
         'transfer_date' => 'datetime',
         'date' => 'datetime',
         'total_quantity_transferred' => 'integer',
@@ -117,10 +123,10 @@ class Transfer extends Model
         }
         $loc = $user->scopedLocationId();
         if ($loc === null) {
-            return $query->whereRaw('1 = 0');
+            return $query->where('requested_by', $user->user_id);
         }
-        return $query->where(function ($q) use ($loc) {
-            $q->where('from_location_id', $loc)->orWhere('to_location_id', $loc);
+        return $query->where(function ($q) use ($loc, $user) {
+            $q->where('from_location_id', $loc)->orWhere('to_location_id', $loc)->orWhere('requested_by', $user->user_id);
         });
     }
 }

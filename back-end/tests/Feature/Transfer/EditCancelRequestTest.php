@@ -67,7 +67,7 @@ class EditCancelRequestTest extends TransferTestCase
         ])->assertStatus(422);
     }
 
-    public function test_requester_can_cancel_pending_and_it_soft_deletes(): void
+    public function test_requester_can_cancel_pending_and_it_remains_an_editable_draft(): void
     {
         $dst = $this->makeLocation('Dst');
         $p = $this->makeInstallationMaterial();
@@ -75,6 +75,7 @@ class EditCancelRequestTest extends TransferTestCase
         $t = $this->pendingPull($dst, $p, $wp);
 
         $this->actingAs($wp, 'sanctum')->patchJson("/api/transfers/{$t->transfer_id}/cancel")->assertOk();
-        $this->assertSoftDeleted('transfers', ['transfer_id' => $t->transfer_id]);
+        $this->assertNull($t->fresh()->deleted_at);
+        $this->assertSame('Draft', $t->fresh()->status->status_name);
     }
 }

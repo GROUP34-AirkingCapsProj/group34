@@ -1124,6 +1124,9 @@ export const adjustmentsAPI = {
    TRANSFERS API
 ====================== */
 export const transfersAPI = {
+  saveDraft: async (id, data, options = {}) => apiRequest(id ? `/transfers/${id}/draft` : '/transfers/drafts', {
+    method: id ? 'PUT' : 'POST', body: JSON.stringify(data), keepalive: !!options.keepalive,
+  }),
   getAll: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return apiRequest(query ? `/transfers?${query}` : '/transfers');
@@ -1158,6 +1161,9 @@ export const transfersAPI = {
 
   /** Live per-product available stock at each candidate source warehouse. */
   sourceAvailability: async (id) => apiRequest(`/transfers/${id}/source-availability`),
+  demandAvailability: async (productIds) => apiRequest('/transfers/availability', {
+    method: 'POST', body: JSON.stringify({ product_ids: productIds }),
+  }),
 
   /** Requester (or admin/IA) edits a still-Pending request. body: { notes?, products:[{product_id, quantity_requested}] } */
   updateRequest: async (id, data) =>
@@ -1166,6 +1172,7 @@ export const transfersAPI = {
   /** Requester (or admin/IA) withdraws a still-Pending request (soft-deletes it). */
   cancelRequest: async (id) =>
     apiRequest(`/transfers/${id}/cancel`, { method: 'PATCH' }),
+  continueRequest: async (id) => apiRequest(`/transfers/${id}/continue`, { method: 'POST' }),
 
   /** FIFO pick suggestions per line for an Approved transfer. */
   pickList: async (id) => apiRequest(`/transfers/${id}/pick-list`),

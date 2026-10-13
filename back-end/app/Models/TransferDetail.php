@@ -13,6 +13,7 @@ class TransferDetail extends Model
     protected $primaryKey = 'transfer_detail_id';
 
     protected $fillable = [
+        'quantity_receipt_posted',
         'transfer_id',
         'inventory_id',
         'product_id',
@@ -27,6 +28,7 @@ class TransferDetail extends Model
     ];
 
     protected $casts = [
+        'quantity_receipt_posted' => 'integer',
         'quantity_requested'   => 'integer',
         'quantity_transferred' => 'integer',
         'quantity_scanned'     => 'integer',

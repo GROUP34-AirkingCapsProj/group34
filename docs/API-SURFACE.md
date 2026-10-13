@@ -927,10 +927,15 @@ _1 controller · 27 routes_
 - `scanStatus` — GET /api/transfers/{id}/scan-status
 - `show` — GET /api/transfers/{id}
 - `sourceAvailability` — GET /api/transfers/{id}/source-availability
+  Returns available stock by source warehouse and requested product after active issuance holds, quarantine, and commitments to other approved transfers.
+- `demandAvailability` — POST /api/transfers/availability, body `{ product_ids: number[] }`. Returns the same stock map before an IA-demand transfer exists. IA-demand creation validates total quantities against current source availability under transaction locks and returns 422 for shortages.
+- `saveDraft` — POST /api/transfers/drafts or PUT /api/transfers/{id}/draft, body `{ draft_key, form }`. Saves incomplete transfer inputs as Draft; never submits or moves stock. Creation is idempotent by draft key. Submission via POST /api/transfers accepts `draft_id` to reuse the record.
 - `store` — POST /api/transfers
 - `update` — PUT /api/transfers/{id}
 - `updateRequest` — PATCH /api/transfers/{id}/request
 - `verify` — POST /api/transfers/{id}/verify
+  Original requested quantities are retained separately from this shipment's approved quantities. A partial approval does not close the unfulfilled remainder.
+  Rechecks current source stock under transaction locks. Returns 422 if approved quantities exceed requested or available quantities (including duplicate product lines). Zero-quantity lines are removed; at least one available line must remain. Reduced quantities are recorded in the transfer timeline.
 
 
 ### 39. ERD: ADJUSTMENT (adjustment)

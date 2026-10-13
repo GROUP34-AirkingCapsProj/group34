@@ -22,6 +22,14 @@ const statusOf = (t) => t?.status?.status_name || t?.status_name || 'Pending';
 /** Horizontal progress stepper — glanceable stage of a transfer. */
 export const TransferSteps = ({ transfer }) => {
   const status = statusOf(transfer);
+  if (status === 'Draft' || status === 'Partial') {
+    return <div className="tf-steps">
+      <span className="ak-badge ak-badge--amber">{status}</span>
+      <span className="ak-muted" style={{ marginLeft: 8 }}>{status === 'Draft'
+        ? 'This request can be edited and submitted again.'
+        : 'Outstanding quantities remain. Continue fulfillment to complete this request.'}</span>
+    </div>;
+  }
   if (status === 'Rejected') {
     return (
       <div className="tf-steps tf-steps--rejected">

@@ -47,7 +47,8 @@ class TransferService
         int $batchId,
         int $quantity,
         ?int $userId,
-        ?string $serialNumber = null
+        ?string $serialNumber = null,
+        string $receiptKey = ''
     ): void {
         if ($quantity <= 0) {
             return;
@@ -77,7 +78,7 @@ class TransferService
                                   . ':line:' . $detail->transfer_detail_id
                                   . ':batch:' . $batchId
                                   . ($serialNumber ? ':serial:' . $serialNumber : '')
-                                  . ':' . $direction,
+                                  . ':' . $direction . $receiptKey,
         ]);
     }
 
@@ -197,7 +198,7 @@ class TransferService
      * rows -- lands in the legacy catch-all. Untraceable is the honest answer there;
      * guessing a receiving_id would fabricate a provenance the data does not support.
      */
-    private function creditBulkDestinationBatches(Transfer $locked, TransferDetail $detail, int $received, ?int $userId = null): void
+    private function creditBulkDestinationBatches(Transfer $locked, TransferDetail $detail, int $received, ?int $userId = null, int $alreadyPosted = 0): void
     {
         $remaining = $received;
 
@@ -212,7 +213,9 @@ class TransferService
                 break;
             }
 
-            $take = min((int) $movement->quantity, $remaining);
+            $skip = min((int) $movement->quantity, $alreadyPosted);
+            $alreadyPosted -= $skip;
+            $take = min((int) $movement->quantity - $skip, $remaining);
             if ($take <= 0) {
                 continue;
             }
@@ -229,7 +232,8 @@ class TransferService
 
             // The arriving leg, keyed on the destination batch so it cannot collide
             // with the out leg that was keyed on the source batch.
-            $this->postTransferLeg($locked, $detail, 'in', (int) $dstBatch->batch_id, $take, $userId);
+            $this->postTransferLeg($locked, $detail, 'in', (int) $dstBatch->batch_id, $take, $userId, null,
+                ':receipt:' . $detail->quantity_received);
 
             $remaining -= $take;
         }
@@ -411,11 +415,15 @@ class TransferService
         bool $quantityIsPackages = false
     ): array
     {
-        if ((int) $ist->status_id !== $this->statusId('In Transit')) {
+        if (!in_array((int) $ist->status_id, [$this->statusId('In Transit'), $this->statusId('Partial')], true)) {
             throw new RuntimeException('Only an In Transit IST can be received.');
         }
 
         return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty, $quantityIsPackages) {
+            $current = Transfer::whereKey($ist->transfer_id)->lockForUpdate()->firstOrFail();
+            if (!in_array((int) $current->status_id, [$this->statusId('In Transit'), $this->statusId('Partial')], true)) {
+                throw new RuntimeException('The transfer is no longer available for scanning.');
+            }
             if ($transferDetailId === null) {
                 $code = $this->canonicalSerial($barcode);
                 $match = ItemSerial::where('transfer_id', $ist->transfer_id)
@@ -521,29 +529,35 @@ class TransferService
      */
     public function receive(Transfer $ist, int $userId): Transfer
     {
-        if ((int) $ist->status_id !== $this->statusId('In Transit')) {
+        if (!in_array((int) $ist->status_id, [$this->statusId('In Transit'), $this->statusId('Partial')], true)) {
             throw new RuntimeException('Only an In Transit IST can be received.');
         }
 
         return DB::transaction(function () use ($ist, $userId) {
+            if ($ist->continuation_of_transfer_id) {
+                Transfer::whereKey($ist->continuation_of_transfer_id)->lockForUpdate()->firstOrFail();
+            }
             $locked = Transfer::where('transfer_id', $ist->transfer_id)
                 ->lockForUpdate()
                 ->firstOrFail();
-            if ((int) $locked->status_id !== $this->statusId('In Transit')) {
+            if (!in_array((int) $locked->status_id, [$this->statusId('In Transit'), $this->statusId('Partial')], true)) {
                 throw new RuntimeException('Only an In Transit IST can be received.');
             }
 
             $locked->load('details.product');
             $totalReceived = 0;
+            $postedByProduct = $locked->details->groupBy('product_id')->map(fn ($rows) => (int) $rows->sum('quantity_receipt_posted'))->all();
             $discrepancies = [];
 
             foreach ($locked->details as $detail) {
                 $received = (int) $detail->quantity_received;
+                $posted = (int) $detail->quantity_receipt_posted;
+                $newReceived = max(0, $received - $posted);
                 $shipped  = (int) $detail->quantity_transferred;
 
-                if ($received > 0) {
+                if ($newReceived > 0) {
                     $dst = $this->lockInventory($locked->to_location_id, $detail->product_id);
-                    $dst->setPieces((int) $dst->quantity_on_hand + $received, $this->piecesPerPackage($detail));
+                    $dst->setPieces((int) $dst->quantity_on_hand + $newReceived, $this->piecesPerPackage($detail));
                     $dst->save();
 
                     if ($this->isSerialized($detail)) {
@@ -557,9 +571,11 @@ class TransferService
                         // is repointed there: a serial standing at B must not still claim
                         // membership of a batch sitting at A.
                         ItemSerial::where('transfer_id', $locked->transfer_id)
+                            ->where('location_id', $locked->from_location_id)
                             ->where('product_id', $detail->product_id)
                             ->whereIn('serial_number', $scanned)
                             ->get()
+                            ->take($newReceived)
                             ->groupBy('receiving_id')
                             ->each(function ($group, $receivingId) use ($locked, $detail, $userId) {
                                 // groupBy() stringifies a null key to ''; see the same
@@ -580,20 +596,26 @@ class TransferService
                                         'location_id' => $locked->to_location_id,
                                         'batch_id'    => $dstBatch->batch_id,
                                     ]);
+                                foreach ($group as $serial) {
+                                    $this->postTransferLeg($locked, $detail, 'in', (int) $dstBatch->batch_id, 1, $userId, $serial->serial_number);
+                                }
                             });
                     } else {
-                        $this->creditBulkDestinationBatches($locked, $detail, $received, $userId);
+                        $this->creditBulkDestinationBatches($locked, $detail, $newReceived, $userId, $postedByProduct[$detail->product_id] ?? 0);
                     }
+                    $postedByProduct[$detail->product_id] = ($postedByProduct[$detail->product_id] ?? 0) + $newReceived;
                 }
 
                 if ($received !== $shipped) {
                     $discrepancies[] = "product {$detail->product_id}: shipped {$shipped}, received {$received}";
                 }
 
+                $detail->quantity_receipt_posted = $received;
+                $detail->save();
                 $totalReceived += $received;
             }
 
-            $locked->status_id = $this->statusId('Received');
+            $locked->status_id = $this->statusId($discrepancies ? 'Partial' : 'Received');
             $locked->received_by = $userId;
             $locked->total_quantity_received = $totalReceived;
             $locked->save();
@@ -610,6 +632,8 @@ class TransferService
                 'recorded_at' => now(),
             ]);
 
+            BarcodeScan::where('transfer_id', $locked->transfer_id)->where('scan_mode', 'receive')->update(['receipt_posted' => true]);
+            app(TransferProgressService::class)->updateRoot($locked);
             return $locked->fresh('details');
         });
     }
@@ -645,14 +669,15 @@ class TransferService
     {
         $inTransit = $this->statusId('In Transit');
         $received  = $this->statusId('Received');
+        $partial = $this->statusId('Partial');
 
-        DB::transaction(function () use ($ist, $inTransit, $received) {
+        DB::transaction(function () use ($ist, $inTransit, $received, $partial) {
             $locked = Transfer::where('transfer_id', $ist->transfer_id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
             $state = (int) $locked->status_id;
-            if (!in_array($state, [$inTransit, $received], true)) {
+            if (!in_array($state, [$inTransit, $received, $partial], true)) {
                 return; // nothing moved yet (Pending/Approved/Rejected)
             }
 
@@ -671,12 +696,12 @@ class TransferService
 
             foreach ($locked->details as $detail) {
                 $shipped = (int) $detail->quantity_transferred;
-                $recv    = (int) $detail->quantity_received;
+                $recv    = $state === $partial ? (int) $detail->quantity_receipt_posted : (int) $detail->quantity_received;
                 if ($shipped < 1) {
                     continue;
                 }
 
-                if ($state === $received && $recv > 0) {
+                if (in_array($state, [$received, $partial], true) && $recv > 0) {
                     $dst = Inventory::where('location_id', $locked->to_location_id)
                         ->where('product_id', $detail->product_id)
                         ->lockForUpdate()
@@ -852,6 +877,10 @@ class TransferService
         }
 
         return DB::transaction(function () use ($ist, $barcode, $transferDetailId, $userId, $qty, $quantityIsPackages) {
+            $current = Transfer::whereKey($ist->transfer_id)->lockForUpdate()->firstOrFail();
+            if (!in_array((int) $current->status_id, [$this->statusId('Approved')], true)) {
+                throw new RuntimeException('The transfer is no longer available for scanning.');
+            }
             $ist->loadMissing('details.product');
             $code = $this->canonicalSerial($barcode);
             if ($code === '') {
@@ -982,6 +1011,10 @@ class TransferService
         }
 
         return DB::transaction(function () use ($ist, $transferDetailId, $qty, $userId) {
+            $current = Transfer::whereKey($ist->transfer_id)->lockForUpdate()->firstOrFail();
+            if (!in_array((int) $current->status_id, [$this->statusId('Approved')], true)) {
+                throw new RuntimeException('The transfer is no longer available for scanning.');
+            }
             $detail = TransferDetail::where('transfer_detail_id', $transferDetailId)
                 ->where('transfer_id', $ist->transfer_id)
                 ->with('product')
@@ -1045,11 +1078,15 @@ class TransferService
      */
     public function countReceiveScan(Transfer $ist, int $transferDetailId, int $qty, ?int $userId = null): array
     {
-        if ((int) $ist->status_id !== $this->statusId('In Transit')) {
+        if (!in_array((int) $ist->status_id, [$this->statusId('In Transit'), $this->statusId('Partial')], true)) {
             throw new RuntimeException('Only an In Transit IST can be received.');
         }
 
         return DB::transaction(function () use ($ist, $transferDetailId, $qty, $userId) {
+            $current = Transfer::whereKey($ist->transfer_id)->lockForUpdate()->firstOrFail();
+            if (!in_array((int) $current->status_id, [$this->statusId('In Transit'), $this->statusId('Partial')], true)) {
+                throw new RuntimeException('The transfer is no longer available for scanning.');
+            }
             $detail = TransferDetail::where('transfer_detail_id', $transferDetailId)
                 ->where('transfer_id', $ist->transfer_id)
                 ->with('product')
@@ -1142,7 +1179,7 @@ class TransferService
     /** Undo a received-scan before confirmation (undoes the scan's recorded quantity). */
     public function removeReceiveScan(Transfer $ist, int $scanId): void
     {
-        if ((int) $ist->status_id !== $this->statusId('In Transit')) {
+        if (!in_array((int) $ist->status_id, [$this->statusId('In Transit'), $this->statusId('Partial')], true)) {
             throw new RuntimeException('Only an In Transit IST can be edited.');
         }
 
@@ -1155,6 +1192,9 @@ class TransferService
                 throw new RuntimeException('Receive scan not found.');
             }
 
+            if ($scan->receipt_posted) {
+                throw new RuntimeException('Confirmed receipt scans cannot be removed.');
+            }
             $step = max(1, (int) ($scan->quantity ?? 1));
 
             $detail = TransferDetail::where('transfer_id', $ist->transfer_id)

@@ -27,6 +27,7 @@ class CreateRequestTest extends TransferTestCase
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
         $product = $this->makeInstallationMaterial();
+        $this->setStock($src->location_id, $product->product_id, 2);
         $user = $this->makeUserAt($dst, 'inventory_analyst');
 
         $res = $this->actingAs($user, 'sanctum')->postJson('/api/transfers', [

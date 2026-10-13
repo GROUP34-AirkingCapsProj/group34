@@ -937,6 +937,10 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     |--------------------------------------------------------------------------
     */
     Route::get('/transfers/archived', [TransferController::class, 'archived']);
+    Route::middleware('permission:inventory_transfers,create')->post('/transfers/drafts', [TransferController::class, 'saveDraft']);
+    Route::middleware('permission:inventory_transfers,update')->put('/transfers/{id}/draft', [TransferController::class, 'saveDraft']);
+    Route::middleware('permission:inventory_transfers,create')
+        ->post('/transfers/availability', [TransferController::class, 'demandAvailability']);
     Route::get('/transfers', [TransferController::class, 'index']);
     Route::get('/transfers/{id}', [TransferController::class, 'show']);
     Route::middleware('permission:inventory_transfers,create')->post('/transfers', [TransferController::class, 'store']);
@@ -951,6 +955,7 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     Route::middleware('permission:inventory_transfers,update')->group(function () {
         Route::patch('/transfers/{id}/request', [TransferController::class, 'updateRequest']);
         Route::patch('/transfers/{id}/cancel', [TransferController::class, 'cancel']);
+        Route::post('/transfers/{id}/continue', [TransferController::class, 'continueRequest']);
     });
     Route::get('/transfers/{id}/scan-status', [TransferController::class, 'scanStatus']);
     Route::get('/transfers/{id}/receive-form', [TransferController::class, 'receiveForm']);

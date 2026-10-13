@@ -64,6 +64,7 @@ class TransferController extends Controller
     {
         $validated = $request->validate([
             'intent'                         => 'required|in:pull,offload,demand',
+            'draft_id'                       => 'nullable|integer',
             'from_location_id'               => 'nullable|exists:locations,location_id',
             'to_location_id'                 => 'nullable|exists:locations,location_id',
             'transfer_date'                  => 'required|date',
@@ -105,11 +106,37 @@ class TransferController extends Controller
         $user = $request->user();
 
         return DB::transaction(function () use ($validated, $user, $service) {
+            $draft = null;
+            if (!empty($validated['draft_id'])) {
+                $draft = Transfer::whereKey($validated['draft_id'])->lockForUpdate()->firstOrFail();
+                if ((int) $draft->requested_by !== (int) $user->user_id) return $this->error('You can only submit your own draft.', 403);
+                if ($draft->status?->status_name !== 'Draft') return $this->error('This draft has already been submitted.', 422);
+            }
+            if ($validated['intent'] === 'demand'
+                && !app(\App\Support\PermissionResolver::class)->canUser((int) $user->user_id, 'inventory_transfers', 'approve')) {
+                return $this->error('IA-demand requires transfer approval permission.', 403);
+            }
+            if ($validated['intent'] === 'demand') {
+                $productIds = array_values(array_unique(array_column($validated['products'], 'product_id')));
+                $pool = app(\App\Services\TransferAvailabilityService::class)->atLocation(
+                    (int) $validated['from_location_id'], $productIds, null, true
+                );
+                foreach ($validated['products'] as $index => $row) {
+                    $pid = $row['product_id'];
+                    $available = $pool[$pid]['available'] ?? 0;
+                    if ((int) $row['quantity_requested'] > $available) {
+                        throw ValidationException::withMessages(["products.{$index}.quantity_requested" =>
+                            "Product #{$pid}: requested {$row['quantity_requested']}, available {$available}. Reduce the quantity or choose another source."]);
+                    }
+                    $pool[$pid]['available'] -= (int) $row['quantity_requested'];
+                }
+            }
             $status = $validated['intent'] === 'demand' ? 'Approved' : 'Pending';
 
-            $transfer = Transfer::create([
+            $header = [
                 'transfer_request_id'        => null,
                 'intent'                     => $validated['intent'],
+                'requested_products'         => $validated['products'],
                 'from_location_id'           => $validated['from_location_id'],
                 'to_location_id'             => $validated['to_location_id'],
                 'transfer_number'            => 'TR-PENDING-' . uniqid('', true),
@@ -120,7 +147,17 @@ class TransferController extends Controller
                 'notes'                      => $validated['notes'] ?? null,
                 'total_quantity_transferred' => 0,
                 'total_quantity_received'    => 0,
-            ]);
+            ];
+            if ($draft) {
+                unset($header['transfer_number']);
+                $transfer = $draft;
+                $transfer->fill($header);
+                $transfer->draft_form = null;
+                $transfer->save();
+                $transfer->details()->delete();
+            } else {
+                $transfer = Transfer::create($header);
+            }
             $transfer->transfer_number = 'TR-' . date('Ymd') . '-' . str_pad((string) $transfer->transfer_id, 4, '0', STR_PAD_LEFT);
             $transfer->save();
 
@@ -149,6 +186,68 @@ class TransferController extends Controller
             );
 
             return $this->success($transfer->load(self::withRelations()), 'Transfer request submitted', 201);
+        }, 3);
+    }
+
+    public function saveDraft(Request $request, TransferService $service, $id = null)
+    {
+        $validated = $request->validate([
+            'draft_key' => 'required|string|max:100',
+            'form' => 'required|array',
+            'form.intent' => 'required|in:pull,offload,demand',
+            'form.fromLocationId' => 'nullable|exists:locations,location_id',
+            'form.toLocationId' => 'nullable|exists:locations,location_id',
+            'form.transferDate' => 'nullable|date',
+            'form.notes' => 'nullable|string|max:500',
+            'form.lines' => 'required|array|min:1|max:100',
+            'form.lines.*.uid' => 'required|string|max:100',
+            'form.lines.*.productId' => 'nullable|exists:products,product_id',
+            'form.lines.*.quantity' => 'nullable|numeric|min:0',
+            'form.lines.*.packages' => 'nullable|numeric|min:0',
+            'form.lines.*.pieces' => 'nullable|numeric|min:0',
+        ]);
+        return DB::transaction(function () use ($validated, $request, $service, $id) {
+            $user = $request->user();
+            $form = $validated['form'];
+            $transfer = $id ? Transfer::whereKey($id)->lockForUpdate()->firstOrFail()
+                : Transfer::firstOrCreate(['draft_key' => $validated['draft_key']], [
+                    'intent' => $form['intent'], 'requested_by' => $user->user_id,
+                    'transfer_number' => 'TR-DRAFT-' . uniqid(), 'status_id' => $service->statusIdForTest('Draft'),
+                ]);
+            $transfer = Transfer::whereKey($transfer->transfer_id)->lockForUpdate()->firstOrFail();
+            if (($id && !$this->canEditRequest($user, $transfer))
+                || (!$id && (int) $transfer->requested_by !== (int) $user->user_id)) {
+                return $this->error('You can only save your own request drafts.', 403);
+            }
+            if (!in_array($transfer->status?->status_name, ['Draft', 'Pending', 'Rejected'], true)) {
+                return $this->error('This transfer is no longer editable. Draft changes have not been applied.', 422);
+            }
+            if (!$id && $transfer->status?->status_name !== 'Draft') {
+                return $this->error('This draft has already been submitted.', 422);
+            }
+            if ($id && $transfer->intent !== $form['intent']) {
+                return $this->error('An existing request cannot change its intent.', 422);
+            }
+            if ($transfer->continuation_of_transfer_id) {
+                $root = Transfer::findOrFail($transfer->continuation_of_transfer_id);
+                if ((int) ($form['toLocationId'] ?? 0) !== (int) $root->to_location_id) {
+                    return $this->error('A continuation must retain the original destination.', 422);
+                }
+            }
+            $transfer->draft_form = $form;
+            $transfer->intent = $form['intent'];
+            $transfer->from_location_id = $form['fromLocationId'] ?? null;
+            $transfer->to_location_id = $form['toLocationId'] ?? null;
+            $transfer->transfer_date = $form['transferDate'] ?? null;
+            $transfer->notes = $form['notes'] ?? null;
+            $transfer->approved_by = null;
+            $transfer->status_id = $service->statusIdForTest('Draft');
+            $transfer->save();
+            if (!$id) {
+                $transfer->transfer_number = 'TR-' . date('Ymd') . '-' . str_pad((string) $transfer->transfer_id, 4, '0', STR_PAD_LEFT);
+                $transfer->save();
+            }
+            return $this->success($transfer->load(self::withRelations()), 'Draft saved');
         });
     }
 
@@ -171,6 +270,8 @@ class TransferController extends Controller
                 $detail->stock_at_source     = $available;
                 $detail->shortfall           = max(0, (int) $detail->quantity_requested - $available);
             }
+
+            $transfer->fulfillment = app(\App\Services\TransferProgressService::class)->summary($transfer);
 
             return $this->success($transfer, 'Transfer retrieved');
         } catch (\Exception $e) {
@@ -338,6 +439,9 @@ class TransferController extends Controller
     {
         try {
             $transfer = Transfer::with(['details'])->findOrFail($id);
+            if ($transfer->continuation_of_transfer_id || Transfer::where('continuation_of_transfer_id', $id)->exists()) {
+                return $this->error('Linked fulfillment records must be preserved with the original request.', 422);
+            }
 
             DB::beginTransaction();
 
@@ -512,7 +616,7 @@ class TransferController extends Controller
             'from_location_id'           => 'nullable|exists:locations,location_id',
             'to_location_id'             => 'nullable|exists:locations,location_id',
             'lines'                      => 'sometimes|array',
-            'lines.*.transfer_detail_id' => 'required|integer',
+            'lines.*.transfer_detail_id' => 'required|integer|distinct',
             'lines.*.quantity_approved'  => 'required|integer|min:0',
         ]);
 
@@ -543,9 +647,49 @@ class TransferController extends Controller
         }
 
         return DB::transaction(function () use ($request, $validated, $transfer, $service, $newFrom, $newTo) {
+            $transfer = Transfer::whereKey($transfer->transfer_id)->lockForUpdate()->firstOrFail();
+            if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
+                return $this->error('Only submitted requests can be verified.', 422);
+            }
+            $details = $transfer->details()->with('product')->orderBy('transfer_detail_id')->get();
+            $approvals = collect($validated['lines'] ?? [])->keyBy('transfer_detail_id');
+            if ($approvals->keys()->diff($details->pluck('transfer_detail_id'))->isNotEmpty()) {
+                throw ValidationException::withMessages(['lines' => 'One or more lines do not belong to this transfer.']);
+            }
+            $pool = app(\App\Services\TransferAvailabilityService::class)->atLocation(
+                (int) $newFrom, $details->pluck('product_id')->unique()->all(), (int) $transfer->transfer_id, true
+            );
+            $remaining = array_map(fn ($stock) => $stock['available'], $pool);
+            $approvedTotal = 0;
+            $adjustments = [];
+            foreach ($details as $detail) {
+                $quantity = (int) ($approvals[$detail->transfer_detail_id]['quantity_approved'] ?? $detail->quantity_requested);
+                $available = $remaining[$detail->product_id] ?? 0;
+                if ($quantity > $available) {
+                    throw ValidationException::withMessages(['lines' =>
+                        ($detail->product?->product_name ?? "Product #{$detail->product_id}")
+                        . ": requested approval {$quantity}, available {$available}. Reduce the approved quantity or choose another source."]);
+                }
+                if ($quantity > (int) $detail->quantity_requested) {
+                    throw ValidationException::withMessages(['lines' => 'Approved quantities cannot exceed the requested quantities.']);
+                }
+                $remaining[$detail->product_id] = $available - $quantity;
+                $approvedTotal += $quantity;
+                if ($quantity !== (int) $detail->quantity_requested) {
+                    $adjustments[] = "Product #{$detail->product_id}: requested {$detail->quantity_requested}, approved {$quantity}";
+                }
+            }
+            if ($approvedTotal < 1) {
+                throw ValidationException::withMessages(['lines' => 'At least one available line must remain.']);
+            }
             $user = $request->user();
             $transfer->from_location_id = $newFrom;
             $transfer->to_location_id   = $newTo;
+            if ($transfer->requested_products === null) {
+                $transfer->requested_products = $details->map(fn ($d) => [
+                    'product_id' => $d->product_id, 'quantity_requested' => $d->quantity_requested,
+                ])->all();
+            }
 
             foreach ($validated['lines'] ?? [] as $line) {
                 $detail = TransferDetail::where('transfer_detail_id', $line['transfer_detail_id'])
@@ -571,12 +715,22 @@ class TransferController extends Controller
                 'recorded_at' => now(),
             ]);
 
+            foreach ($adjustments as $adjustment) {
+                \App\Models\TblTransferTracking::create([
+                    'transfer_id' => $transfer->transfer_id,
+                    'location_id' => $transfer->from_location_id,
+                    'status_note' => $adjustment,
+                    'recorded_by' => $user->user_id,
+                    'recorded_at' => now(),
+                ]);
+            }
+
             \App\Support\RealtimeBroadcaster::transferChanged(
                 (int) $transfer->from_location_id, (int) $transfer->to_location_id, 'request_changed'
             );
 
             return $this->success($transfer->fresh()->load(self::withRelations()), 'Transfer verified and assigned');
-        });
+        }, 3);
     }
 
     public function reject(Request $request, $id, TransferService $service)
@@ -594,6 +748,12 @@ class TransferController extends Controller
         \App\Support\RealtimeBroadcaster::transferChanged(
             (int) ($transfer->from_location_id ?? 0), (int) $transfer->to_location_id, 'request_changed'
         );
+        TblTransferTracking::create([
+            'transfer_id' => $transfer->transfer_id,
+            'location_id' => $transfer->to_location_id ?? $transfer->from_location_id,
+            'status_note' => mb_substr('Request rejected: ' . ($validated['rejection_reason'] ?? 'No reason provided'), 0, 255),
+            'recorded_by' => $request->user()->user_id, 'recorded_at' => now(),
+        ]);
         return $this->success($transfer->fresh()->load(self::withRelations()), 'Transfer request rejected');
     }
 
@@ -603,14 +763,14 @@ class TransferController extends Controller
         return $this->success($service->pickList($transfer), 'Pick list generated');
     }
 
-    /** The requester, or an admin/IA, may edit/cancel a request while it is still Pending. */
+    /** Request owners and analysts may manage requests before stock has moved. */
     private function canEditRequest($user, Transfer $transfer): bool
     {
         return (int) $transfer->requested_by === (int) $user->user_id
-            || in_array((int) $user->role_id, [1, 2], true); // admin, inventory_analyst
+            || in_array($user->role?->role_name, ['admin', 'inventory_analyst'], true);
     }
 
-    /** Edit a still-Pending request's product lines + notes (requester or admin/IA). */
+    /** Edit or resubmit a pending, draft or rejected request. */
     public function updateRequest(Request $request, $id, TransferService $service)
     {
         $validated = $request->validate([
@@ -618,18 +778,76 @@ class TransferController extends Controller
             'products'                       => 'required|array|min:1',
             'products.*.product_id'          => 'required|exists:products,product_id',
             'products.*.quantity_requested'  => 'required|integer|min:1',
+            'resubmit'                       => 'sometimes|boolean',
+            'transfer_date'                  => 'sometimes|nullable|date',
+            'from_location_id'               => 'sometimes|required|exists:locations,location_id',
+            'to_location_id'                 => 'sometimes|required|exists:locations,location_id',
         ]);
 
         $transfer = Transfer::with('details')->findOrFail($id);
-        if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
-            return $this->error('Only a pending request can be edited.', 422);
+        if (!in_array($transfer->status?->status_name, ['Pending', 'Draft', 'Rejected'], true)) {
+            return $this->error('Only a pending, draft or rejected request can be edited.', 422);
         }
         $user = $request->user();
         if (!$this->canEditRequest($user, $transfer)) {
             return $this->error('You can only edit your own pending request.', 403);
         }
 
-        return DB::transaction(function () use ($transfer, $validated, $user) {
+        return DB::transaction(function () use ($transfer, $validated, $user, $service) {
+            $transfer = Transfer::whereKey($transfer->transfer_id)->lockForUpdate()->firstOrFail();
+            if (!in_array($transfer->status?->status_name, ['Pending', 'Draft', 'Rejected'], true)) {
+                throw ValidationException::withMessages(['status' => 'This request is no longer editable.']);
+            }
+            if (isset($validated['from_location_id']) || isset($validated['to_location_id'])) {
+                if ($transfer->intent !== 'demand' || $transfer->status?->status_name === 'Pending') {
+                    throw ValidationException::withMessages(['locations' => 'Locations are assigned by the analyst during review.']);
+                }
+                $transfer->from_location_id = $validated['from_location_id'] ?? $transfer->from_location_id;
+                $transfer->to_location_id = $validated['to_location_id'] ?? $transfer->to_location_id;
+                if ((int) $transfer->from_location_id === (int) $transfer->to_location_id) {
+                    throw ValidationException::withMessages(['locations' => 'Source and destination must be different.']);
+                }
+            }
+            if (!empty($validated['resubmit'])) {
+                if (($transfer->intent !== 'offload' && !$transfer->to_location_id)
+                    || ($transfer->intent !== 'pull' && !$transfer->from_location_id)) {
+                    throw ValidationException::withMessages(['locations' => 'Complete the required source and destination before submitting.']);
+                }
+                if ($transfer->intent === 'demand') {
+                    if (!app(\App\Support\PermissionResolver::class)->canUser((int) $user->user_id, 'inventory_transfers', 'approve')) {
+                        return $this->error('IA-demand requires transfer approval permission.', 403);
+                    }
+                    $pool = app(\App\Services\TransferAvailabilityService::class)->atLocation(
+                        (int) $transfer->from_location_id, array_unique(array_column($validated['products'], 'product_id')),
+                        (int) $transfer->transfer_id, true
+                    );
+                    foreach ($validated['products'] as $line) {
+                        $pid = $line['product_id'];
+                        if ($line['quantity_requested'] > ($pool[$pid]['available'] ?? 0)) {
+                            throw ValidationException::withMessages(['products' => "Insufficient available stock for product #{$pid}."]);
+                        }
+                        $pool[$pid]['available'] -= $line['quantity_requested'];
+                    }
+                }
+                $transfer->status_id = $service->statusIdForTest($transfer->intent === 'demand' ? 'Approved' : 'Pending');
+                $transfer->approved_by = $transfer->intent === 'demand' ? $user->user_id : null;
+            }
+            $transfer->requested_products = $validated['products'];
+            $transfer->draft_form = null;
+            if (array_key_exists('transfer_date', $validated)) $transfer->transfer_date = $validated['transfer_date'];
+            if ($transfer->continuation_of_transfer_id) {
+                $root = Transfer::findOrFail($transfer->continuation_of_transfer_id);
+                if ((int) $transfer->to_location_id !== (int) $root->to_location_id) {
+                    throw ValidationException::withMessages(['locations' => 'A continuation must retain the original destination.']);
+                }
+                $remaining = collect(app(\App\Services\TransferProgressService::class)->summary($transfer)['lines'])->keyBy('product_id');
+                $totals = collect($validated['products'])->groupBy('product_id')->map(fn ($rows) => $rows->sum('quantity_requested'));
+                foreach ($totals as $pid => $quantity) {
+                    if ($quantity > ($remaining[$pid]['remaining_to_send'] ?? 0)) {
+                        throw ValidationException::withMessages(['products' => 'Continuation quantities cannot exceed the outstanding original request.']);
+                    }
+                }
+            }
             if (array_key_exists('notes', $validated)) {
                 $transfer->notes = $validated['notes'];
             }
@@ -650,7 +868,7 @@ class TransferController extends Controller
             \App\Models\TblTransferTracking::create([
                 'transfer_id' => $transfer->transfer_id,
                 'location_id' => $transfer->to_location_id ?? $transfer->from_location_id,
-                'status_note' => 'Request edited by ' . ($user->username ?? "user#{$user->user_id}"),
+                'status_note' => (!empty($validated['resubmit']) ? 'Request edited and resubmitted by ' : 'Request edited by ') . ($user->username ?? "user#{$user->user_id}"),
                 'recorded_by' => $user->user_id,
                 'recorded_at' => now(),
             ]);
@@ -659,28 +877,72 @@ class TransferController extends Controller
         });
     }
 
-    /** Withdraw a still-Pending request (requester or admin/IA). Soft-deletes it. */
+    /** Cancel an undispatched request into an editable draft. */
     public function cancel(Request $request, $id, TransferService $service)
     {
-        $transfer = Transfer::findOrFail($id);
-        if ((int) $transfer->status_id !== $service->statusIdForTest('Pending')) {
-            return $this->error('Only a pending request can be cancelled.', 422);
-        }
-        $user = $request->user();
-        if (!$this->canEditRequest($user, $transfer)) {
-            return $this->error('You can only cancel your own pending request.', 403);
-        }
+        return DB::transaction(function () use ($request, $id, $service) {
+            $transfer = Transfer::whereKey($id)->lockForUpdate()->firstOrFail();
+            if ($transfer->status?->status_name !== 'Pending'
+                && !($transfer->intent === 'demand' && $transfer->status?->status_name === 'Approved')) {
+                return $this->error('Only pending requests or undispatched IA-demand transfers can be cancelled.', 422);
+            }
+            $user = $request->user();
+            if (!$this->canEditRequest($user, $transfer)) {
+                return $this->error('You can only cancel your own pending request.', 403);
+            }
 
-        \App\Models\TblTransferTracking::create([
-            'transfer_id' => $transfer->transfer_id,
-            'location_id' => $transfer->to_location_id ?? $transfer->from_location_id,
-            'status_note' => 'Request cancelled by ' . ($user->username ?? "user#{$user->user_id}"),
-            'recorded_by' => $user->user_id,
-            'recorded_at' => now(),
-        ]);
-        $transfer->delete();
+            \App\Models\TblTransferTracking::create([
+                'transfer_id' => $transfer->transfer_id,
+                'location_id' => $transfer->to_location_id ?? $transfer->from_location_id,
+                'status_note' => 'Request cancelled by ' . ($user->username ?? "user#{$user->user_id}"),
+                'recorded_by' => $user->user_id,
+                'recorded_at' => now(),
+            ]);
+            foreach (\App\Models\BarcodeScan::where('transfer_id', $id)->where('scan_mode', 'transfer')->pluck('id') as $scanId) {
+                $service->removeDispatchScan($transfer, (int) $scanId);
+            }
+            $transfer->status_id = $service->statusIdForTest('Draft');
+            $transfer->details()->update(['quantity_scanned' => 0]);
+            $transfer->approved_by = null;
+            $transfer->save();
 
-        return $this->success(null, 'Request cancelled');
+            return $this->success($transfer->fresh()->load(self::withRelations()), 'Request cancelled and saved as a draft');
+        });
+    }
+
+    public function continueRequest(Request $request, $id, TransferService $service)
+    {
+        return DB::transaction(function () use ($request, $id, $service) {
+            $root = Transfer::whereKey($id)->lockForUpdate()->firstOrFail();
+            if ($root->status?->status_name !== 'Partial' || $root->continuation_of_transfer_id) {
+                return $this->error('Only a partially fulfilled original request can be continued.', 422);
+            }
+            if (!$this->canEditRequest($request->user(), $root)) {
+                return $this->error('You can only continue your own request.', 403);
+            }
+            $active = Transfer::where('continuation_of_transfer_id', $id)
+                ->whereHas('status', fn ($q) => $q->whereIn('status_name', ['Draft', 'Rejected', 'Pending', 'Approved', 'In Transit', 'Partial']))->first();
+            if ($active) return $this->error('Complete or resubmit the existing continuation first.', 422);
+            $summary = app(\App\Services\TransferProgressService::class)->summary($root);
+            $lines = collect($summary['lines'])->filter(fn ($l) => $l['remaining_to_send'] > 0);
+            if ($lines->isEmpty()) return $this->error('All requested stock has been shipped. Complete the outstanding receipt instead.', 422);
+            $next = Transfer::create([
+                'intent' => $root->intent, 'continuation_of_transfer_id' => $root->transfer_id,
+                'from_location_id' => $root->from_location_id, 'to_location_id' => $root->to_location_id,
+                'requested_by' => $root->requested_by, 'transfer_date' => now(),
+                'transfer_number' => 'TR-PENDING-' . uniqid(), 'status_id' => $service->statusIdForTest('Pending'),
+            ]);
+            $next->transfer_number = 'TR-' . date('Ymd') . '-' . str_pad((string) $next->transfer_id, 4, '0', STR_PAD_LEFT);
+            $next->save();
+            foreach ($lines as $line) $next->details()->create([
+                'product_id' => $line['product_id'], 'quantity_requested' => $line['remaining_to_send'],
+                'quantity_scanned' => 0, 'quantity_transferred' => 0, 'quantity_received' => 0,
+            ]);
+            TblTransferTracking::create(['transfer_id' => $root->transfer_id, 'location_id' => $root->to_location_id,
+                'status_note' => 'Remaining quantities continued in ' . $next->transfer_number,
+                'recorded_by' => $request->user()->user_id, 'recorded_at' => now()]);
+            return $this->success($next->load(self::withRelations()), 'Remaining quantities submitted for analyst review', 201);
+        });
     }
 
     public function sourceAvailability($id)
@@ -692,26 +954,32 @@ class TransferController extends Controller
             return $this->success([], 'Source availability');
         }
 
-        $rows = Inventory::query()
-            ->join('locations', 'inventory.location_id', '=', 'locations.location_id')
-            ->where('locations.location_type', 'warehouse')
-            ->whereIn('inventory.product_id', $productIds)
-            ->get([
-                'inventory.location_id',
-                'inventory.product_id',
-                'inventory.available_quantity',
-                'inventory.quantity_on_hand',
-            ]);
+        return $this->success($this->warehouseAvailability($productIds->all(), (int) $transfer->transfer_id), 'Source availability');
+    }
 
+    public function demandAvailability(Request $request)
+    {
+        $validated = $request->validate([
+            'product_ids' => 'required|array|min:1',
+            'product_ids.*' => 'required|integer|exists:products,product_id',
+        ]);
+        return $this->success($this->warehouseAvailability(array_unique($validated['product_ids'])), 'Source availability');
+    }
+
+    private function warehouseAvailability(array $productIds, ?int $excludeTransferId = null): array
+    {
         $map = [];
-        foreach ($rows as $r) {
-            $map[(int) $r->location_id][(int) $r->product_id] = [
-                'available' => (int) $r->available_quantity,
-                'on_hand'   => (int) $r->quantity_on_hand,
-            ];
+        $availability = app(\App\Services\TransferAvailabilityService::class);
+        $stockedLocations = Inventory::join('locations', 'inventory.location_id', '=', 'locations.location_id')
+            ->where('locations.location_type', 'warehouse')->whereIn('inventory.product_id', $productIds)
+            ->get(['inventory.location_id', 'inventory.product_id'])->groupBy('location_id');
+        foreach ($stockedLocations as $locationId => $rows) {
+            $map[(int) $locationId] = $availability->atLocation(
+                (int) $locationId, $rows->pluck('product_id')->unique()->all(), $excludeTransferId
+            );
         }
 
-        return $this->success($map, 'Source availability');
+        return $map;
     }
 
     private function statusId(string $name): ?int
@@ -1038,6 +1306,7 @@ class TransferController extends Controller
             }
 
             $user   = $request->user();
+            $previousStatus = $ist->status?->status_name;
             $result = $service->receive($ist, $user->user_id);
             \App\Support\RealtimeBroadcaster::transferChanged(
                 $result->from_location_id, $result->to_location_id, 'received'
@@ -1049,8 +1318,8 @@ class TransferController extends Controller
                     'action'     => 'ist_received',
                     'table_name' => 'transfers',
                     'record_id'  => $result->transfer_id,
-                    'old_values' => ['status' => 'In Transit'],
-                    'new_values' => ['status' => 'Received', 'total_quantity_received' => (int) $result->total_quantity_received],
+                    'old_values' => ['status' => $previousStatus],
+                    'new_values' => ['status' => $result->status?->status_name, 'total_quantity_received' => (int) $result->total_quantity_received],
                     'ip_address' => $request->ip(),
                     'user_agent' => $request->userAgent(),
                 ]);
@@ -1058,9 +1327,9 @@ class TransferController extends Controller
 
             return $this->success([
                 'transfer_number'         => $result->transfer_number,
-                'status'                  => 'Received',
+                'status'                  => $result->status?->status_name,
                 'total_quantity_received' => (int) $result->total_quantity_received,
-            ], 'Transfer received successfully');
+            ], $result->status?->status_name === 'Partial' ? 'Partial receipt recorded; outstanding quantities remain open' : 'Transfer received successfully');
         } catch (\RuntimeException $e) {
             return $this->error($e->getMessage(), 422);
         } catch (\Exception $e) {

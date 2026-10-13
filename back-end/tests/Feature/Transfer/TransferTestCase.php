@@ -19,6 +19,20 @@ abstract class TransferTestCase extends TestCase
 {
     use DatabaseTransactions;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // The analyst approval tests need explicit grants rather than relying on
+        // whichever permission defaults happen to be in the local test database.
+        $roleId = DB::table('roles')->where('role_name', 'inventory_analyst')->value('role_id');
+        foreach (['read', 'approve'] as $action) {
+            $permission = \App\Models\Permission::firstOrCreate(['feature' => 'inventory_transfers', 'action' => $action]);
+            \App\Models\RolePermission::updateOrCreate(
+                ['role_id' => $roleId, 'permission_id' => $permission->permission_id], ['is_granted' => true]
+            );
+        }
+    }
+
     protected function statusId(string $name): int
     {
         $id = DB::table('status_lookup')

@@ -1,5 +1,7 @@
 # Transfer Source Availability at Verify
 
+**2026-10-13 revision:** The advisory-only shortage behavior below is superseded by stock-limited approval. The analyst now sees a warehouse comparison table; choosing a source caps each approved quantity to requested and available stock, with unavailable lines set to zero. Verification rechecks stock on the server, including active issuance holds, quarantine, and commitments to other approved transfers. Pending requests can still express the full demand before a source is assigned.
+
 **Date:** 2026-07-22
 **Branch:** backupV3
 **Status:** Approved design, pending implementation plan
