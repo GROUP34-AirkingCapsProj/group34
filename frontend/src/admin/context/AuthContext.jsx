@@ -91,13 +91,14 @@ export const AuthProvider = ({ children }) => {
       setPermissions(null);
       return;
     }
-    // Prefer warm session cache on first paint; only force-refresh when stale.
+    // Keep the warm cache for first paint, then revalidate on every session load
+    // so a repaired server permission does not leave purchasing tabs hidden.
     const cached = readCachedPermissions();
     if (cached?.map && permissions == null) {
       setPermissions(cached.map);
       lastPermFetchRef.current = cached.at ?? Date.now();
     }
-    refreshPermissions({ force: !cached?.map });
+    refreshPermissions({ force: true });
     const onFocus = () => refreshPermissions();
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);

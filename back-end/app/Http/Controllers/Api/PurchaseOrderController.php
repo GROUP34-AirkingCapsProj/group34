@@ -691,6 +691,11 @@ class PurchaseOrderController extends Controller
 
     private function attachLifecycle($po, array $balances): void
     {
+        // During rollout, keep the existing status display until the snapshot
+        // schema and reconciliation table are available. Reads must still work.
+        if (!\Illuminate\Support\Facades\Schema::hasTable('po_lifecycle_exceptions')) {
+            return;
+        }
         $state = \App\Support\PoLifecycle::compute(array_values($balances),
             in_array((int) $po->status_id, [8, 10, 11, 12], true),
             $po->lifecycle_status === \App\Support\PoLifecycle::CANCELLED);

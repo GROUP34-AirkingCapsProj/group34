@@ -241,6 +241,7 @@ const PurchaseRequestPage = () => {
   // ── Tab 3: Pending Approvals ──────────────────────────────────────────────
   const [pendingPRs,        setPendingPRs]        = useState([]);
   const [loadingPending,    setLoadingPending]    = useState(false);
+  const [pendingError,      setPendingError]      = useState('');
   const [pendingPRsLoaded,  setPendingPRsLoaded]  = useState(false);
   const [expandedCards,     setExpandedCards]     = useState(new Set());
 
@@ -401,9 +402,10 @@ const PurchaseRequestPage = () => {
     }
     if (activeTab === 'approvals' && canApprovePR) {
       setLoadingPending(true);
+      setPendingError('');
       purchaseRequestsAPI.getPending()
         .then(res => setPendingPRs(Array.isArray(res?.data) ? res.data : []))
-        .catch(console.error)
+        .catch(err => setPendingError(err?.message || 'Unable to load pending purchase requests.'))
         .finally(() => { setLoadingPending(false); setPendingPRsLoaded(true); });
     }
     if (activeTab === 'stock-parameters' && canReadReco) {
@@ -1438,6 +1440,7 @@ const PurchaseRequestPage = () => {
   // ── Tab 3: Pending Approvals (Admin) ──────────────────────────────────────
   const renderApprovalsTab = () => {
     if (loadingPending) return <Loader label="Loading pending approvals" />;
+    if (pendingError) return <div role="alert" className="po-status-empty">{pendingError}</div>;
     if (!pendingPRs.length) return (
       <div className="po-status-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" width="40" height="40">

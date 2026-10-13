@@ -61,3 +61,10 @@ test('renders a pending purchase request card on the approvals tab', async () =>
   expect(screen.getByText('Ana Cruz')).toBeInTheDocument();
   expect(screen.getByText('CoolParts Inc.')).toBeInTheDocument();
 });
+
+test('reports a failed approval request instead of showing an empty queue', async () => {
+  purchaseRequestsAPI.getPending.mockRejectedValue(new Error('Access denied'));
+  render(<PurchaseRequestPage />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Access denied');
+  expect(screen.queryByText('No pending approvals.')).not.toBeInTheDocument();
+});
