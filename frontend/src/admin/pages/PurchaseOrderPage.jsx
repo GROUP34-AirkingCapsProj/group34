@@ -954,7 +954,6 @@ const PurchaseOrderPage = () => {
                     <option value="Net 60">Net 60</option>
                     <option value="Net 90">Net 90</option>
                     <option value="COD">COD</option>
-                    <option value="Upon Delivery">Upon Delivery</option>
                   </select>
                 </div>
               </div>
