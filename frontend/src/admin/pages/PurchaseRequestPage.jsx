@@ -172,6 +172,12 @@ const PurchaseRequestPage = () => {
     : (location.state?.tab ?? (canApprovePR ? 'approvals' : 'create'));
   const [activeTab, setActiveTab] = useState(initialTab);
 
+  // Permissions may arrive after the first render. Approvers who cannot create
+  // requests must not remain on the hidden creation tab.
+  useEffect(() => {
+    if (!canCreate && canApprovePR && activeTab === 'create') setActiveTab('approvals');
+  }, [canCreate, canApprovePR, activeTab]);
+
   // ── History tab + details modal ───────────────────────────────────────────
   const [historyPRs,        setHistoryPRs]        = useState([]);   // list shown in the History tab
   const [loadingHistoryPRs, setLoadingHistoryPRs] = useState(false);

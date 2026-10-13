@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import PurchaseRequestPage from './PurchaseRequestPage';
 import { purchaseRequestsAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 jest.mock('react-router-dom', () => ({
   useNavigate: () => jest.fn(),
@@ -8,7 +9,7 @@ jest.mock('react-router-dom', () => ({
 }));
 jest.mock('../components/AdminLayout', () => ({ children }) => <div>{children}</div>);
 jest.mock('../context/AuthContext', () => ({
-  useAuth: () => ({ user: { role: { role_name: 'admin' } }, can: () => true }),
+  useAuth: jest.fn(),
 }));
 jest.mock('../services/api', () => ({
   itemsAPI:             { getAll: jest.fn() },
@@ -32,6 +33,7 @@ const pendingPR = {
 };
 
 beforeEach(() => {
+  useAuth.mockReturnValue({ user: { role: { role_name: 'admin' } }, can: () => true });
   const { itemsAPI, locationsAPI, suppliersAPI, restockAPI } = require('../services/api');
   itemsAPI.getAll.mockResolvedValue({ data: [] });
   locationsAPI.getAll.mockResolvedValue({ data: [] });
@@ -40,6 +42,16 @@ beforeEach(() => {
   restockAPI.getRecommendations.mockResolvedValue({ data: {} });
   purchaseRequestsAPI.getAll.mockResolvedValue({ data: [] });
   purchaseRequestsAPI.getPending.mockResolvedValue({ data: [] });
+});
+
+test('shows pending approvals when branch manager permissions finish loading', async () => {
+  const user = { role: { role_name: 'branch_manager' } };
+  useAuth.mockReturnValue({ user, can: () => false });
+  purchaseRequestsAPI.getPending.mockResolvedValue({ data: [pendingPR] });
+  const { rerender } = render(<PurchaseRequestPage />);
+  useAuth.mockReturnValue({ user, can: (feature, action) => feature === 'purchase_request_approval' && action === 'approve' });
+  rerender(<PurchaseRequestPage />);
+  expect(await screen.findByText('PR-0007')).toBeInTheDocument();
 });
 
 test('renders a pending purchase request card on the approvals tab', async () => {

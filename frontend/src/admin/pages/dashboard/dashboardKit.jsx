@@ -51,7 +51,7 @@ export function useRoleDashboard() {
 
   return {
     user,
-    centralized,
+    centralized: readsAll,
     locationName: user?.location?.location_name || user?.branch?.branch_name || 'All Locations',
     data,
     inv: [],

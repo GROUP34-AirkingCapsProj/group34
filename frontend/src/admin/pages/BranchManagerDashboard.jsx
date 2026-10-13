@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Loader from '../components/Loader';
+import { useAuth } from '../context/AuthContext';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler,
@@ -13,6 +14,9 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 export default function BranchManagerDashboard() {
   const navigate = useNavigate();
+  const { can } = useAuth();
+  const canApprovePR = can('purchase_request_approval', 'approve');
+  const canApprovePO = can('purchase_order_creation', 'update');
   const { locationName, data, loading, error } = useRoleDashboard();
 
   if (loading) return <AdminLayout><Loader variant="page" label="Loading branch data" /></AdminLayout>;
@@ -21,7 +25,9 @@ export default function BranchManagerDashboard() {
   const stats = data?.stats ?? {};
   const skus = Number(stats.total_items ?? 0);
   const units = (data?.inventory_by_category?.values ?? []).reduce((s, v) => s + Number(v || 0), 0);
-  const pendingApprovals = Number(stats.pending_pos || 0) + Number(stats.pending_transfers || 0);
+  const pendingPRs = canApprovePR ? Number(stats.pending_prs || 0) : 0;
+  const pendingPOs = canApprovePO ? Number(stats.pending_pos || 0) : 0;
+  const pendingApprovals = pendingPRs + pendingPOs;
   const lowStockItems = data?.low_stock_items ?? [];
   const tt = data?.transaction_trends ?? { labels: [], values: [], purchase_values: [] };
 
@@ -46,7 +52,7 @@ export default function BranchManagerDashboard() {
             </div>
             <div className="ak-header-aside ak-actions">
               <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/inventory')}>View inventory</button>
-              <button className="ak-btn ak-btn--primary" onClick={() => navigate('/approvals')}>Approvals</button>
+              <button className="ak-btn ak-btn--primary" onClick={() => navigate('/alerts')}>Approvals</button>
             </div>
           </div>
         </header>
@@ -57,6 +63,17 @@ export default function BranchManagerDashboard() {
           <Kpi label="Pending approvals" value={fmt(pendingApprovals)} tone="crimson" icon={<Check />} />
           <Kpi label="Stock units" value={fmt(units)} tone="blue" icon={<Layers />} />
         </div>
+
+        {(canApprovePR || canApprovePO) && <div className="ak-card">
+          <div className="ak-card-head">
+            <div><h2 className="ak-card-title">Pending purchase approvals</h2>
+              <p className="ak-card-meta">Review purchase requests and purchase orders. POs require auditor verification before approval.</p></div>
+          </div>
+          <div className="ak-actions">
+            {canApprovePR && <button className="ak-btn ak-btn--primary" onClick={() => navigate('/purchase-requests', { state: { tab: 'approvals' } })}>Purchase requests ({fmt(pendingPRs)})</button>}
+            {canApprovePO && <button className="ak-btn ak-btn--ghost" onClick={() => navigate('/draft-po-creator')}>Purchase orders ({fmt(pendingPOs)})</button>}
+          </div>
+        </div>}
 
         <div className="ak-card">
           <div className="ak-card-head"><div><h2 className="ak-card-title">Stock movement (last 7 days)</h2><p className="ak-card-meta">Sales out vs purchases in</p></div></div>

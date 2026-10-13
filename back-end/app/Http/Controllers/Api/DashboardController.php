@@ -413,6 +413,10 @@ class DashboardController extends Controller
             $pendingPOs = $pendingPOsQuery->count();
         }
 
+        $pendingPRs = $noData ? 0 : PurchaseRequest::where('status_id', 13)
+            ->when(!$readsAll, fn ($q) => $q->where('location_id', $locId))
+            ->count();
+
         // ── pending_registrations: PendingProduct has no location_id — always global
         $pendingRegistrations = PendingProduct::where('status', 'pending')->count();
 
@@ -451,6 +455,7 @@ class DashboardController extends Controller
             'total_sales'           => $totalSales,
             'pending_transfers'     => $pendingTransfers,
             'pending_pos'           => $pendingPOs,
+            'pending_prs'           => $pendingPRs,
             'pending_registrations' => $pendingRegistrations,
             'pending_actions'       => $pendingTransfers + $pendingPOs + $pendingRegistrations,
             'awaiting_fulfillment'  => $awaiting['fulfillment'],
