@@ -128,9 +128,39 @@ through a `makeApprover()` helper. The read-back assertion deliberately uses the
 inventory analyst, who after the realignment holds `read` but neither `inspect`
 nor `resolve`, which is a stronger version of what it was checking.
 
+### Five suites missed on the first pass (fixed 2026-10-13)
+
+The two files above were not the only ones built on the old matrix. Five more
+asserted it and were left failing — 21 tests, all permission-gate mismatches:
+`IncidentResolutionTest` (9), `IncidentRestockTest` (5),
+`IncidentStandaloneFilingTest` (4), `VerifyAssignTest` (2) and
+`OffloadFlowTest` (1). Twenty had the analyst getting 403 where success or a
+validation error was expected; one had the branch manager reaching validation
+where a 403 was expected, because it *gained* `resolve`.
+
+Each suite centred on an `inspectAndConfirm()` helper that inspected as
+branch_manager and confirmed as inventory_analyst — the old split. All now use
+two distinct branch managers, matching the `makeApprover()` pattern above. The
+transfer suites approve as admin, the only holder of `inventory_transfers,approve`.
+Analyst actors were kept wherever they only read (`GET /incident-reports`),
+since `read` survived the realignment.
+
+`test_a_branch_manager_can_file_but_not_resolve` could not simply be repointed:
+its premise — that the manager inspects but cannot resolve — is exactly what
+this change removed. It is now
+`test_the_inspector_cannot_confirm_their_own_inspection`, asserting both halves
+of the rule that does still hold (same user 403, different branch manager 200).
+Restoring the role boundary remains the open policy question noted above, and
+the test no longer presumes an answer either way.
+
 ## Verification
 
-- `php artisan test` — 1,750 passed, 5 skipped, 0 failures
+- `php artisan test` — 1,757 passed, 5 skipped, 0 failures (2026-10-13, after
+  the five suites above were fixed; 1,755 of these predate the two NavBundleTest
+  cases added by the `/admin` URL-prefix removal)
+- The earlier claim of "1,750 passed, 0 failures" did not hold: that run
+  predates the migration reaching `airkingV5_test`, which is what surfaced the
+  21 failures
 - Migration applied to `airkingvv6` and `airkingV5_test`, and the resulting
   `role_permissions` rows read back and checked against the table above
 - Use case `.drawio` and `.svg` re-parsed as XML, and all 44 association lines

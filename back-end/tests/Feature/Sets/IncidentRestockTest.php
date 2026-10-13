@@ -65,22 +65,26 @@ class IncidentRestockTest extends SetTestCase
      * Record the outcome, submit the inspection, then confirm as a second
      * person — the client's two signature lines are enforced, so the inspector
      * cannot confirm their own report while another resolver can reach the
-     * location. branch_manager holds `inspect`, inventory_analyst `resolve`.
+     * location.
+     *
+     * Both are branch managers: the realignment pulled the analyst out of
+     * `inspect` and `resolve` and gave branch_manager the pair, so the split is
+     * now per user rather than per role.
      */
     private function inspectAndConfirm(IncidentReport $incident, $loc, string $outcome): void
     {
-        $bm = $this->makeUserAt($loc, 'branch_manager');
-        $ia = $this->makeUserAt($loc, 'inventory_analyst');
+        $inspector = $this->makeUserAt($loc, 'branch_manager');
+        $resolver  = $this->makeUserAt($loc, 'branch_manager');
         $id = $incident->incident_id;
 
-        $this->actingAs($bm, 'sanctum')
+        $this->actingAs($inspector, 'sanctum')
              ->postJson("/api/incident-reports/{$id}/items/{$this->itemFor($incident)->item_id}/outcome",
                  ['outcome' => $outcome])
              ->assertOk();
 
-        $this->actingAs($bm, 'sanctum')->postJson("/api/incident-reports/{$id}/inspection", [])->assertOk();
+        $this->actingAs($inspector, 'sanctum')->postJson("/api/incident-reports/{$id}/inspection", [])->assertOk();
 
-        $this->actingAs($ia, 'sanctum')
+        $this->actingAs($resolver, 'sanctum')
              ->postJson("/api/incident-reports/{$id}/decide", ['action' => 'confirm'])
              ->assertOk();
     }
@@ -259,8 +263,10 @@ class IncidentRestockTest extends SetTestCase
         // confirmation would double-book, so it is the one worth guarding.
         $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_SCRAP);
 
-        $ia = $this->makeUserAt($loc, 'inventory_analyst');
-        $this->actingAs($ia, 'sanctum')
+        // A third branch manager, so the 422 proves the already-settled guard
+        // fired rather than the same-user rule.
+        $resolver = $this->makeUserAt($loc, 'branch_manager');
+        $this->actingAs($resolver, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
              ->assertStatus(422);
 

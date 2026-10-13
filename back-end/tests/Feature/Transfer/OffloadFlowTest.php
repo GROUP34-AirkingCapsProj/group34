@@ -30,7 +30,8 @@ class OffloadFlowTest extends TransferTestCase
         $src = $this->makeLocation('Src');
         $dst = $this->makeLocation('Dst');
         $product = $this->makeInstallationMaterial();
-        $ia = $this->makeUserAt($src, 'inventory_analyst');
+        $approver = $this->makeUserAt($src, 'admin');
+        $this->setStock($src->location_id, $product->product_id, 3);
 
         $ist = Transfer::create([
             'transfer_request_id' => null, 'intent' => 'offload',
@@ -40,13 +41,13 @@ class OffloadFlowTest extends TransferTestCase
         ]);
         $line = $ist->details()->create(['product_id' => $product->product_id, 'quantity_requested' => 3]);
 
-        // Without a destination the analyst cannot approve it.
-        $this->actingAs($ia, 'sanctum')->postJson("/api/transfers/{$ist->transfer_id}/verify", [
+        // Without a destination the approver cannot approve it.
+        $this->actingAs($approver, 'sanctum')->postJson("/api/transfers/{$ist->transfer_id}/verify", [
             'lines' => [['transfer_detail_id' => $line->transfer_detail_id, 'quantity_approved' => 3]],
         ])->assertStatus(422);
 
         // Assigning the destination approves it.
-        $this->actingAs($ia, 'sanctum')->postJson("/api/transfers/{$ist->transfer_id}/verify", [
+        $this->actingAs($approver, 'sanctum')->postJson("/api/transfers/{$ist->transfer_id}/verify", [
             'to_location_id' => $dst->location_id,
             'lines' => [['transfer_detail_id' => $line->transfer_detail_id, 'quantity_approved' => 3]],
         ])->assertOk();

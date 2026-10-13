@@ -15,26 +15,27 @@ class IncidentStandaloneFilingTest extends SetTestCase
      *
      * Two users, because the client's two signature lines are enforced — the
      * inspector cannot confirm their own report while another resolver exists
-     * at that location. The inspector is a branch_manager (inspect, no resolve)
-     * and the approver an inventory_analyst (resolve).
+     * at that location. Both are branch managers: the realignment pulled the
+     * analyst out of `inspect` and `resolve` and gave branch_manager the pair,
+     * so the split is now per user rather than per role.
      */
     private function inspectAndConfirm(IncidentReport $incident, $loc, string $outcome): void
     {
-        $bm = $this->makeUserAt($loc, 'branch_manager');
-        $ia = $this->makeUserAt($loc, 'inventory_analyst');
+        $inspector = $this->makeUserAt($loc, 'branch_manager');
+        $resolver  = $this->makeUserAt($loc, 'branch_manager');
 
         foreach (IncidentItem::where('incident_id', $incident->incident_id)->get() as $item) {
-            $this->actingAs($bm, 'sanctum')
+            $this->actingAs($inspector, 'sanctum')
                  ->postJson("/api/incident-reports/{$incident->incident_id}/items/{$item->item_id}/outcome",
                      ['outcome' => $outcome])
                  ->assertOk();
         }
 
-        $this->actingAs($bm, 'sanctum')
+        $this->actingAs($inspector, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/inspection", [])
              ->assertOk();
 
-        $this->actingAs($ia, 'sanctum')
+        $this->actingAs($resolver, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
              ->assertOk();
     }
@@ -160,7 +161,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
     public function test_an_other_incident_needs_no_product_and_posts_no_artifact(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $resolver = $this->makeUserAt($loc, 'branch_manager');
         $wp  = $this->makeUserAt($loc, 'warehouse_personnel');
 
         $incident = app(IncidentService::class)->file([
@@ -178,7 +179,7 @@ class IncidentStandaloneFilingTest extends SetTestCase
         // Moved from /resolve to /decide, and it still lands directly on
         // Resolved: `other` is inspection-exempt, so there is no intervening
         // Awaiting Inspection or Awaiting Approval to walk through.
-        $this->actingAs($ia, 'sanctum')
+        $this->actingAs($resolver, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/decide", [
                  'action' => 'confirm', 'resolution_note' => 'Maintenance ticket raised.',
              ])->assertOk();
@@ -435,13 +436,30 @@ class IncidentStandaloneFilingTest extends SetTestCase
         ])->assertStatus(422)->assertJsonValidationErrors(['source_id']);
     }
 
-    public function test_a_branch_manager_can_file_but_not_resolve(): void
+    /**
+     * Maker-checker, as it exists after the role realignment.
+     *
+     * This was `test_a_branch_manager_can_file_but_not_resolve`, and it held
+     * because the matrix gave branch_manager `inspect` without `resolve` — the
+     * examiner and the approver were different ROLES, which is what the
+     * client's two signature lines describe. The realignment moved `resolve`
+     * onto branch_manager, so that role boundary is gone and the separation
+     * survives only per user: IncidentInspectionController::wouldSelfApprove
+     * refuses a confirmation from whoever submitted the inspection.
+     *
+     * So this now pins the control the system actually has. Restoring the role
+     * boundary would mean taking `resolve` back off branch_manager, which is a
+     * policy decision recorded in the realignment design doc, not something a
+     * test should assert either way.
+     */
+    public function test_the_inspector_cannot_confirm_their_own_inspection(): void
     {
         $loc = $this->makeLocation();
-        $bm  = $this->makeUserAt($loc, 'branch_manager');
+        $inspector = $this->makeUserAt($loc, 'branch_manager');
+        $other     = $this->makeUserAt($loc, 'branch_manager');
         $p   = $this->makeInstallationMaterial();
 
-        $res = $this->actingAs($bm, 'sanctum')->postJson('/api/incident-reports', [
+        $res = $this->actingAs($inspector, 'sanctum')->postJson('/api/incident-reports', [
             'source_type' => 'standalone',
             'location_id' => $loc->location_id,
             'product_id'  => $p->product_id,
@@ -450,14 +468,29 @@ class IncidentStandaloneFilingTest extends SetTestCase
             'narrative'   => 'Noticed a unit missing during the morning walk.',
         ]);
         $res->assertCreated();
+        $id = $res->json('data.incident_id');
 
-        // Maker-checker: filing a write-off and approving it stay different people.
-        // Moved from /resolve to /decide, and the separation is now sharper —
-        // a branch_manager holds `inspect` but not `resolve`, so they can
-        // examine the goods and still cannot confirm the write-off.
-        $this->actingAs($bm, 'sanctum')
-             ->postJson("/api/incident-reports/{$res->json('data.incident_id')}/decide", ['action' => 'confirm'])
+        // The same person inspects what they filed, and records a write-off.
+        foreach (IncidentItem::where('incident_id', $id)->get() as $item) {
+            $this->actingAs($inspector, 'sanctum')
+                 ->postJson("/api/incident-reports/{$id}/items/{$item->item_id}/outcome",
+                     ['outcome' => IncidentItem::OUTCOME_SCRAP])
+                 ->assertOk();
+        }
+        $this->actingAs($inspector, 'sanctum')
+             ->postJson("/api/incident-reports/{$id}/inspection", [])
+             ->assertOk();
+
+        // Maker-checker: the examiner cannot sign off their own finding.
+        $this->actingAs($inspector, 'sanctum')
+             ->postJson("/api/incident-reports/{$id}/decide", ['action' => 'confirm'])
              ->assertForbidden();
+
+        // A different branch manager can — which is what makes the rule a
+        // control rather than a deadlock.
+        $this->actingAs($other, 'sanctum')
+             ->postJson("/api/incident-reports/{$id}/decide", ['action' => 'confirm'])
+             ->assertOk();
     }
 
     public function test_a_read_only_auditor_cannot_file(): void

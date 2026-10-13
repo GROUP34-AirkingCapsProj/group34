@@ -48,24 +48,30 @@ class IncidentResolutionTest extends SetTestCase
      * Record the outcome, submit the inspection, then confirm as a second
      * person. Two users because the client's two signature lines are enforced:
      * an inspector cannot confirm their own report while another resolver can
-     * reach that location. branch_manager holds `inspect`, inventory_analyst
-     * `resolve`.
+     * reach that location.
+     *
+     * Both are branch managers. The realignment pulled the analyst out of
+     * `inspect` and `resolve` and gave branch_manager the pair, so the
+     * examiner/approver split is no longer a role boundary — it survives only
+     * per user, through IncidentInspectionController refusing a confirmation
+     * from whoever submitted the inspection. Two distinct users of the same
+     * role is therefore exactly what this helper has to exercise.
      */
     private function inspectAndConfirm(IncidentReport $incident, $loc, string $outcome, array $decision = []): void
     {
-        $bm = $this->makeUserAt($loc, 'branch_manager');
-        $ia = $this->makeUserAt($loc, 'inventory_analyst');
+        $inspector = $this->makeUserAt($loc, 'branch_manager');
+        $resolver  = $this->makeUserAt($loc, 'branch_manager');
         $id = $incident->incident_id;
 
         foreach (IncidentItem::where('incident_id', $id)->get() as $item) {
-            $this->actingAs($bm, 'sanctum')
+            $this->actingAs($inspector, 'sanctum')
                  ->postJson("/api/incident-reports/{$id}/items/{$item->item_id}/outcome", ['outcome' => $outcome])
                  ->assertOk();
         }
 
-        $this->actingAs($bm, 'sanctum')->postJson("/api/incident-reports/{$id}/inspection", [])->assertOk();
+        $this->actingAs($inspector, 'sanctum')->postJson("/api/incident-reports/{$id}/inspection", [])->assertOk();
 
-        $this->actingAs($ia, 'sanctum')
+        $this->actingAs($resolver, 'sanctum')
              ->postJson("/api/incident-reports/{$id}/decide", ['action' => 'confirm'] + $decision)
              ->assertOk();
     }
@@ -158,7 +164,7 @@ class IncidentResolutionTest extends SetTestCase
     public function test_dismissing_missing_returns_the_stock_to_fifo(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $resolver = $this->makeUserAt($loc, 'branch_manager');
         $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
@@ -166,8 +172,10 @@ class IncidentResolutionTest extends SetTestCase
         $this->assertContains((int) $b->batch_id, app(IncidentService::class)->excludedBatchIds($loc->location_id));
 
         // A dismissal needs no inspection: it says the report described nothing
-        // real, so there is nothing for an inspector to find.
-        $this->actingAs($ia, 'sanctum')
+        // real, so there is nothing for an inspector to find. One resolver is
+        // therefore enough — the same-user rule only bites once an inspection
+        // has been submitted.
+        $this->actingAs($resolver, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/decide", [
                  'action' => 'dismiss', 'resolution_note' => 'Found it behind the pallet.',
              ])->assertOk();
@@ -263,13 +271,13 @@ class IncidentResolutionTest extends SetTestCase
     public function test_wrong_type_follows_the_ordinary_inspection_route(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $resolver = $this->makeUserAt($loc, 'branch_manager');
         $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 4, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
         $incident = $this->openIncident($loc, $p, $b, IncidentReport::REASON_WRONG_TYPE);
 
-        $this->actingAs($ia, 'sanctum')
+        $this->actingAs($resolver, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
              ->assertStatus(422);
 
@@ -294,7 +302,7 @@ class IncidentResolutionTest extends SetTestCase
     public function test_resolving_zone_mismatch_changes_nothing_at_all(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $resolver = $this->makeUserAt($loc, 'branch_manager');
         $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 7, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
@@ -303,7 +311,7 @@ class IncidentResolutionTest extends SetTestCase
         // Moved to /decide, and confirmable straight from Open: a zone mismatch
         // is inspection-exempt, because demanding photographs and two signatures
         // to record that a box is on the wrong shelf teaches people not to report.
-        $this->actingAs($ia, 'sanctum')
+        $this->actingAs($resolver, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
              ->assertOk();
 
@@ -330,7 +338,7 @@ class IncidentResolutionTest extends SetTestCase
     public function test_confirming_twice_is_rejected(): void
     {
         $loc = $this->makeLocation();
-        $ia  = $this->makeUserAt($loc, 'inventory_analyst');
+        $resolver = $this->makeUserAt($loc, 'branch_manager');
         $p   = $this->makeInstallationMaterial();
         $b   = $this->makeBatch($p, $loc, ['quantity_remaining' => 5, 'received_at' => now(), 'zone_label' => 'Zone 1']);
 
@@ -338,7 +346,9 @@ class IncidentResolutionTest extends SetTestCase
 
         $this->inspectAndConfirm($incident, $loc, IncidentItem::OUTCOME_SCRAP);
 
-        $this->actingAs($ia, 'sanctum')
+        // A third branch manager, so the 422 proves the already-resolved guard
+        // fired rather than the same-user rule.
+        $this->actingAs($resolver, 'sanctum')
              ->postJson("/api/incident-reports/{$incident->incident_id}/decide", ['action' => 'confirm'])
              ->assertStatus(422);
 
