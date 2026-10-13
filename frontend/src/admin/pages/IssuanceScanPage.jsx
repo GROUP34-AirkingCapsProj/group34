@@ -280,6 +280,7 @@ export default function IssuanceScanPage() {
           accepted: true,
           overridable: false,
           message: `${body.product_name ?? 'Item'} picked.`,
+          quantity: body.quantity_in_pieces ?? body.quantity_issued ?? quantity,
         },
       };
     }
@@ -538,6 +539,7 @@ export default function IssuanceScanPage() {
                   <div className="ak-card" style={{ textAlign: 'center', padding: '2rem' }}>Loading pick plan…</div>
                 ) : (
                   <PickScanner
+                    fullOrderScan
                     plan={plan}
                     onScan={onScan}
                     onIncident={handleIncident}

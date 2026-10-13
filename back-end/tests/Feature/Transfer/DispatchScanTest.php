@@ -33,6 +33,12 @@ class DispatchScanTest extends TransferTestCase
         );
         $this->assertSame(1, $res['total_scanned']);
         $this->assertSame(1, $res['remaining']);
+        $history = $ist->fresh()->load('scanHistory.user')->scanHistory;
+        $this->assertCount(1, $history);
+        $this->assertSame($sn, $history->first()->barcode);
+        $this->assertSame(1, $history->first()->quantity);
+        $this->assertSame($user->user_id, $history->first()->user->user_id);
+
     }
 
     public function test_double_scan_same_serial_is_rejected(): void

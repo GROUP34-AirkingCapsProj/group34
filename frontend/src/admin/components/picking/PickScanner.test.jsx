@@ -150,12 +150,12 @@ test('accepted scans keep feedback visible when the final product is completed',
   expect(screen.getByText(/Next scan:/)).toHaveTextContent('2 pieces');
   fireEvent.change(screen.getByLabelText(/scan barcode/i), { target: { value: 'GOOD-1' } });
   await act(async () => { fireEvent.submit(screen.getByLabelText(/scan barcode/i).closest('form')); });
-  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan recorded successfully/)).toBeInTheDocument();
   expect(screen.getByText('GOOD-1')).toBeInTheDocument();
   expect(screen.getByLabelText(/scan barcode/i)).toHaveFocus();
   rerender(<PickScanner plan={[]} onScan={onScan} />);
   expect(screen.getByText('All items picked')).toBeInTheDocument();
-  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan recorded successfully/)).toBeInTheDocument();
 });
 
 test('rejects scans visibly and permits an immediate retry without dismissing feedback', async () => {
@@ -165,11 +165,11 @@ test('rejects scans visibly and permits an immediate retry without dismissing fe
   const input = screen.getByLabelText(/scan barcode/i);
   fireEvent.change(input, { target: { value: 'WRONG' } });
   await act(async () => { fireEvent.submit(input.closest('form')); });
-  expect(screen.getByText(/Scan not accepted/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan error/)).toBeInTheDocument();
   expect(screen.getByText('Wrong product')).toBeInTheDocument();
   fireEvent.change(input, { target: { value: 'RIGHT' } });
   await act(async () => { fireEvent.submit(input.closest('form')); });
-  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan recorded successfully/)).toBeInTheDocument();
   expect(onScan).toHaveBeenCalledTimes(2);
 });
 
@@ -184,7 +184,7 @@ test('prevents overlapping submissions before the parent busy state updates', as
   fireEvent.submit(input.closest('form'));
   expect(onScan).toHaveBeenCalledTimes(1);
   await act(async () => { resolveScan({ scan_result: { status: 'ACCEPTED' } }); });
-  expect(screen.getByText(/Scan successful/)).toBeInTheDocument();
+  expect(screen.getByText(/Scan recorded successfully/)).toBeInTheDocument();
 });
 
 
@@ -197,4 +197,29 @@ test('scanner input refocusing preserves the page scroll position after a scan',
   await act(async () => { fireEvent.submit(input.closest('form')); });
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   focus.mockRestore();
+});
+
+
+test.each([
+  ['one batch', [{ batch_id: 11, zone_label: 'A-01', quantity: 10 }]],
+  ['multiple batches', [{ batch_id: 11, zone_label: 'A-01', quantity: 3 }, { batch_id: 12, zone_label: 'B-01', quantity: 7 }]],
+  ['legacy stock without batch suggestions', []],
+])('issue-out picks all 10 rubber pieces in one scan with %s', async (_, suggestions) => {
+  const onScan = jest.fn().mockResolvedValue({ scan_result: { status: 'ACCEPTED', accepted: true } });
+  render(<PickScanner fullOrderScan plan={[{ product_id: 7, product_name: 'Rubber', needed: 10, suggestions }]} onScan={onScan} />);
+  const input = screen.getByLabelText(/scan barcode/i);
+  fireEvent.change(input, { target: { value: 'RUBBER' } });
+  await act(async () => { fireEvent.submit(input.closest('form')); });
+  expect(onScan).toHaveBeenCalledTimes(1);
+  expect(onScan).toHaveBeenCalledWith('RUBBER', suggestions[0]?.zone_label ?? null, 10, null);
+});
+
+test('issue-out still picks one aircon per serial scan', async () => {
+  const onScan = jest.fn().mockResolvedValue({ scan_result: { status: 'ACCEPTED', accepted: true } });
+  render(<PickScanner fullOrderScan plan={[{ product_id: 7, product_name: 'Aircon', needed: 10,
+    suggestions: [{ serial_id: 1, serial_number: 'AC-001', quantity: 1 }] }]} onScan={onScan} />);
+  const input = screen.getByLabelText(/scan barcode/i);
+  fireEvent.change(input, { target: { value: 'AC-001' } });
+  await act(async () => { fireEvent.submit(input.closest('form')); });
+  expect(onScan).toHaveBeenCalledWith('AC-001', null, 1, null);
 });

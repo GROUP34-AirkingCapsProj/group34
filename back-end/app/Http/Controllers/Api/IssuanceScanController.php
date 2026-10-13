@@ -485,6 +485,7 @@ class IssuanceScanController extends Controller
             }
         }
 
+        $scannedCode = trim((string) $validated['barcode']);
         $requestedQty = (float) ($validated['quantity'] ?? 1);
         $quantityUnit = $validated['quantity_unit']
                        ?? ($product->installationMaterialDetail?->unit?->unit_abbreviation ?? 'piece');
@@ -504,7 +505,7 @@ class IssuanceScanController extends Controller
             $issuance, $product, $requestedQty, $quantityUnit,
             $quantityInPieces, $packagePrice, $pricePerPiece,
             $lineSubtotal, $locationId, $piecesPerPackage,
-            $baseUnitName, $baseUnitAbbr, $fifoOverrideReason, $verdict
+            $baseUnitName, $baseUnitAbbr, $fifoOverrideReason, $verdict, $scannedCode
         ) {
             // Serialize scans for this order and re-check the unpicked quantity
             // inside the transaction. Two fast scanner/manual submissions must
@@ -559,7 +560,7 @@ class IssuanceScanController extends Controller
             $detail = IssuanceDetail::create([
                 'issuance_id'          => $issuance->issuance_id,
                 'product_id'           => $product->product_id,
-                'serial_number'        => null,
+                'serial_number'        => $scannedCode,
                 'receiving_id'         => $batch?->receiving_id,
                 'batch_id'             => $batchId,
                 'zone_label'           => $batch?->zone_label,
@@ -605,6 +606,7 @@ class IssuanceScanController extends Controller
                     'direction'        => 'out',
                     'movement_type'    => 'issuance',
                     'product_id'       => (int) $product->product_id,
+                    'serial_number'    => $scannedCode,
                     'batch_id'         => (int) $touchedBatchId,
                     'quantity'         => (int) $deductedQuantity,
                     'unit_cost'        => $sliceCost !== null ? (float) $sliceCost : null,
@@ -625,7 +627,7 @@ class IssuanceScanController extends Controller
                 $issuance->issuance_id,
                 $product->product_id,
                 $locationId,
-                null,
+                $scannedCode,
                 'applied',
                 $quantityInPieces
             );
@@ -636,6 +638,7 @@ class IssuanceScanController extends Controller
                 'success'            => true,
                 'action'             => 'applied',
                 'product_type'       => 'installation_material',
+                'serial_number'      => $scannedCode,
                 'product_id'         => $product->product_id,
                 'product_name'       => $product->product_name,
                 'product_code'       => $product->product_code,

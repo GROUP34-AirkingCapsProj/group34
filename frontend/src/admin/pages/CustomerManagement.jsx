@@ -18,12 +18,6 @@ const EMPTY_FORM = {
   email:          '',
   company_name:   '',
   address:        '',
-  city:           '',
-  province:       '',
-  region:         '',
-  tin:            '',
-  notes:          '',
-  credit_limit:   '',
 };
 
 const TYPE_LABELS = {
@@ -158,12 +152,6 @@ const CustomerManagement = () => {
       email:          c.email          ?? '',
       company_name:   c.company_name   ?? '',
       address:        c.address        ?? '',
-      city:           c.city           ?? '',
-      province:       c.province       ?? '',
-      region:         c.region         ?? '',
-      tin:            c.tin            ?? '',
-      notes:          c.notes          ?? '',
-      credit_limit:   c.credit_limit   ?? '',
       status_id:      c.status_id      ?? 36,
     });
     setEditingCustomer(c);
@@ -174,10 +162,7 @@ const CustomerManagement = () => {
     setSubmitting(true);
     setFormError('');
     try {
-      const payload = {
-        ...formData,
-        credit_limit: formData.credit_limit !== '' ? parseFloat(formData.credit_limit) : null,
-      };
+      const payload = { ...formData };
       if (editingCustomer) {
         await customersAPI.update(editingCustomer.customer_id, payload);
         setEditingCustomer(null);
@@ -235,17 +220,6 @@ const CustomerManagement = () => {
       {formError && <div className="cr-form-error" role="alert">{formError}</div>}
 
       <div className="cr-form-group">
-        <label>Type</label>
-        <select
-          value={formData.customer_type}
-          onChange={(e) => setFormData({ ...formData, customer_type: e.target.value })}
-        >
-          <option value="registered">Registered</option>
-          <option value="walk_in">Walk-in</option>
-        </select>
-      </div>
-
-      <div className="cr-form-group">
         <label>Customer Name *</label>
         <input
           value={formData.customer_name}
@@ -272,29 +246,11 @@ const CustomerManagement = () => {
       </div>
 
       <div className="cr-form-group">
-        <label>Company Name</label>
+        <label>Company Name (optional)</label>
         <input
+          placeholder="Leave blank if none"
           value={formData.company_name}
           onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-        />
-      </div>
-
-      <div className="cr-form-group">
-        <label>TIN</label>
-        <input
-          value={formData.tin}
-          onChange={(e) => setFormData({ ...formData, tin: e.target.value })}
-        />
-      </div>
-
-      <div className="cr-form-group">
-        <label>Credit Limit</label>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={formData.credit_limit}
-          onChange={(e) => setFormData({ ...formData, credit_limit: e.target.value })}
         />
       </div>
 
@@ -303,40 +259,6 @@ const CustomerManagement = () => {
         <input
           value={formData.address}
           onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-        />
-      </div>
-
-      <div className="cr-form-row">
-        <div className="cr-form-group">
-          <label>City</label>
-          <input
-            value={formData.city}
-            onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-          />
-        </div>
-        <div className="cr-form-group">
-          <label>Province</label>
-          <input
-            value={formData.province}
-            onChange={(e) => setFormData({ ...formData, province: e.target.value })}
-          />
-        </div>
-      </div>
-
-      <div className="cr-form-group">
-        <label>Region</label>
-        <input
-          value={formData.region}
-          onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-        />
-      </div>
-
-      <div className="cr-form-group">
-        <label>Notes</label>
-        <textarea
-          value={formData.notes}
-          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          rows={2}
         />
       </div>
 

@@ -425,7 +425,7 @@ test('renders no sub-line when pieces_expected is null (piece-counted / applianc
   expect(screen.queryByText(/expected/i)).not.toBeInTheDocument();
 });
 
-test("offers no tag barcode for an appliance whose serial is the manufacturer own", async () => {
+test("shows a digital barcode for a manufacturer serial without offering material tag printing", async () => {
   inventoryAPI.getAll.mockResolvedValue({
     data: [{ ...materialInventoryRow, inventory_id: 78, product: { product_id: 9, product_name: 'Split 1.5HP', product_type: 'appliance' } }],
     pagination: { total: 1, last_page: 1 },
@@ -455,7 +455,7 @@ test("offers no tag barcode for an appliance whose serial is the manufacturer ow
 
   expect(await screen.findByText('SN-REAL-0001')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /print tags/i })).not.toBeInTheDocument();
-  expect(screen.queryAllByTestId('barcode')).toHaveLength(0);
+  expect(screen.getByTestId('barcode')).toHaveAttribute('data-value', 'SN-REAL-0001');
 });
 
 
@@ -524,9 +524,8 @@ test('keeps the per-unit columns for an appliance, which does fill them', async 
   await screen.findByText('SN-APPLIANCE-1');
   const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
   expect(headers).toEqual(expect.arrayContaining(['Stock In', 'Stock Out', 'Transfer']));
-  // Nothing minted a tag of ours for a manufacturer's serial, so the columns
-  // that only exist to carry one stay off the table.
-  expect(headers).not.toContain('Digital Barcode');
+  // Manufacturer serials have digital barcodes, while material tag metadata stays hidden.
+  expect(headers).toContain('Digital Barcode');
   expect(headers).not.toContain('Tag Covers');
 });
 

@@ -34,7 +34,7 @@ class TransferController extends Controller
 
     private static function withRelations(): array
     {
-        return ['fromLocation', 'toLocation', 'requestedBy', 'approvedBy', 'status', 'details.product'];
+        return ['fromLocation', 'toLocation', 'requestedBy', 'approvedBy', 'status', 'details.product', 'scanHistory.user'];
     }
 
     public function index(Request $request)

@@ -5,10 +5,8 @@ import Barcode from 'react-barcode';
    Shared by every screen that lists unit-level records, so the affordances a
    row offers never disagree between the per-SKU modal and the PO group modal. */
 
-/* A row is scannable whenever it carries a barcode of ours to show — whether
-   we generated it or it is the supplier's own code copied onto the tag. An
-   appliance's serial is the manufacturer's, with no tag of ours behind it, and
-   a retired tag points at stock that is gone, so both get a dash instead. */
+/* Material tag actions retain their lifecycle rules. Digital barcodes can also
+   encode manufacturer serial numbers without minting a new tag. */
 export const isScannableTag = (s) => Boolean(s?.is_material_tag) && s?.serial_type !== 'issued';
 
 /* A tag is printable only while it is both scannable and ours to reprint:
@@ -17,6 +15,9 @@ export const isScannableTag = (s) => Boolean(s?.is_material_tag) && s?.serial_ty
    supplier's own code is scannable but not printable — reprinting someone
    else's barcode puts two labels of differing provenance on one box. */
 export const isPrintableTag = (s) => isScannableTag(s) && s?.supplier_barcode == null;
+
+const hasDigitalBarcode = (s) => Boolean(s?.serial_number)
+  && (!s?.is_material_tag || isScannableTag(s));
 
 const fmtDateTime = (v) => (v
   ? new Date(v).toLocaleString('en-PH', {
@@ -79,10 +80,10 @@ export default function SerialRecordsTable({
     {
       key: 'barcode',
       header: 'Digital Barcode',
-      has: (s) => isScannableTag(s),
+      has: (s) => hasDigitalBarcode(s),
       cell: (s) => (
         <td className="invd-cell-barcode" key="barcode">
-          {isScannableTag(s) ? (
+          {hasDigitalBarcode(s) ? (
             <button
               type="button"
               className="bsr-tag-card-zoom invd-barcode-zoom"

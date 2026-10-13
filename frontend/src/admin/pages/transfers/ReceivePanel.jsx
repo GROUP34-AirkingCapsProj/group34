@@ -1,3 +1,4 @@
+import { focusScanInput } from '../../utils/scanInputFocus';
 import ScanFeedback from '../../components/ScanFeedback';
 import useScanFeedback from '../../hooks/useScanFeedback';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -27,7 +28,6 @@ const ReceivePanel = ({ transfer, onDone }) => {
   const scanInFlight = useRef(false);
   const scanFieldRef = useRef(null);
   const [scanInput, setScanInput] = useState('');
-  const [scanQty, setScanQty] = useState(1);
   const [scanning, setScanning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [received, setReceived] = useState(false);
@@ -56,7 +56,9 @@ const ReceivePanel = ({ transfer, onDone }) => {
     }
     const detail = details.find((d) => d.transfer_detail_id === activeLine);
     const serialized = isLineSerialized(detail);
-    const quantity = serialized ? 1 : Math.max(1, parseInt(scanQty, 10) || 1);
+    const quantity = serialized ? 1 : Math.max(0, lineTarget(detail) - Number(receivedTotalsRef.current[activeLine] || 0));
+
+    if (quantity <= 0) { reportScan(false, 'This item is already fully received.', barcode); return; }
 
     scanInFlight.current = true;
     setScanning(true);
@@ -65,7 +67,7 @@ const ReceivePanel = ({ transfer, onDone }) => {
         barcode,
         transfer_detail_id: activeLine,
         quantity,
-        quantity_unit: serialized ? 'piece' : 'package',
+        quantity_unit: 'piece',
       });
       const data = result?.data ?? result;
       if (result?.success === false || data?.action === 'rejected') {
@@ -83,7 +85,6 @@ const ReceivePanel = ({ transfer, onDone }) => {
       if (data.remaining === 0) {
         const next = details.find((d) => d.transfer_detail_id !== did && (nextTotals[d.transfer_detail_id] || 0) < lineTarget(d));
         setActiveLine(next ? next.transfer_detail_id : null);
-        setScanQty(1);
       }
     } catch (err) {
       const msg = err?.errors ? Object.values(err.errors).flat().join(' ') : (err?.message || 'Scan rejected.');
@@ -92,9 +93,9 @@ const ReceivePanel = ({ transfer, onDone }) => {
       scanInFlight.current = false;
       setScanning(false);
     }
-  }, [id, activeLine, details, scanQty, reportScan]);
+  }, [id, activeLine, details, reportScan]);
 
-  useEffect(() => { if (!scanning) scanFieldRef.current?.focus({ preventScroll: true }); }, [scanning, activeLine]);
+  useEffect(() => { if (!scanning) focusScanInput(scanFieldRef.current); }, [scanning, activeLine]);
 
   const submitManual = async () => {
     const v = scanInput.trim();
@@ -229,7 +230,7 @@ const ReceivePanel = ({ transfer, onDone }) => {
             
                   <CameraScanner
                     statusOverlay={<ScanFeedback feedback={feedback} product={activeDetail?.product?.product_name}
-                    quantity={activeSerialized ? 1 : Math.max(1, parseInt(scanQty, 10) || 1)} unit={activeSerialized ? 'pieces' : 'packages'} completed={receivedTotals[activeLine]}
+                    quantity={activeSerialized ? 1 : Math.max(0, lineTarget(activeDetail) - Number(receivedTotals[activeLine] || 0))} unit="pieces" completed={receivedTotals[activeLine]}
                     target={activeDetail?.quantity_transferred ?? activeDetail?.quantity_scanned} busy={scanning} overlay />}
               onDecode={handleLineScan}
               mountId="tf-receive-scanner"
@@ -250,14 +251,7 @@ const ReceivePanel = ({ transfer, onDone }) => {
                 disabled={scanning || activeLine == null}
                 autoComplete="off"
               />
-              {activeDetail && !activeSerialized && (
-                <input
-                  type="number" min={1} value={scanQty}
-                  onChange={(e) => setScanQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                  disabled={scanning} title="Number of packages represented by this scan"
-                  style={{ width: 64, padding: '8px 6px', borderRadius: 6, border: '1px solid var(--border-strong)', fontSize: 13, textAlign: 'center' }}
-                />
-              )}
+
               {activeDetail && !activeSerialized && (
                 <span style={{ fontSize: 11, color: 'var(--ink-blue-500)', whiteSpace: 'nowrap' }}>
                   package(s) × {Number(activeDetail.product?.pieces_per_package || activeDetail.product?.installation_material_detail?.pieces_per_package || 1)} pcs

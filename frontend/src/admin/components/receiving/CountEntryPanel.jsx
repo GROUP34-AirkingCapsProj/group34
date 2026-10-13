@@ -1,3 +1,4 @@
+import { canAutoFocusScanInput } from '../../utils/scanInputFocus';
 import { useMemo, useState } from 'react';
 import '../../styles/po_receiving.css';
 
@@ -131,7 +132,7 @@ export default function CountEntryPanel({ line, onSubmit, onCancel, busy = false
         value={value}
         disabled={busy}
         onChange={(e) => setValue(e.target.value)}
-        autoFocus
+        autoFocus={canAutoFocusScanInput()}
       />
 
       {isValid && convertedPieces !== null && (

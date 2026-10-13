@@ -153,7 +153,7 @@ class ReceivingDraftController extends Controller
         }
 
         [$pieces, $packages, $expected, $units] = $entryMode === 'scanned'
-            ? $this->scanQuantities($product)
+            ? $this->scanQuantities($product, $request->filled('quantity') ? (int) $request->input('quantity') : null)
             : $this->countQuantities($product, (int) $request->input('quantity', 1), $request->input('actual_pieces'));
 
         $check = $this->staging->check($draft, $poDetail, $product, $pieces, $packages, $barcode);
@@ -290,19 +290,23 @@ class ReceivingDraftController extends Controller
     }
 
     /**
-     * A scan is exactly one package for an installation material, or one unit for an
-     * appliance. The client's quantity is deliberately ignored so it can never
-     * submit more than one package per scan event.
+     * Material scans may record the remaining document quantity in pieces.
+     * Appliances always record one serial; omitted quantities retain one-package behavior.
      *
      * @return array{0: int, 1: ?int, 2: ?int, 3: int} pieces, packages, expected, units
      */
-    private function scanQuantities(Product $product): array
+    private function scanQuantities(Product $product, ?int $pieces = null): array
     {
         if ($product->isSerialized()) {
             return [1, null, null, 1];
         }
 
         $ppp = $product->getPiecesPerPackage();
+
+        if ($pieces !== null) {
+            $packages = $pieces % $ppp === 0 ? intdiv($pieces, $ppp) : null;
+            return [$pieces, $packages, $packages !== null ? $pieces : null, $packages ?? $pieces];
+        }
 
         return [$ppp, 1, $ppp, 1];
     }

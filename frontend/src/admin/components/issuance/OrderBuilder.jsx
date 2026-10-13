@@ -57,8 +57,8 @@ const EMPTY_FORM = {
   notes: '',
 };
 
-function QuickAddModal({ onSave, onClose }) {
-  const [form, setForm] = useState({ customer_type: 'walk_in', customer_name: '', contact_number: '', email: '' });
+function QuickAddModal({ customerType, onSave, onClose }) {
+  const [form, setForm] = useState({ customer_type: customerType, customer_name: '', contact_number: '', email: '', company_name: '', address: '' });
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -86,19 +86,20 @@ function QuickAddModal({ onSave, onClose }) {
           <input value={form.customer_name} onChange={(e) => setForm((f) => ({ ...f, customer_name: e.target.value }))} required autoFocus />
         </div>
         <div className="isp-form-group">
-          <label>Type</label>
-          <select value={form.customer_type} onChange={(e) => setForm((f) => ({ ...f, customer_type: e.target.value }))}>
-            <option value="registered">Registered</option>
-            <option value="walk_in">Walk-in</option>
-          </select>
-        </div>
-        <div className="isp-form-group">
           <label>Contact Number</label>
           <input value={form.contact_number} onChange={(e) => setForm((f) => ({ ...f, contact_number: e.target.value }))} />
         </div>
         <div className="isp-form-group">
           <label>Email</label>
           <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+        </div>
+        <div className="isp-form-group">
+          <label>Company Name (optional)</label>
+          <input value={form.company_name} onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))} placeholder="Leave blank if none" maxLength={255} />
+        </div>
+        <div className="isp-form-group">
+          <label>Address</label>
+          <textarea rows={2} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
         </div>
         <div className="isp-form-actions">
           <button type="button" className="isp-btn-secondary" onClick={onClose}>Cancel</button>
@@ -116,8 +117,6 @@ function SetupForm({
 }) {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [customerMode, setCustomerMode] = useState('registered');
-  const [walkInMode, setWalkInMode] = useState('registry');
-  const [walkInName, setWalkInName] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [customer, setCustomer] = useState(null);
   const [customerQuery, setCustomerQuery] = useState('');
@@ -158,12 +157,7 @@ function SetupForm({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const isOneTime = customerMode === 'walkin' && walkInMode === 'onetime';
-    const isRegistry = customerMode === 'walkin' && walkInMode === 'registry';
-
-    if (customerMode === 'registered' && !customerId) { toast.error('Select a customer.'); return; }
-    if (isRegistry && !customerId) { toast.error('Add or select a walk-in customer first.'); return; }
-    if (isOneTime && !walkInName.trim()) { toast.error('Enter the walk-in customer name.'); return; }
+    if (!customerId) { toast.error(customerMode === 'walkin' ? 'Add a walk-in customer first.' : 'Select a customer.'); return; }
 
     const effectiveLocationId = isStrictLocation
       ? (enforcedLocationId ?? null)
@@ -172,20 +166,15 @@ function SetupForm({
 
     setSaving(true);
     try {
-      const baseNotes = form.notes ? form.notes.trim() : null;
-      const notesVal = isOneTime
-        ? `Walk-in: ${walkInName.trim()}${baseNotes ? '. ' + baseNotes : ''}`
-        : baseNotes;
-
       const payload = {
         issuance_type: form.issuance_type,
         discount_type: form.discount_type || 'none',
         discount_percent: form.issuance_type === 'business' ? parseFloat(form.discount_percent) || 0 : 0,
         location_id: effectiveLocationId,
         external_reference: form.external_reference.trim() || null,
-        notes: notesVal || null,
+        notes: form.notes.trim() || null,
+        customer_id: parseInt(customerId, 10),
       };
-      if (!isOneTime) payload.customer_id = parseInt(customerId, 10);
 
       const res = await issuanceScanAPI.initSession(payload);
       onSessionCreated(res);
@@ -206,7 +195,7 @@ function SetupForm({
             <button
               type="button"
               className={`isp-mode-btn ${customerMode === 'registered' ? 'isp-mode-btn-active' : ''}`}
-              onClick={() => { setCustomerMode('registered'); setWalkInName(''); setCustomerId(''); setCustomer(null); setCustomerQuery(''); }}
+              onClick={() => { setCustomerMode('registered'); setCustomerId(''); setCustomer(null); setCustomerQuery(''); }}
             >Registered Customer</button>
             <button
               type="button"
@@ -264,37 +253,10 @@ function SetupForm({
 
         {customerMode === 'walkin' && (
           <div className="isp-form-group">
-            <div className="isp-walkin-options">
-              <label className="isp-walkin-option">
-                <input type="radio" name="walkInMode" value="registry" checked={walkInMode === 'registry'} onChange={() => setWalkInMode('registry')} />
-                Save to customer registry (walk-in type)
-              </label>
-              <label className="isp-walkin-option">
-                <input type="radio" name="walkInMode" value="onetime" checked={walkInMode === 'onetime'} onChange={() => setWalkInMode('onetime')} />
-                One-time only (no registry entry)
-              </label>
-            </div>
-            {walkInMode === 'registry' && (
-              <div style={{ marginTop: 8 }}>
-                <button type="button" className="isp-btn-secondary" style={{ fontSize: 13 }} onClick={() => setQuickAddOpen(true)}>
-                  {customer ? `Selected: ${customer.customer_name}` : '+ Add / Select Walk-in Customer'}
-                </button>
-              </div>
-            )}
-            {walkInMode === 'onetime' && (
-              <div style={{ marginTop: 8 }}>
-                <input
-                  type="text"
-                  placeholder="Walk-in customer name *"
-                  value={walkInName}
-                  onChange={(e) => setWalkInName(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }}
-                />
-                <p style={{ marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
-                  Name will be stored in the order notes. No customer record will be created.
-                </p>
-              </div>
-            )}
+            {customer && <p className="isp-customer-selected">Selected: {customer.customer_name}</p>}
+            <button type="button" className="isp-btn-secondary" onClick={() => setQuickAddOpen(true)}>
+              {customer ? 'Change Walk-in Customer' : '+ Add Walk-in Customer'}
+            </button>
           </div>
         )}
 
@@ -374,6 +336,7 @@ function SetupForm({
 
       {quickAddOpen && (
         <QuickAddModal
+          customerType={customerMode === 'walkin' ? 'walk_in' : 'registered'}
           onSave={(newCustomer) => { selectCustomer(newCustomer); setQuickAddOpen(false); }}
           onClose={() => setQuickAddOpen(false)}
         />

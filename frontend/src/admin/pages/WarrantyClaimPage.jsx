@@ -1,3 +1,4 @@
+import { focusScanInput } from '../utils/scanInputFocus';
 import React, { useState, useRef, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { warrantyClaimsAPI, locationsAPI, openApiFile } from '../services/api';
@@ -54,7 +55,7 @@ export default function WarrantyClaimPage() {
 
   useEffect(() => {
     if (step === STEP.ITEMS) {
-      const t = setTimeout(() => scanRef.current?.focus(), 80);
+      const t = setTimeout(() => focusScanInput(scanRef.current), 80);
       return () => clearTimeout(t);
     }
   }, [step, claim]);
@@ -92,7 +93,7 @@ export default function WarrantyClaimPage() {
       setClaim(res?.data ?? res);
       setScanValue(''); setQty(1);
       setFeedback({ ok: true, message: 'Item added.' });
-      scanRef.current?.focus();
+      focusScanInput(scanRef.current);
     } catch (err) {
       setFeedback({ ok: false, message: err.message || 'Could not add the item.' });
     } finally { setBusy(false); }

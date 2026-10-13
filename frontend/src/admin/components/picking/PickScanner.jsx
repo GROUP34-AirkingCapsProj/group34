@@ -1,3 +1,4 @@
+import { focusScanInput } from '../../utils/scanInputFocus';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CameraScanner from '../CameraScanner';
 import ScanFeedback from '../ScanFeedback';
@@ -116,7 +117,7 @@ function extractVerdict(response) {
   return response.scan_result || response.data?.scan_result || response;
 }
 
-export default function PickScanner({ plan = [], onScan, onIncident, busy = false, camera = false, canOverrideFifo = false, singlePackageScan = false }) {
+export default function PickScanner({ plan = [], onScan, onIncident, busy = false, camera = false, canOverrideFifo = false, singlePackageScan = false, fullOrderScan = false }) {
   const [barcode, setBarcode] = useState('');
   const { feedback, reportScan } = useScanFeedback();
   const scanInFlight = useRef(false);
@@ -154,8 +155,10 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   const suggestion = currentStep?.suggestions?.[0] || null;
   const suggestedZone = suggestion?.zone_label || '';
   // Quantity is fixed by the confirmed order. Installation materials apply the current
-  // FIFO take in one scan; serialized products remain one scan per serial.
-  const scanQuantity = serialized ? 1 : singlePackageScan
+  // remaining order in one scan when requested; serialized products remain one scan per serial.
+  const scanQuantity = serialized ? 1 : fullOrderScan
+    ? Math.max(1, Number(currentStep?.needed) || 1)
+    : singlePackageScan
     ? Math.max(1, Number(suggestion?.pieces_per_package) || 1)
     : Math.max(1, Number(suggestion?.quantity) || 1);
 
@@ -167,7 +170,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
   // Keep the input focused at all times — a picker with a scanner gun never
   // touches the mouse. Re-focus after the plan changes or a scan resolves.
   useEffect(() => {
-    if (!busy) inputRef.current?.focus({ preventScroll: true });
+    if (!busy) focusScanInput(inputRef.current);
   }, [busy, plan, verdict]);
 
   const zoneList = useMemo(() => {
@@ -222,7 +225,7 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
       });
     } finally {
       scanInFlight.current = false;
-      if (mountedRef.current) inputRef.current?.focus({ preventScroll: true });
+      if (mountedRef.current) focusScanInput(inputRef.current);
     }
   };
 
@@ -335,8 +338,8 @@ export default function PickScanner({ plan = [], onScan, onIncident, busy = fals
               fontWeight: 700,
             }}
           >
-            Pick {scanQuantity} piece{scanQuantity === 1 ? '' : 's'} from zone{' '}
-            <span className="ak-mono">{suggestedZone || 'Unassigned'}</span>
+            {fullOrderScan ? 'One scan picks' : 'Pick'} {scanQuantity} piece{scanQuantity === 1 ? '' : 's'}
+            {fullOrderScan && currentStep.suggestions.length > 1 ? ' following the FIFO route below' : <> from zone{' '}<span className="ak-mono">{suggestedZone || 'Unassigned'}</span></>}
           </div>
         )}
         {suggestion?.received_at && (

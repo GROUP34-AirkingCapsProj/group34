@@ -203,6 +203,12 @@ const TransactionManagement = () => {
     };
   };
 
+  const transferScanCodes = (transfer, productId, mode = null) => {
+    const scans = (transfer.scan_history || []).filter((scan) =>
+      String(scan.product_id) === String(productId) && (!mode || scan.scan_mode === mode));
+    return scans.map((scan) => `${scan.barcode || 'Counted (no barcode)'} ? ${Number(scan.quantity || 0)} pcs`).join('; ');
+  };
+
   const mapTransfer = (row) => {
     const details = Array.isArray(row.details) ? row.details : [];
     const qtyFromLines = details.reduce((sum, d) => sum + Number(d.quantity_transferred ?? d.quantity ?? 0), 0);
@@ -221,7 +227,7 @@ const TransactionManagement = () => {
     const lineItems = details.map((d, index) => {
       const quantity = Number(d.quantity_transferred ?? d.quantity_received ?? d.quantity ?? 0);
       const cost = Number(d.unit_cost ?? d.product?.cost_price ?? 0);
-      return { key: d.transfer_detail_id ?? index, product: d.product?.product_name || `Transfer item ${index + 1}`, quantity, unitCost: cost, value: quantity * cost, serial: d.serial_number || d.barcode || null };
+      return { key: d.transfer_detail_id ?? index, product: d.product?.product_name || `Transfer item ${index + 1}`, quantity, unitCost: cost, value: quantity * cost, serial: transferScanCodes(row, d.product_id, 'transfer') || d.serial_number || d.barcode || null };
     });
     return {
       id: `TRF-${tid ?? Math.random().toString(36).slice(2, 8)}`,
@@ -1204,6 +1210,8 @@ const TransactionManagement = () => {
                   Number(line.quantity_requested || 0),
                   Number(line.quantity_transferred || 0),
                   Number(line.quantity_received || 0),
+                  transferScanCodes(d, line.product_id, 'transfer') || line.serial_number || line.barcode || '?',
+                  transferScanCodes(d, line.product_id, 'receive') || '?',
                 ],
               };
             }
@@ -1218,7 +1226,7 @@ const TransactionManagement = () => {
           });
           const headersByType = {
             Receiving: ['Received (pcs)', 'Serial / Scanned ID', 'Recorded price'],
-            Transfer:  ['Requested (pcs)', 'Dispatched (pcs)', 'Received (pcs)'],
+            Transfer:  ['Requested (pcs)', 'Dispatched (pcs)', 'Received (pcs)', 'Dispatch barcode / serial', 'Receipt barcode / serial'],
             Warranty:  ['Requested (pcs)', 'Issued (pcs)', 'Serial'],
             Incident:  ['Quantity (pcs)', 'Reason', 'Details'],
           };

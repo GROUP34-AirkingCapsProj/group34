@@ -2114,6 +2114,16 @@ const BarcodeScan = () => {
     if (bsrScanTimerRef.current) { clearTimeout(bsrScanTimerRef.current); bsrScanTimerRef.current = null; }
 
     const isSerialized = bsrIsSerialized(bsrActiveLine);
+    const remainingPieces = Math.max(0,
+      Number(bsrActiveLine.quantity_ordered || 0) * (isSerialized ? 1 : Number(bsrActiveLine.product?.pieces_per_package) || 1)
+      - Number(bsrProductProgress[bsrActiveLine.po_detail_id] || 0)
+      - (bsrDraft.items || []).filter((item) => item.po_detail_id === bsrActiveLine.po_detail_id)
+        .reduce((sum, item) => sum + Number(item.quantity_amount || 0), 0));
+    if (!isSerialized && remainingPieces === 0) {
+      rejectScan({ message: 'All pieces for this line are already received or staged.' });
+      setBsrScanInput('');
+      return;
+    }
     // Pre-compute here so it is available for both pre-checks and the scan body.
     const pcs = Number(bsrActiveLine.product?.pieces_per_package) || 1;
 
@@ -2180,6 +2190,7 @@ const BarcodeScan = () => {
         po_detail_id: bsrActiveLine.po_detail_id,
         entry_mode: 'scanned',
         barcode: raw.trim(),
+        ...(!isSerialized ? { quantity: Math.max(1, remainingPieces) } : {}),
       });
 
       const payload = res?.data;
@@ -3369,7 +3380,7 @@ const BarcodeScan = () => {
                   type="button"
                   className={`bsr-alert-dismiss-btn bsr-alert-dismiss-btn--${bsrAlertModal.type}`}
                   onClick={handleBsrAlertDismiss}
-                  autoFocus
+                  autoFocus={canAutoFocusScanInput()}
                 >
                   {bsrAlertModal.type === 'success' ? 'OK' : 'Dismiss'}
                 </button>
@@ -3880,7 +3891,7 @@ const BarcodeScan = () => {
                         value={display}
                         disabled={bsrCountBusy}
                         onChange={(e) => setBsrVerifyPieces(e.target.value)}
-                        autoFocus
+                        autoFocus={canAutoFocusScanInput()}
                       />
 
                       {diff !== 0 && (
@@ -3974,7 +3985,7 @@ const BarcodeScan = () => {
                         value={display}
                         disabled={bsrCountBusy}
                         onChange={(e) => setBsrTopUpPieces(e.target.value)}
-                        autoFocus
+                        autoFocus={canAutoFocusScanInput()}
                       />
 
                       <div className="bsr-count-actions">

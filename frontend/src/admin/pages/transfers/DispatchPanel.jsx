@@ -80,10 +80,10 @@ const DispatchPanel = ({ transfer, onDone }) => {
   // normalize an accepted scan (HTTP 200, no scan_result) into a synthetic
   // ACCEPTED verdict so PickScanner advances. transfer_detail_id is omitted —
   // recordDispatchScan resolves the line from the scanned product/serial.
-  const handleScan = useCallback(async (barcode, confirmedZone) => {
+  const handleScan = useCallback(async (barcode, confirmedZone, quantity = 1) => {
     let body;
     try {
-      body = await transfersAPI.scan(id, { barcode, confirmed_zone: confirmedZone });
+      body = await transfersAPI.scan(id, { barcode, confirmed_zone: confirmedZone, quantity, quantity_unit: 'piece' });
     } catch (e) {
       if (e?.data) body = e.data;   // recover the HTTP 422 body (carries scan_result)
       else throw e;
@@ -116,10 +116,10 @@ const DispatchPanel = ({ transfer, onDone }) => {
     return body;   // rejected: 422 {scan_result} or legacy 422 {success:false, message}
   }, [id, loadPlan]);
 
-  const onScan = useCallback(async (barcode, confirmedZone) => {
+  const onScan = useCallback(async (barcode, confirmedZone, quantity = 1) => {
     setScanBusy(true);
     try {
-      return await handleScan(barcode, confirmedZone);
+      return await handleScan(barcode, confirmedZone, quantity);
     } finally {
       setScanBusy(false);
     }
@@ -240,7 +240,7 @@ const DispatchPanel = ({ transfer, onDone }) => {
                 onIncident={handleIncident}
                 busy={scanBusy || planLoading}
                 camera
-                singlePackageScan
+                fullOrderScan
               />
             )}
           </div>

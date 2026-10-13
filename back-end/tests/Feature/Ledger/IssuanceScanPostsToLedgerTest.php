@@ -211,6 +211,16 @@ class IssuanceScanPostsToLedgerTest extends TestCase
             ->get();
 
         $this->assertCount(2, $rows, 'A 6-piece pick over a 4-piece oldest batch is two slices.');
+        $this->assertSame([$product->product_code, $product->product_code], $rows->pluck('serial_number')->all());
+        $picked = $issuance->details()->where('quantity_issued', '>', 0)->firstOrFail();
+        $this->assertSame($product->product_code, $picked->serial_number);
+        $this->assertDatabaseHas('inventory_scan_events', [
+            'product_id' => $product->product_id,
+            'transaction_type' => 'issuance',
+            'barcode' => $product->product_code,
+            'serial_number' => $product->product_code,
+        ]);
+
         $this->assertSame([4, 2], $rows->pluck('quantity')->map(fn ($q) => (int) $q)->all());
         $this->assertSame(['100.00', '200.00'], $rows->pluck('unit_cost')->all());
         // 4x100 + 2x200 = 800 of stock out, not 6 x one averaged price.

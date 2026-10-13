@@ -106,6 +106,12 @@ class Transfer extends Model
         return $this->hasMany(TransferDetail::class, 'transfer_id', 'transfer_id');
     }
 
+    public function scanHistory(): HasMany
+    {
+        return $this->hasMany(BarcodeScan::class, 'transfer_id', 'transfer_id')
+            ->orderBy('scanned_at')->orderBy('id');
+    }
+
     public function transferTracking(): HasMany
     {
         return $this->hasMany(TblTransferTracking::class, 'transfer_id', 'transfer_id');

@@ -171,6 +171,35 @@ class ReceivingDraftStagingTest extends TestCase
         );
     }
 
+    public function test_one_material_scan_stages_the_full_order_quantity(): void
+    {
+        $user     = $this->makeUser();
+        $location = $this->makeLocation();
+        $product  = $this->makeInstallationMaterial(50);
+        $poDetail = $this->makePoLine($product, $location, 10);
+
+        $draft = $this->actingAs($user)->postJson('/api/receiving-drafts', [
+            'po_id' => $poDetail->po_id, 'location_id' => $location->location_id,
+        ])->json('data.draft_id');
+
+        $res = $this->actingAs($user)->postJson("/api/receiving-drafts/{$draft}/items", [
+            'po_detail_id' => $poDetail->po_detail_id,
+            'entry_mode'   => 'scanned',
+            'barcode'      => 'BOX-A',
+            'quantity'     => 500,
+        ]);
+
+        $res->assertOk();
+        $res->assertJsonPath('data.action', 'staged');
+        $this->assertSame(500, (int) $res->json('data.item.quantity_amount'));
+        $this->assertSame(10, (int) $res->json('data.item.packages_received'));
+
+        $this->assertNull(
+            \App\Models\Inventory::where('location_id', $location->location_id)
+                ->where('product_id', $product->product_id)->first()
+        );
+    }
+
     public function test_staging_a_count_marks_contents_verified(): void
     {
         $user     = $this->makeUser();
