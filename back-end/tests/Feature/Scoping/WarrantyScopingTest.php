@@ -8,6 +8,12 @@ use App\Models\Product;
 use App\Models\WarrantyClaim;
 use App\Models\WarrantyRecord;
 
+/**
+ * The read-scoped actor is warehouse_personnel=4 — the only role whose reads are
+ * still narrowed to users.location_id. branch_manager=3 reads every location
+ * (User::readsAllLocations) while writing only at its own, and is covered as a
+ * sees-everything case below.
+ */
 class WarrantyScopingTest extends TestCase
 {
     use DatabaseTransactions;
@@ -58,8 +64,8 @@ class WarrantyScopingTest extends TestCase
         $this->claim($a->location_id);
         $this->claim($b->location_id);
 
-        $bm = $this->userAt(3, $a->location_id);
-        $data = $this->actingAs($bm)->getJson('/api/warranty-claims')->assertStatus(200)->json('data');
+        $wp = $this->userAt(4, $a->location_id);
+        $data = $this->actingAs($wp)->getJson('/api/warranty-claims')->assertStatus(200)->json('data');
         $locs = collect($data)->pluck('location_id')->unique()->all();
         $this->assertContains($a->location_id, $locs);
         $this->assertNotContains($b->location_id, $locs);
@@ -74,6 +80,20 @@ class WarrantyScopingTest extends TestCase
         $admin = $this->userAt(1, null);
         $data = $this->actingAs($admin)->getJson('/api/warranty-claims')->assertStatus(200)->json('data');
         $locs = collect($data)->pluck('location_id')->unique()->all();
+        $this->assertContains($a->location_id, $locs);
+        $this->assertContains($b->location_id, $locs);
+    }
+
+    public function test_branch_manager_sees_every_location_claim(): void
+    {
+        $a = $this->loc(); $b = $this->loc();
+        $this->claim($a->location_id);
+        $this->claim($b->location_id);
+
+        $bm = $this->userAt(3, $a->location_id);
+        $data = $this->actingAs($bm)->getJson('/api/warranty-claims')->assertStatus(200)->json('data');
+        $locs = collect($data)->pluck('location_id')->unique()->all();
+
         $this->assertContains($a->location_id, $locs);
         $this->assertContains($b->location_id, $locs);
     }

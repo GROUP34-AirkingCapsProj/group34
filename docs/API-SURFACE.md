@@ -91,7 +91,7 @@ group. Read top to bottom, this is the access-control story:
 |---|---|
 | `auth:sanctum` | A valid bearer token is required. Login, OTP verification, and forgot-password are the only routes outside this. |
 | `auditor.readonly` | Blocks every write for the auditor role, so audit access can be granted without granting mutation. |
-| `location.scope` | Narrows queries to the location the user belongs to — the multi-location boundary. |
+| `location.scope` | Narrows queries to the location the user belongs to — the multi-location boundary. Read and write scope are separate: `User::readsAllLocations()` (admin, inventory_analyst, branch_manager, auditor) decides what a user may *see*, `User::isCentralized()` (admin, inventory_analyst, auditor) decides where a write may *land*. The branch manager differs between them on purpose — it reads every location as the admin's deputy and still transacts only at its own. `warehouse_personnel` is narrowed on both sides. |
 | `extend.sanctum.session` | Slides token expiry on activity, per the admin-configured session policy. |
 | `password.changed` | Forces a pending password change to complete before any other endpoint answers. |
 | `permission:feature,action` | Per-route check against the DB permission matrix. `role:admin` is used instead where an endpoint must never be delegated. |
@@ -99,6 +99,11 @@ group. Read top to bottom, this is the access-control story:
 Five seeded roles draw from that matrix across roughly forty permission
 features: `admin`, `branch_manager`, `warehouse_personnel`,
 `inventory_analyst`, `auditor`.
+
+Administration is the admin's alone and is not delegated to any of the other
+four: `user_account_management`, `role_assignment`, `permission_audit`,
+`system_configuration`, `location_based_inventory` and `data_archiving` are
+granted to `admin` only.
 
 ---
 
@@ -1105,6 +1110,8 @@ _8 controllers · 15 routes_
 **ReceivingDraftSubmitController**
 
 - `__invoke` — POST /api/receiving-drafts/{draft}/submit
+
+PO receiving protection (Step 2): receiving scans, counts, top-ups, verification and staged-delivery routes require `delivery_receiving.create`. Other scan-transaction modes retain `barcode_inventory_processing.create`. Stock posting rechecks PO/line status, warehouse, product and remaining pieces under transaction locks. `accept_overage` cannot bypass the fixed 0% tolerance. Staging can retain an overage warning, but submission blocks it and rolls back the whole delivery. Fully Received POs permit verification of existing contents only when it adds no stock; Short-Closed and Cancelled POs block receiving. Legacy receipt creation resolves an exact PO line and uses the shared stock/ledger posting service. Posted receipt deletion, quantity-header editing, approved PO line replacement, and legacy PO barcode rewriting are blocked. Inventory list/detail/history responses expose `on_order_quantity` in pieces. The restock recommendation snapshot refreshes after committed purchasing/receiving changes, without rewriting parameter suggestion decisions.
 
 
 ### 48. REPORTS & ANALYTICS

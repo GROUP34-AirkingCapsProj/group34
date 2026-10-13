@@ -15,7 +15,9 @@ use Tests\TestCase;
  *
  * GET /locations/{id} eager-loads users, sales, purchaseOrders and adjustments.
  * Those are exactly the location-scoped records every list endpoint filters, so
- * a scoped user must not receive them for a location that is not their own.
+ * a read-scoped user (warehouse_personnel=4) must not receive them for a
+ * location that is not their own. The branch manager reads every location and
+ * does receive them — the last test here.
  */
 class LocationDetailScopingTest extends TestCase
 {
@@ -50,10 +52,10 @@ class LocationDetailScopingTest extends TestCase
     {
         $mine   = $this->loc();
         $theirs = $this->loc();
-        $bm     = $this->userAt(3, $mine->location_id);
+        $wp     = $this->userAt(4, $mine->location_id);
 
         // The lookup use case must keep working: name/code stay readable.
-        $data = $this->actingAs($bm)
+        $data = $this->actingAs($wp)
             ->getJson('/api/locations/' . $theirs->location_id)
             ->assertStatus(200)
             ->json('data');
@@ -68,8 +70,8 @@ class LocationDetailScopingTest extends TestCase
         // A staff member stationed at the other location — must not be exposed.
         $this->userAt(4, $theirs->location_id);
 
-        $bm   = $this->userAt(3, $mine->location_id);
-        $data = $this->actingAs($bm)
+        $wp   = $this->userAt(4, $mine->location_id);
+        $data = $this->actingAs($wp)
             ->getJson('/api/locations/' . $theirs->location_id)
             ->assertStatus(200)
             ->json('data');
@@ -86,9 +88,9 @@ class LocationDetailScopingTest extends TestCase
     public function test_scoped_user_still_gets_operational_data_for_their_own_location(): void
     {
         $mine = $this->loc();
-        $bm   = $this->userAt(3, $mine->location_id);
+        $wp   = $this->userAt(4, $mine->location_id);
 
-        $data = $this->actingAs($bm)
+        $data = $this->actingAs($wp)
             ->getJson('/api/locations/' . $mine->location_id)
             ->assertStatus(200)
             ->json('data');
@@ -112,6 +114,27 @@ class LocationDetailScopingTest extends TestCase
 
         foreach (self::OPERATIONAL as $rel) {
             $this->assertArrayHasKey($rel, $data, "A centralized role must still see '{$rel}' anywhere.");
+        }
+    }
+
+    public function test_branch_manager_gets_operational_data_for_another_location(): void
+    {
+        $mine   = $this->loc();
+        $theirs = $this->loc();
+        $this->userAt(4, $theirs->location_id);
+
+        $bm   = $this->userAt(3, $mine->location_id);
+        $data = $this->actingAs($bm)
+            ->getJson('/api/locations/' . $theirs->location_id)
+            ->assertStatus(200)
+            ->json('data');
+
+        foreach (self::OPERATIONAL as $rel) {
+            $this->assertArrayHasKey(
+                $rel,
+                $data,
+                "The branch manager reads every location and must receive '{$rel}' for another one."
+            );
         }
     }
 }

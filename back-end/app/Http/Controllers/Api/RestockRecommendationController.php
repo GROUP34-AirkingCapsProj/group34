@@ -23,6 +23,15 @@ class RestockRecommendationController extends Controller
     /** GET /api/restock/recommendations — latest stored batch. */
     public function index(Request $request)
     {
+        // Recommendations reflect receiving/closure immediately, including lines
+        // that were previously suppressed by incoming stock. Suggestions stay intact.
+        $dirty = DB::table('system_settings')->where('key', 'po_incoming_changed')->value('value');
+        if ($dirty !== null && $dirty !== DB::table('system_settings')->where('key', 'po_incoming_refreshed')->value('value')) {
+            $this->service->refreshRecommendations();
+            // Keep the source version: a concurrent commit must never be erased
+            // by a read/check/delete race when clearing a dirty flag.
+            DB::table('system_settings')->updateOrInsert(['key' => 'po_incoming_refreshed'], ['value' => $dirty, 'updated_at' => now()]);
+        }
         $query = RestockRecommendation::with('product.installationMaterialDetail')
             ->forUser($request->user())
             // CASE rather than MySQL's FIELD(), which PostgreSQL does not have.
@@ -112,18 +121,18 @@ class RestockRecommendationController extends Controller
         $productIds = $suggestions->pluck('product_id')->filter()->unique()->values()->all();
         $whByProduct = collect();
         if ($productIds) {
-            // po_recommendations.read is granted to branch_manager, a scoped
-            // role, so this list is limited to the warehouses that user may
-            // see — otherwise it names every warehouse holding the product.
+            // Limited to the warehouses the caller may see — otherwise it names
+            // every warehouse holding the product. Only warehouse_personnel is
+            // read-scoped now; the branch manager reads every warehouse.
             $user      = $request->user();
-            $scopedLoc = ($user && ! $user->isCentralized()) ? $user->scopedLocationId() : null;
+            $scopedLoc = ($user && ! $user->readsAllLocations()) ? $user->scopedLocationId() : null;
 
             $whByProduct = DB::table('inventory as inv')
                 ->join('locations as l', 'l.location_id', '=', 'inv.location_id')
                 ->where('l.location_type', 'warehouse')
                 ->whereIn('inv.product_id', $productIds)
                 ->when(
-                    $user && ! $user->isCentralized(),
+                    $user && ! $user->readsAllLocations(),
                     fn ($q) => $scopedLoc === null
                         ? $q->whereRaw('1 = 0')
                         : $q->where('inv.location_id', $scopedLoc)

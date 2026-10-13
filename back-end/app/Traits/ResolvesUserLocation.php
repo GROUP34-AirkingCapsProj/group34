@@ -12,7 +12,12 @@ trait ResolvesUserLocation
      * Resolves the correct location_id for a transaction based on the
      * authenticated user's role grouping.
      *
-     * Location-scoped roles (branch_manager=3, warehouse_personnel=4):
+     * This is the WRITE boundary, so it asks isCentralized() and not
+     * readsAllLocations(): the branch manager reads every location's data but
+     * still transacts only at its own, which is exactly the difference between
+     * the two methods.
+     *
+     * Write-scoped roles (branch_manager=3, warehouse_personnel=4):
      *   Forced to users.location_id. Any request location_id is IGNORED.
      *   Returns null (sets $locationError) if no location is assigned.
      *

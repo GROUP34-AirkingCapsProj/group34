@@ -7,14 +7,15 @@ use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Adds a `forUser` local scope to any model that has a `location_id` column.
- * Centralized users: unfiltered. Scoped users: where location_id = their location.
+ * All-location readers (User::readsAllLocations): unfiltered. Scoped users: where
+ * location_id = their location.
  * Scoped users with no location: an impossible predicate (empty result) — spec D3.
  */
 trait ScopesToUserLocation
 {
     public function scopeForUser(Builder $query, User $user): Builder
     {
-        if ($user->isCentralized()) {
+        if ($user->readsAllLocations()) {
             return $query;
         }
 

@@ -22,12 +22,23 @@ class ReportRegistryTest extends ReportTestCase
 
     public function test_the_catalog_hides_reports_a_user_cannot_run(): void
     {
-        $scoped = $this->makeUserAt($this->makeLocation(), 'branch_manager');
+        $scoped = $this->makeUserAt($this->makeLocation(), 'warehouse_personnel');
         $keys = collect(app(ReportRegistry::class)->availableTo($scoped))
             ->map(fn ($d) => $d->key())->all();
 
         $this->assertNotContains('user-activity', $keys,
-            'User Activity has no location column, so a scoped user must not be offered it.');
+            'User Activity has no location column, so a read-scoped user must not be offered it.');
         $this->assertContains('inventory-summary', $keys);
+    }
+
+    public function test_the_catalog_offers_the_branch_manager_every_report(): void
+    {
+        $bm = $this->makeUserAt($this->makeLocation(), 'branch_manager');
+        $keys = collect(app(ReportRegistry::class)->availableTo($bm))
+            ->map(fn ($d) => $d->key())->all();
+
+        $this->assertContains('inventory-summary', $keys);
+        $this->assertContains('user-activity', $keys,
+            'The branch manager reads every location, so the one report that cannot be scoped is open to it.');
     }
 }

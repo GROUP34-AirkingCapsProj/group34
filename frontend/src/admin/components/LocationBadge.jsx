@@ -1,9 +1,15 @@
 import PropTypes from 'prop-types';
 
 /**
- * Displays the resolved location for strict-role users (warehouse_personnel,
- * branch_manager) or "All Locations" for centralized roles (admin,
- * inventory_analyst, auditor). Read-only — no interaction.
+ * Displays the resolved location for read-scoped users (warehouse_personnel) or
+ * "All Locations" for roles that read every location (admin, inventory_analyst,
+ * branch_manager, auditor). Read-only — no interaction.
+ *
+ * The `isCentralized` prop name predates the read/write scope split and now
+ * carries the READ answer: callers pass useUserLocation().readsAllLocations,
+ * because this badge describes what the page is showing, not where the user may
+ * write. A branch manager therefore reads "All Locations" here while still being
+ * pinned to its own branch on every transaction.
  *
  * Usage A — header badge (centralized/scoped indicator):
  *   <LocationBadge isCentralized={true} />

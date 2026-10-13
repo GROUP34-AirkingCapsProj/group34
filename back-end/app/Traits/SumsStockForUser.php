@@ -20,15 +20,15 @@ trait SumsStockForUser
     /**
      * Constraint for an `inventories` withSum()/loadSum() subquery.
      *
-     * Centralized roles (admin, inventory_analyst, auditor) keep the org-wide
-     * total. Scoped roles are limited to their own location; a scoped user with
-     * no location assigned sums to zero rather than falling back to org-wide
-     * (spec D3 — deny, never widen).
+     * All-location readers (admin, inventory_analyst, branch_manager, auditor)
+     * keep the org-wide total. Read-scoped roles are limited to their own
+     * location; a scoped user with no location assigned sums to zero rather than
+     * falling back to org-wide (spec D3 — deny, never widen).
      */
     protected function stockSumForUser(?User $user): Closure
     {
         return static function ($query) use ($user) {
-            if ($user === null || $user->isCentralized()) {
+            if ($user === null || $user->readsAllLocations()) {
                 return;
             }
 

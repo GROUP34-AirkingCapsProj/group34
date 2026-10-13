@@ -7,6 +7,12 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use App\Models\Product;
 use App\Models\InventoryScanEvent;
 
+/**
+ * The read-scoped actor is warehouse_personnel=4 — the only role whose reads are
+ * still narrowed to users.location_id. branch_manager=3 reads every location
+ * (User::readsAllLocations) while writing only at its own, and is covered as a
+ * sees-everything case below.
+ */
 class ScanEventScopingTest extends TestCase
 {
     use DatabaseTransactions;
@@ -52,8 +58,8 @@ class ScanEventScopingTest extends TestCase
         $this->event($a->location_id);
         $this->event($b->location_id);
 
-        $bm = $this->userAt(3, $a->location_id);
-        $data = $this->actingAs($bm)->getJson('/api/scan-events')->assertStatus(200)->json('data');
+        $wp = $this->userAt(4, $a->location_id);
+        $data = $this->actingAs($wp)->getJson('/api/scan-events')->assertStatus(200)->json('data');
         $locs = collect($data)->pluck('location_id')->unique()->all();
         $this->assertContains($a->location_id, $locs);
         $this->assertNotContains($b->location_id, $locs);
@@ -64,8 +70,8 @@ class ScanEventScopingTest extends TestCase
         $a = $this->loc(); $b = $this->loc();
         $this->event($a->location_id, $b->location_id);
 
-        $bmB = $this->userAt(3, $b->location_id);
-        $data = $this->actingAs($bmB)->getJson('/api/scan-events')->assertStatus(200)->json('data');
+        $wpB = $this->userAt(4, $b->location_id);
+        $data = $this->actingAs($wpB)->getJson('/api/scan-events')->assertStatus(200)->json('data');
         $this->assertNotEmpty($data, 'Destination user should see the incoming transfer event.');
     }
 
@@ -78,6 +84,20 @@ class ScanEventScopingTest extends TestCase
         $admin = $this->userAt(1, null);
         $data = $this->actingAs($admin)->getJson('/api/scan-events')->assertStatus(200)->json('data');
         $locs = collect($data)->pluck('location_id')->unique()->all();
+        $this->assertContains($a->location_id, $locs);
+        $this->assertContains($b->location_id, $locs);
+    }
+
+    public function test_branch_manager_sees_every_locations_events(): void
+    {
+        $a = $this->loc(); $b = $this->loc();
+        $this->event($a->location_id);
+        $this->event($b->location_id);
+
+        $bm = $this->userAt(3, $a->location_id);
+        $data = $this->actingAs($bm)->getJson('/api/scan-events')->assertStatus(200)->json('data');
+        $locs = collect($data)->pluck('location_id')->unique()->all();
+
         $this->assertContains($a->location_id, $locs);
         $this->assertContains($b->location_id, $locs);
     }

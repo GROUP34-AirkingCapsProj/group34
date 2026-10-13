@@ -21,6 +21,8 @@ class DashboardScopeTest extends TestCase
 
     public function test_scoped_user_location_distribution_only_contains_their_location(): void
     {
+        // warehouse_personnel=4 is the read-scoped role; the branch manager reads
+        // every location (see the test below this one).
         $statusId = $this->activeUserStatusId();
 
         $locA = Location::forceCreate(['location_code' => 'DSH_A', 'location_name' => 'Dash A', 'location_type' => 'branch_office', 'status_id' => 1]);
@@ -29,7 +31,7 @@ class DashboardScopeTest extends TestCase
         $bm = User::forceCreate([
             'first_name' => 'Dash', 'last_name' => 'BM',
             'username' => 'dash_bm_' . uniqid(), 'email' => 'dash_bm_' . uniqid() . '@t.test',
-            'password_hash' => Hash::make('x'), 'role_id' => 3, 'status_id' => $statusId,
+            'password_hash' => Hash::make('x'), 'role_id' => 4, 'status_id' => $statusId,
             'location_id' => $locA->location_id,
         ]);
 
@@ -63,5 +65,29 @@ class DashboardScopeTest extends TestCase
         $labels = $res->json('location_distribution.labels');
         $this->assertContains('Dash C1', $labels === null ? [] : $labels, 'centralized user should see seeded/other locations');
         $this->assertGreaterThan(1, count($labels ?? []), 'centralized payload should include multiple locations');
+    }
+
+    public function test_branch_manager_location_distribution_contains_every_location(): void
+    {
+        $statusId = $this->activeUserStatusId();
+
+        $locA = Location::forceCreate(['location_code' => 'DSH_BM_A', 'location_name' => 'Dash BM A', 'location_type' => 'branch_office', 'status_id' => 1]);
+        Location::forceCreate(['location_code' => 'DSH_BM_B', 'location_name' => 'Dash BM B', 'location_type' => 'warehouse', 'status_id' => 1]);
+
+        $bm = User::forceCreate([
+            'first_name' => 'Dash', 'last_name' => 'BM',
+            'username' => 'dash_bm_' . uniqid(), 'email' => 'dash_bm_' . uniqid() . '@t.test',
+            'password_hash' => Hash::make('x'), 'role_id' => 3, 'status_id' => $statusId,
+            'location_id' => $locA->location_id,
+        ]);
+
+        $labels = $this->actingAs($bm)->getJson('/api/dashboard')->assertOk()->json('location_distribution.labels');
+
+        $this->assertContains('Dash BM A', $labels);
+        $this->assertContains(
+            'Dash BM B',
+            $labels,
+            'The branch manager reads every location, so the distribution chart covers them all.'
+        );
     }
 }

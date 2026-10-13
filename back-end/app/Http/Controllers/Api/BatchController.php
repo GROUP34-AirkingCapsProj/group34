@@ -136,7 +136,7 @@ class BatchController extends Controller
                     },
                 ])
                 ->whereHas('sale', function ($q) use ($user) {
-                    if ($user && ! $user->isCentralized()) {
+                    if ($user && ! $user->readsAllLocations()) {
                         $q->where('location_id', $user->scopedLocationId());
                     }
                 })
@@ -172,7 +172,7 @@ class BatchController extends Controller
                 ->with(['product.category', 'issuance.location'])
                 ->where('quantity_issued', '>', 0)
                 ->whereHas('issuance', function ($q) use ($user) {
-                    if ($user && ! $user->isCentralized()) {
+                    if ($user && ! $user->readsAllLocations()) {
                         $q->where('location_id', $user->scopedLocationId());
                     }
                 })

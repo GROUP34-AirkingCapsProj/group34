@@ -85,7 +85,7 @@ class InventorySummaryReportTest extends ReportTestCase
         $this->setStock($mine->location_id, $product->product_id, 5);
         $this->setStock($theirs->location_id, $product->product_id, 9);
 
-        $scoped = $this->makeUserAt($mine, 'branch_manager');
+        $scoped = $this->makeUserAt($mine, 'warehouse_personnel');
 
         $dataset = app(InventorySummaryReport::class)->build(new ReportParameters([]), $scoped);
 

@@ -11,6 +11,9 @@ use Tests\TestCase;
  * a resolution note on a drift finding, and only the auditor can do that. An admin
  * deliberately does not hold it — the person who resolves an exception should not be
  * the person who approves the spending it might concern.
+ *
+ * The branch manager reads it as the admin's deputy, alongside the audit trail and
+ * the exception list it already held, but does not resolve.
  */
 class AuditEvidencePermissionTest extends TestCase
 {
@@ -52,9 +55,20 @@ class AuditEvidencePermissionTest extends TestCase
         );
     }
 
-    public function test_read_is_granted_to_admin_and_auditor_only(): void
+    public function test_read_is_granted_to_admin_branch_manager_and_auditor(): void
     {
-        $this->assertSame(['admin', 'auditor'], $this->rolesWith('read'));
+        $this->assertSame(['admin', 'auditor', 'branch_manager'], $this->rolesWith('read'));
+    }
+
+    /**
+     * The branch manager reads the evidence but does not resolve a finding: holding
+     * both would make the role that approves a branch's spending the same one that
+     * signs off the discrepancy it produced.
+     */
+    public function test_the_branch_manager_reads_but_does_not_resolve(): void
+    {
+        $this->assertContains('branch_manager', $this->rolesWith('read'));
+        $this->assertNotContains('branch_manager', $this->rolesWith('resolve_exception'));
     }
 
     public function test_only_the_auditor_may_resolve_an_exception(): void

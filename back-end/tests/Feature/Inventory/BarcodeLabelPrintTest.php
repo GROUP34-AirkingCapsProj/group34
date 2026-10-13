@@ -306,4 +306,24 @@ class BarcodeLabelPrintTest extends TestCase
 
         $this->assertStringContainsString($tag->serial_number, file_get_contents($this->spoolFile));
     }
+
+    /* The branch manager reads every location but writes only at its own, and
+       spooling a label is a write: it sends a job to the printer at the branch
+       the tag belongs to. Reading another branch's queue is fine (see
+       BarcodeQueueTest); printing from it is not. */
+    public function test_it_refuses_a_branch_manager_a_tag_at_another_location(): void
+    {
+        $tag = $this->materialTag();
+
+        $bm = $this->user();
+        $bm->role_id     = 3; // branch_manager — reads everywhere, writes at its own
+        $bm->location_id = $this->location()->location_id;
+        $bm->save();
+
+        $this->actingAs($bm)->postJson('/api/barcode-labels/print', [
+            'serial_ids' => [$tag->serial_id],
+        ])->assertStatus(422);
+
+        $this->assertSame('', (string) file_get_contents($this->spoolFile));
+    }
 }

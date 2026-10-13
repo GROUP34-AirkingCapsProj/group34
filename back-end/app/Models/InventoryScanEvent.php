@@ -57,12 +57,12 @@ class InventoryScanEvent extends Model
 
     /**
      * Location read-scope (dual-location: source or destination).
-     * Centralized users unfiltered; scoped users see events at their location as
+     * All-location readers unfiltered; scoped users see events at their location as
      * origin OR destination; scoped users with no location see nothing.
      */
     public function scopeForUser(Builder $query, User $user): Builder
     {
-        if ($user->isCentralized()) {
+        if ($user->readsAllLocations()) {
             return $query;
         }
         $loc = $user->scopedLocationId();

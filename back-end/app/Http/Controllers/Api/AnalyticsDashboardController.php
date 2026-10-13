@@ -37,7 +37,7 @@ class AnalyticsDashboardController extends Controller
     {
         $user = $request->user();
 
-        if ($user && ! $user->isCentralized()) {
+        if ($user && ! $user->readsAllLocations()) {
             // A scoped user with no assigned location gets no rows, rather than
             // silently widening to every location (spec D3).
             return $user->scopedLocationId() ?? -1;

@@ -92,14 +92,27 @@ class UserActivityReportTest extends ReportTestCase
         $this->assertSame('1', $dataset->summary['Failed attempts']);
     }
 
-    public function test_it_is_unavailable_to_a_location_scoped_user_but_available_to_an_auditor(): void
+    public function test_it_is_unavailable_to_a_read_scoped_user_but_available_to_an_auditor(): void
     {
         $location = $this->makeLocation();
-        $branchManager = $this->makeUserAt($location, 'branch_manager');
+        $warehouse = $this->makeUserAt($location, 'warehouse_personnel');
         $auditor = $this->makeUserAt($location, 'auditor');
 
-        $this->assertFalse(app(UserActivityReport::class)->availableTo($branchManager));
+        $this->assertFalse(app(UserActivityReport::class)->availableTo($warehouse));
         $this->assertTrue(app(UserActivityReport::class)->availableTo($auditor));
+    }
+
+    /**
+     * login_activities has no location column, which is the only reason this
+     * report is withheld from anyone. The branch manager reads every location,
+     * so there is nothing left to withhold — and reading who logged in is not
+     * administration; managing those accounts is, and that stays admin-only.
+     */
+    public function test_it_is_available_to_the_branch_manager(): void
+    {
+        $branchManager = $this->makeUserAt($this->makeLocation(), 'branch_manager');
+
+        $this->assertTrue(app(UserActivityReport::class)->availableTo($branchManager));
     }
 
     public function test_date_range_filtering_excludes_attempts_outside_the_window(): void

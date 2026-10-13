@@ -150,8 +150,14 @@ class IncidentReportController extends Controller
         // cannot see. Location does NOT use ScopesToUserLocation (that trait
         // filters a location_id COLUMN, which the locations table lacks), so
         // the check goes through the user exactly as the trait does internally:
-        // centralized users are unrestricted; a scoped user is pinned to their
-        // one location; a scoped user with none is refused.
+        // centralized users are unrestricted; a write-scoped user is pinned to
+        // their one location; a scoped user with none is refused.
+        //
+        // isCentralized(), not readsAllLocations(): this route is gated on
+        // incident_reports.create and exists to resolve a barcode the caller is
+        // about to file a report against. A branch manager reads other branches
+        // but files only at its own, so widening the lookup would hand it a
+        // barcode it cannot then act on.
         $user = Auth::user();
         if (! $user->isCentralized() && $user->scopedLocationId() !== $locationId) {
             return response()->json([

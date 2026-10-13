@@ -13,7 +13,7 @@ class WarehouseNotificationService
 {
     public function forUser(User $user): array
     {
-        $scoped = ! $user->isCentralized();
+        $scoped = ! $user->readsAllLocations();
         $locationId = $user->scopedLocationId();
         if ($scoped && $locationId === null) {
             return [];

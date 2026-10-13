@@ -16,6 +16,15 @@ use App\Models\Adjustment;
 use App\Models\Transfer;
 use App\Models\PurchaseOrder;
 
+/**
+ * Location read-scoping across the core domain lists.
+ *
+ * The scoped actor throughout is warehouse_personnel=4, the only role left whose
+ * reads are narrowed to users.location_id. branch_manager=3 used to stand in for
+ * that role here; it now reads every location (User::readsAllLocations) while
+ * still writing only at its own, so it appears at the bottom of this file as a
+ * sees-everything case rather than a scoped one.
+ */
 class CoreDomainScopingTest extends TestCase
 {
     use DatabaseTransactions;
@@ -90,8 +99,8 @@ class CoreDomainScopingTest extends TestCase
         Inventory::create(['location_id' => $a->location_id, 'product_id' => $prodA->product_id, 'quantity_on_hand' => 5]);
         Inventory::create(['location_id' => $b->location_id, 'product_id' => $prodB->product_id, 'quantity_on_hand' => 5]);
 
-        $bm = $this->userAt(3, $a->location_id);
-        $data = $this->actingAs($bm)->getJson('/api/inventory')->assertStatus(200)->json('data');
+        $wp = $this->userAt(4, $a->location_id);
+        $data = $this->actingAs($wp)->getJson('/api/inventory')->assertStatus(200)->json('data');
         $locs = collect($data)->pluck('location_id')->unique()->all();
         $this->assertContains($a->location_id, $locs);
         $this->assertNotContains($b->location_id, $locs);
@@ -125,8 +134,8 @@ class CoreDomainScopingTest extends TestCase
         $this->receive($admin, $poA, $a->location_id, $prod->product_id, 3, 'BC-A-' . uniqid());
         $this->receive($admin, $poB, $b->location_id, $prod->product_id, 3, 'BC-B-' . uniqid());
 
-        $bm = $this->userAt(3, $a->location_id);
-        $data = $this->actingAs($bm)->getJson('/api/inventory-batches')->assertStatus(200)->json('data');
+        $wp = $this->userAt(4, $a->location_id);
+        $data = $this->actingAs($wp)->getJson('/api/inventory-batches')->assertStatus(200)->json('data');
         $locs = collect($data)->pluck('location_id')->unique()->all();
         $this->assertContains($a->location_id, $locs);
         $this->assertNotContains($b->location_id, $locs);
@@ -146,8 +155,8 @@ class CoreDomainScopingTest extends TestCase
         $this->receive($admin, $poA, $a->location_id, $prod->product_id, 3, 'BC-A-' . uniqid());
         $this->receive($admin, $poB, $b->location_id, $prod->product_id, 3, 'BC-B-' . uniqid());
 
-        $bm = $this->userAt(3, $a->location_id);
-        $data = $this->actingAs($bm)->getJson('/api/po-inventory-groups')->assertStatus(200)->json('data');
+        $wp = $this->userAt(4, $a->location_id);
+        $data = $this->actingAs($wp)->getJson('/api/po-inventory-groups')->assertStatus(200)->json('data');
         $warehouseIds = collect($data)->pluck('warehouse_id')->unique()->all();
         $this->assertContains($a->location_id, $warehouseIds);
         $this->assertNotContains($b->location_id, $warehouseIds);
@@ -167,8 +176,8 @@ class CoreDomainScopingTest extends TestCase
         $this->receive($admin, $poA, $a->location_id, $prod->product_id, 3, 'BC-A-' . uniqid());
         $this->receive($admin, $poB, $b->location_id, $prod->product_id, 3, 'BC-B-' . uniqid());
 
-        $bm = $this->userAt(3, $a->location_id);
-        $data = $this->actingAs($bm)->getJson('/api/receivings')->assertStatus(200)->json('data');
+        $wp = $this->userAt(4, $a->location_id);
+        $data = $this->actingAs($wp)->getJson('/api/receivings')->assertStatus(200)->json('data');
         $locs = collect($data)->pluck('location_id')->unique()->all();
         $this->assertContains($a->location_id, $locs);
         $this->assertNotContains($b->location_id, $locs);
@@ -184,15 +193,15 @@ class CoreDomainScopingTest extends TestCase
         Issuance::create(['location_id' => $a->location_id, 'issuance_date' => now()->toDateString(), 'issuance_type' => 'internal_use']);
         Issuance::create(['location_id' => $b->location_id, 'issuance_date' => now()->toDateString(), 'issuance_type' => 'internal_use']);
 
-        $bm = $this->userAt(3, $a->location_id);
-        $res = $this->actingAs($bm)->getJson('/api/issuances');
+        $wp = $this->userAt(4, $a->location_id);
+        $res = $this->actingAs($wp)->getJson('/api/issuances');
         // GET /api/issuances currently 500s for an unrelated pre-existing bug:
         // IssuanceController::index() eager-loads a relation named `issuedBy`,
         // but Issuance only defines `issuedByUser()`. That's outside the scope
         // of this location-scoping audit (not a leak, not scoping-related), so
         // we verify the scope directly on the model instead of via HTTP.
         if (in_array($res->getStatusCode(), [403, 500], true)) {
-            $locs = Issuance::forUser($bm)->pluck('location_id')->unique()->all();
+            $locs = Issuance::forUser($wp)->pluck('location_id')->unique()->all();
             $this->assertContains($a->location_id, $locs);
             $this->assertNotContains($b->location_id, $locs);
             return;
@@ -213,10 +222,10 @@ class CoreDomainScopingTest extends TestCase
         Sale::create(['location_id' => $a->location_id, 'invoice_number' => 'INV-' . uniqid(), 'sale_date' => now()->toDateString(), 'total_amount' => 100]);
         Sale::create(['location_id' => $b->location_id, 'invoice_number' => 'INV-' . uniqid(), 'sale_date' => now()->toDateString(), 'total_amount' => 100]);
 
-        $bm = $this->userAt(3, $a->location_id);
-        $res = $this->actingAs($bm)->getJson('/api/sales');
+        $wp = $this->userAt(4, $a->location_id);
+        $res = $this->actingAs($wp)->getJson('/api/sales');
         if ($res->getStatusCode() === 403) {
-            $locs = Sale::forUser($bm)->pluck('location_id')->unique()->all();
+            $locs = Sale::forUser($wp)->pluck('location_id')->unique()->all();
             $this->assertContains($a->location_id, $locs);
             $this->assertNotContains($b->location_id, $locs);
             return;
@@ -237,10 +246,10 @@ class CoreDomainScopingTest extends TestCase
         Adjustment::create(['location_id' => $a->location_id, 'adjustment_number' => 'ADJ-' . uniqid(), 'adjustment_date' => now()->toDateString(), 'adjustment_type' => 'correction']);
         Adjustment::create(['location_id' => $b->location_id, 'adjustment_number' => 'ADJ-' . uniqid(), 'adjustment_date' => now()->toDateString(), 'adjustment_type' => 'correction']);
 
-        $bm = $this->userAt(3, $a->location_id);
-        $res = $this->actingAs($bm)->getJson('/api/adjustments');
+        $wp = $this->userAt(4, $a->location_id);
+        $res = $this->actingAs($wp)->getJson('/api/adjustments');
         if ($res->getStatusCode() === 403) {
-            $locs = Adjustment::forUser($bm)->pluck('location_id')->unique()->all();
+            $locs = Adjustment::forUser($wp)->pluck('location_id')->unique()->all();
             $this->assertContains($a->location_id, $locs);
             $this->assertNotContains($b->location_id, $locs);
             return;
@@ -265,17 +274,17 @@ class CoreDomainScopingTest extends TestCase
             'status_id'        => 1,
         ]);
 
-        $bmA = $this->userAt(3, $a->location_id);
-        $bmB = $this->userAt(3, $b->location_id);
-        $bmC = $this->userAt(3, $c->location_id);
+        $wpA = $this->userAt(4, $a->location_id);
+        $wpB = $this->userAt(4, $b->location_id);
+        $wpC = $this->userAt(4, $c->location_id);
 
-        $dataA = $this->actingAs($bmA)->getJson('/api/transfers')->assertStatus(200)->json('data');
+        $dataA = $this->actingAs($wpA)->getJson('/api/transfers')->assertStatus(200)->json('data');
         $this->assertContains($t->transfer_id, collect($dataA)->pluck('transfer_id')->all());
 
-        $dataB = $this->actingAs($bmB)->getJson('/api/transfers')->assertStatus(200)->json('data');
+        $dataB = $this->actingAs($wpB)->getJson('/api/transfers')->assertStatus(200)->json('data');
         $this->assertContains($t->transfer_id, collect($dataB)->pluck('transfer_id')->all());
 
-        $dataC = $this->actingAs($bmC)->getJson('/api/transfers')->assertStatus(200)->json('data');
+        $dataC = $this->actingAs($wpC)->getJson('/api/transfers')->assertStatus(200)->json('data');
         $this->assertNotContains($t->transfer_id, collect($dataC)->pluck('transfer_id')->all());
     }
 
@@ -301,7 +310,7 @@ class CoreDomainScopingTest extends TestCase
     public function test_purchase_orders_index_scoped_to_location(): void
     {
         $a = $this->loc(); $b = $this->loc();
-        // Created by an unrelated admin so the branch_manager's visibility comes
+        // Created by an unrelated admin so the scoped user's visibility comes
         // purely from location match, not the created_by fallback.
         $otherCreator = $this->userAt(1, null);
         $poA = PurchaseOrder::create([
@@ -319,10 +328,131 @@ class CoreDomainScopingTest extends TestCase
             'order_date'  => now()->toDateString(),
         ]);
 
-        $bm = $this->userAt(3, $a->location_id);
-        $data = $this->actingAs($bm)->getJson('/api/purchase-orders')->assertStatus(200)->json('data');
+        $wp = $this->userAt(4, $a->location_id);
+        $data = $this->actingAs($wp)->getJson('/api/purchase-orders')->assertStatus(200)->json('data');
         $ids = collect($data)->pluck('po_id')->all();
         $this->assertContains($poA->po_id, $ids);
         $this->assertNotContains($poB->po_id, $ids);
+    }
+
+    // ---------------------------------------------------------------
+    // 10. The branch manager reads every location
+    //
+    // Same fixtures as the scoped cases above, one role up. These are the
+    // assertions that would fail if branch_manager=3 ever slipped back into the
+    // read-scoped group, which is the regression this role change is one edit
+    // away from at all times.
+    // ---------------------------------------------------------------
+
+    public function test_branch_manager_inventory_index_sees_every_location(): void
+    {
+        $a = $this->loc(); $b = $this->loc();
+        $prodA = $this->product(); $prodB = $this->product();
+        Inventory::create(['location_id' => $a->location_id, 'product_id' => $prodA->product_id, 'quantity_on_hand' => 5]);
+        Inventory::create(['location_id' => $b->location_id, 'product_id' => $prodB->product_id, 'quantity_on_hand' => 5]);
+
+        $bm = $this->userAt(3, $a->location_id);
+        $data = $this->actingAs($bm)->getJson('/api/inventory')->assertStatus(200)->json('data');
+        $locs = collect($data)->pluck('location_id')->unique()->all();
+        $this->assertContains($a->location_id, $locs);
+        $this->assertContains($b->location_id, $locs, 'The branch manager must see the other location too.');
+    }
+
+    public function test_branch_manager_receivings_index_sees_every_location(): void
+    {
+        $a = $this->loc(); $b = $this->loc();
+        $prod = $this->product();
+        $admin = $this->userAt(1, null);
+        $poA = $this->makePo($a->location_id);
+        $poB = $this->makePo($b->location_id);
+        $this->receive($admin, $poA, $a->location_id, $prod->product_id, 3, 'BC-A-' . uniqid());
+        $this->receive($admin, $poB, $b->location_id, $prod->product_id, 3, 'BC-B-' . uniqid());
+
+        $bm = $this->userAt(3, $a->location_id);
+        $data = $this->actingAs($bm)->getJson('/api/receivings')->assertStatus(200)->json('data');
+        $locs = collect($data)->pluck('location_id')->unique()->all();
+        $this->assertContains($a->location_id, $locs);
+        $this->assertContains($b->location_id, $locs);
+    }
+
+    public function test_branch_manager_sales_index_sees_every_location(): void
+    {
+        $a = $this->loc(); $b = $this->loc();
+        Sale::create(['location_id' => $a->location_id, 'invoice_number' => 'INV-' . uniqid(), 'sale_date' => now()->toDateString(), 'total_amount' => 100]);
+        Sale::create(['location_id' => $b->location_id, 'invoice_number' => 'INV-' . uniqid(), 'sale_date' => now()->toDateString(), 'total_amount' => 100]);
+
+        $bm = $this->userAt(3, $a->location_id);
+        $res = $this->actingAs($bm)->getJson('/api/sales');
+        if ($res->getStatusCode() === 403) {
+            $locs = Sale::forUser($bm)->pluck('location_id')->unique()->all();
+            $this->assertContains($a->location_id, $locs);
+            $this->assertContains($b->location_id, $locs);
+            return;
+        }
+        $locs = collect($res->assertStatus(200)->json('data'))->pluck('location_id')->unique()->all();
+        $this->assertContains($a->location_id, $locs);
+        $this->assertContains($b->location_id, $locs);
+    }
+
+    public function test_branch_manager_adjustments_index_sees_every_location(): void
+    {
+        $a = $this->loc(); $b = $this->loc();
+        Adjustment::create(['location_id' => $a->location_id, 'adjustment_number' => 'ADJ-' . uniqid(), 'adjustment_date' => now()->toDateString(), 'adjustment_type' => 'correction']);
+        Adjustment::create(['location_id' => $b->location_id, 'adjustment_number' => 'ADJ-' . uniqid(), 'adjustment_date' => now()->toDateString(), 'adjustment_type' => 'correction']);
+
+        $bm = $this->userAt(3, $a->location_id);
+        $res = $this->actingAs($bm)->getJson('/api/adjustments');
+        if ($res->getStatusCode() === 403) {
+            $locs = Adjustment::forUser($bm)->pluck('location_id')->unique()->all();
+            $this->assertContains($a->location_id, $locs);
+            $this->assertContains($b->location_id, $locs);
+            return;
+        }
+        $locs = collect($res->assertStatus(200)->json('data'))->pluck('location_id')->unique()->all();
+        $this->assertContains($a->location_id, $locs);
+        $this->assertContains($b->location_id, $locs);
+    }
+
+    public function test_branch_manager_transfers_index_sees_an_unrelated_transfer(): void
+    {
+        $a = $this->loc(); $b = $this->loc(); $c = $this->loc();
+        $t = Transfer::create([
+            'from_location_id' => $a->location_id,
+            'to_location_id'   => $b->location_id,
+            'transfer_number'  => 'TR-' . uniqid(),
+            'status_id'        => 1,
+        ]);
+
+        // Assigned to c, which is neither end of the transfer: a scoped user at c
+        // sees nothing (the case above), a branch manager at c sees it.
+        $bm = $this->userAt(3, $c->location_id);
+        $data = $this->actingAs($bm)->getJson('/api/transfers')->assertStatus(200)->json('data');
+        $this->assertContains($t->transfer_id, collect($data)->pluck('transfer_id')->all());
+    }
+
+    public function test_branch_manager_purchase_orders_index_sees_every_location(): void
+    {
+        $a = $this->loc(); $b = $this->loc();
+        $otherCreator = $this->userAt(1, null);
+        $poA = PurchaseOrder::create([
+            'po_number'   => 'PO-' . uniqid(),
+            'location_id' => $a->location_id,
+            'status_id'   => 1,
+            'created_by'  => $otherCreator->user_id,
+            'order_date'  => now()->toDateString(),
+        ]);
+        $poB = PurchaseOrder::create([
+            'po_number'   => 'PO-' . uniqid(),
+            'location_id' => $b->location_id,
+            'status_id'   => 1,
+            'created_by'  => $otherCreator->user_id,
+            'order_date'  => now()->toDateString(),
+        ]);
+
+        $bm = $this->userAt(3, $a->location_id);
+        $ids = collect($this->actingAs($bm)->getJson('/api/purchase-orders')->assertStatus(200)->json('data'))
+            ->pluck('po_id')->all();
+        $this->assertContains($poA->po_id, $ids);
+        $this->assertContains($poB->po_id, $ids, 'The branch manager approves across branches and must see both POs.');
     }
 }

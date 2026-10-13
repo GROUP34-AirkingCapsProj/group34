@@ -2,21 +2,29 @@
 
 namespace Tests\Feature\Scoping;
 
+use App\Models\Permission;
 use App\Models\User;
+use App\Services\PermissionAdminService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * analytics_dashboard.read is granted to branch_manager (role 3), which is a
- * location-scoped role. The dashboard actions take location_id straight off the
- * query string, and a null location_id means "every location" — so without
- * enforcement a branch manager can read another branch's numbers, or org-wide
- * totals, simply by changing the parameter.
+ * The dashboard actions take location_id straight off the query string, and a
+ * null location_id means "every location" — so without enforcement a read-scoped
+ * user can read another branch's numbers, or org-wide totals, simply by changing
+ * the parameter.
  *
- * Scoped roles must be pinned to their own location the same way writes are
- * (see App\Traits\ResolvesUserLocation). Centralized roles keep the ability to
- * pass any location_id, including none at all for an org-wide view.
+ * Read-scoped roles must be pinned to their own location (see
+ * User::readsAllLocations). All-location readers keep the ability to pass any
+ * location_id, including none at all for an org-wide view.
+ *
+ * The scoped actor here is warehouse_personnel (role 4). It does not hold
+ * analytics_dashboard.read by default — no read-scoped role does since the
+ * branch manager moved out of that group — so the tests grant it through the
+ * per-user override an admin would use, which is exactly the residual risk the
+ * enforcement exists for. The branch manager now reads every location and is
+ * covered as such at the bottom of this file.
  */
 class AnalyticsLocationScopeTest extends TestCase
 {
@@ -103,9 +111,35 @@ class AnalyticsLocationScopeTest extends TestCase
         return (int) $json['data']['statsData']['totalUnits'];
     }
 
+    /**
+     * A warehouse_personnel user at $locationId holding analytics_dashboard.read.
+     *
+     * The grant goes through PermissionAdminService so it lands the same way the
+     * admin UI writes it, override row and all; ScopeWithOverrideTest covers the
+     * matching guarantee that an override widens permissions and never scope.
+     */
+    private function scopedAnalyticsUser(int $locationId): User
+    {
+        $wp    = $this->userAt(4, $locationId);
+        $admin = User::where('role_id', 1)->firstOrFail();
+        $perm  = Permission::where('feature', 'analytics_dashboard')
+            ->where('action', 'read')
+            ->firstOrFail();
+
+        app(PermissionAdminService::class)->setUserOverride(
+            $admin,
+            (int) $wp->user_id,
+            (int) $perm->permission_id,
+            true,
+            'analytics location-scope test'
+        );
+
+        return $wp;
+    }
+
     public function test_scoped_user_cannot_read_another_locations_analytics(): void
     {
-        $bm = $this->userAt(3, $this->mine);
+        $bm = $this->scopedAnalyticsUser($this->mine);
 
         $json = $this->actingAs($bm)
             ->getJson('/api/analytics/stock-level?location_id=' . $this->theirs . '&category_id=' . $this->categoryId)
@@ -121,7 +155,7 @@ class AnalyticsLocationScopeTest extends TestCase
 
     public function test_scoped_user_without_a_location_param_does_not_get_org_wide_totals(): void
     {
-        $bm = $this->userAt(3, $this->mine);
+        $bm = $this->scopedAnalyticsUser($this->mine);
 
         $json = $this->actingAs($bm)
             ->getJson('/api/analytics/stock-level?category_id=' . $this->categoryId)
@@ -149,7 +183,7 @@ class AnalyticsLocationScopeTest extends TestCase
 
     public function test_scoped_user_sees_only_their_own_branch_in_location_performance(): void
     {
-        $bm = $this->userAt(3, $this->mine);
+        $bm = $this->scopedAnalyticsUser($this->mine);
 
         $rows = $this->actingAs($bm)
             ->getJson('/api/analytics/location-performance?category_id=' . $this->categoryId)
@@ -168,7 +202,7 @@ class AnalyticsLocationScopeTest extends TestCase
 
     public function test_scoped_user_only_gets_their_own_location_in_the_filter_dropdown(): void
     {
-        $bm = $this->userAt(3, $this->mine);
+        $bm = $this->scopedAnalyticsUser($this->mine);
 
         $locations = $this->actingAs($bm)
             ->getJson('/api/analytics/filters')
@@ -205,5 +239,67 @@ class AnalyticsLocationScopeTest extends TestCase
             ->json();
 
         $this->assertSame(1006, $this->units($json), 'A centralized role keeps the org-wide view.');
+    }
+
+    // ---------------------------------------------------------------
+    // The branch manager reads every location's analytics
+    // ---------------------------------------------------------------
+
+    public function test_branch_manager_may_read_another_locations_analytics(): void
+    {
+        $bm = $this->userAt(3, $this->mine);
+
+        $json = $this->actingAs($bm)
+            ->getJson('/api/analytics/stock-level?location_id=' . $this->theirs . '&category_id=' . $this->categoryId)
+            ->assertStatus(200)
+            ->json();
+
+        $this->assertSame(
+            999,
+            $this->units($json),
+            'The branch manager asked for another location and must be served that location.'
+        );
+    }
+
+    public function test_branch_manager_unfiltered_gets_org_wide_totals(): void
+    {
+        $bm = $this->userAt(3, $this->mine);
+
+        $json = $this->actingAs($bm)
+            ->getJson('/api/analytics/stock-level?category_id=' . $this->categoryId)
+            ->assertStatus(200)
+            ->json();
+
+        $this->assertSame(1006, $this->units($json), 'Omitting location_id gives the branch manager the org-wide view.');
+    }
+
+    public function test_branch_manager_sees_every_branch_in_location_performance(): void
+    {
+        $bm = $this->userAt(3, $this->mine);
+
+        $rows = $this->actingAs($bm)
+            ->getJson('/api/analytics/location-performance?category_id=' . $this->categoryId)
+            ->assertStatus(200)
+            ->json('data.branchPerformanceData');
+
+        $ids = collect($rows)->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        $this->assertContains($this->mine, $ids);
+        $this->assertContains($this->theirs, $ids);
+    }
+
+    public function test_branch_manager_gets_every_location_in_the_filter_dropdown(): void
+    {
+        $bm = $this->userAt(3, $this->mine);
+
+        $locations = $this->actingAs($bm)
+            ->getJson('/api/analytics/filters')
+            ->assertStatus(200)
+            ->json('data.locations');
+
+        $ids = collect($locations)->pluck('id')->map(fn ($i) => (int) $i)->all();
+
+        $this->assertContains($this->mine, $ids);
+        $this->assertContains($this->theirs, $ids, 'The filter must offer the other locations the manager can now see.');
     }
 }

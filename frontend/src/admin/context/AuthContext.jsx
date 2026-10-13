@@ -132,13 +132,28 @@ export const useUserLocation = () => {
   const roleId   = Number(user?.role?.role_id ?? 0);
   const roleName = user?.role?.role_name ?? '';
 
-  // Prefer the server-computed flag; derive from role_id if not present yet
-  const isStrictLocation = user?.has_strict_location ?? [2, 4].includes(roleId);
+  // Two separate boundaries, and for the branch manager they disagree:
+  //
+  //   isStrictLocation  — WRITE scope. True for branch_manager=3 and
+  //                       warehouse_personnel=4: the server pins the location
+  //                       on every write, so there is nothing to pick.
+  //   readsAllLocations — READ scope. True for admin=1, inventory_analyst=2,
+  //                       branch_manager=3 and auditor=5: these roles see every
+  //                       location's data, so a screen must not filter to one.
+  //
+  // The branch manager is both: it reads across branches but transacts only at
+  // its own. Prefer the server-computed flags (mirrors User::hasStrictLocation()
+  // and User::readsAllLocations()); the role_id lists are only the fallback for
+  // a user object that login populated but refreshUser() has not hydrated yet.
+  const isStrictLocation  = user?.has_strict_location ?? [3, 4].includes(roleId);
+  const readsAllLocations = user?.reads_all_locations ?? [1, 2, 3, 5].includes(roleId);
 
-  // Admin (1) and branch_manager (3) may choose; all others are strict
-  const canChooseLocation =
-    !isStrictLocation &&
-    (roleName === 'admin' || roleName === 'branch_manager' || roleId === 1 || roleId === 3);
+  // Admin picks the location it transacts at; everyone else either is pinned to
+  // one or does not transact. Unchanged by the read-scope widening: the branch
+  // manager used to be named here but was never reached, because a strict role
+  // fails the first clause — its wider reach is visibility, not the authority to
+  // post a movement at another branch.
+  const canChooseLocation = !isStrictLocation && (roleName === 'admin' || roleId === 1);
 
   return {
     // The single location_id this user must transact at (null for admin = must pick)
@@ -146,6 +161,7 @@ export const useUserLocation = () => {
     locationName:      user?.primary_location?.location_name ?? user?.location?.location_name ?? null,
     locationType:      user?.primary_location?.location_type  ?? user?.location?.location_type  ?? null,
     isStrictLocation,
+    readsAllLocations,
     // Populated after refreshUser() — array of { location_id, location_name, location_type, location_code }
     allowedLocations:  user?.allowed_locations ?? [],
     canChooseLocation,

@@ -17,6 +17,12 @@ use Tests\TestCase;
  * them directly, so they must be filtered the way every other location-bearing
  * list is: via ScopesToUserLocation::forUser().
  */
+/**
+ * The read-scoped actor is warehouse_personnel=4 — the only role whose reads are
+ * still narrowed to users.location_id. branch_manager=3 reads every location
+ * (User::readsAllLocations) while writing only at its own, and is covered as a
+ * sees-everything case below.
+ */
 class SerialAndDeliveryReceiptScopingTest extends TestCase
 {
     use DatabaseTransactions;
@@ -75,8 +81,8 @@ class SerialAndDeliveryReceiptScopingTest extends TestCase
         $ours   = $this->serialAt($mine->location_id);
         $other  = $this->serialAt($theirs->location_id);
 
-        $bm   = $this->userAt(3, $mine->location_id);
-        $data = $this->actingAs($bm)->getJson('/api/serials')->assertStatus(200)->json('data');
+        $wp   = $this->userAt(4, $mine->location_id);
+        $data = $this->actingAs($wp)->getJson('/api/serials')->assertStatus(200)->json('data');
         $ids  = collect($data)->pluck('serial_id')->all();
 
         $this->assertContains($ours->serial_id, $ids);
@@ -89,8 +95,8 @@ class SerialAndDeliveryReceiptScopingTest extends TestCase
         $theirs = $this->loc();
         $other  = $this->serialAt($theirs->location_id);
 
-        $bm = $this->userAt(3, $mine->location_id);
-        $this->actingAs($bm)->getJson('/api/serials/' . $other->serial_id)->assertStatus(404);
+        $wp = $this->userAt(4, $mine->location_id);
+        $this->actingAs($wp)->getJson('/api/serials/' . $other->serial_id)->assertStatus(404);
     }
 
     public function test_centralized_user_still_sees_every_location_serial(): void
@@ -116,8 +122,8 @@ class SerialAndDeliveryReceiptScopingTest extends TestCase
         $ours   = $this->drAt($mine->location_id);
         $other  = $this->drAt($theirs->location_id);
 
-        $bm   = $this->userAt(3, $mine->location_id);
-        $data = $this->actingAs($bm)->getJson('/api/delivery-receipts')->assertStatus(200)->json('data');
+        $wp   = $this->userAt(4, $mine->location_id);
+        $data = $this->actingAs($wp)->getJson('/api/delivery-receipts')->assertStatus(200)->json('data');
         $ids  = collect($data)->pluck('dr_id')->all();
 
         $this->assertContains($ours->dr_id, $ids);
@@ -130,8 +136,8 @@ class SerialAndDeliveryReceiptScopingTest extends TestCase
         $theirs = $this->loc();
         $other  = $this->drAt($theirs->location_id);
 
-        $bm = $this->userAt(3, $mine->location_id);
-        $this->actingAs($bm)->getJson('/api/delivery-receipts/' . $other->dr_id)->assertStatus(404);
+        $wp = $this->userAt(4, $mine->location_id);
+        $this->actingAs($wp)->getJson('/api/delivery-receipts/' . $other->dr_id)->assertStatus(404);
     }
 
     public function test_centralized_user_still_sees_every_location_delivery_receipt(): void
@@ -147,5 +153,55 @@ class SerialAndDeliveryReceiptScopingTest extends TestCase
 
         $this->assertContains($da->dr_id, $ids);
         $this->assertContains($db->dr_id, $ids);
+    }
+
+    public function test_branch_manager_sees_every_location_serial(): void
+    {
+        $mine   = $this->loc();
+        $theirs = $this->loc();
+        $ours   = $this->serialAt($mine->location_id);
+        $other  = $this->serialAt($theirs->location_id);
+
+        $bm   = $this->userAt(3, $mine->location_id);
+        $data = $this->actingAs($bm)->getJson('/api/serials?per_page=200')->assertStatus(200)->json('data');
+        $ids  = collect($data)->pluck('serial_id')->all();
+
+        $this->assertContains($ours->serial_id, $ids);
+        $this->assertContains($other->serial_id, $ids);
+    }
+
+    public function test_branch_manager_may_fetch_another_locations_serial(): void
+    {
+        $mine   = $this->loc();
+        $theirs = $this->loc();
+        $other  = $this->serialAt($theirs->location_id);
+
+        $bm = $this->userAt(3, $mine->location_id);
+        $this->actingAs($bm)->getJson('/api/serials/' . $other->serial_id)->assertStatus(200);
+    }
+
+    public function test_branch_manager_sees_every_location_delivery_receipt(): void
+    {
+        $mine   = $this->loc();
+        $theirs = $this->loc();
+        $ours   = $this->drAt($mine->location_id);
+        $other  = $this->drAt($theirs->location_id);
+
+        $bm   = $this->userAt(3, $mine->location_id);
+        $data = $this->actingAs($bm)->getJson('/api/delivery-receipts?per_page=200')->assertStatus(200)->json('data');
+        $ids  = collect($data)->pluck('dr_id')->all();
+
+        $this->assertContains($ours->dr_id, $ids);
+        $this->assertContains($other->dr_id, $ids);
+    }
+
+    public function test_branch_manager_may_fetch_another_locations_delivery_receipt(): void
+    {
+        $mine   = $this->loc();
+        $theirs = $this->loc();
+        $other  = $this->drAt($theirs->location_id);
+
+        $bm = $this->userAt(3, $mine->location_id);
+        $this->actingAs($bm)->getJson('/api/delivery-receipts/' . $other->dr_id)->assertStatus(200);
     }
 }

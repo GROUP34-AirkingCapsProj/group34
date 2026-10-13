@@ -33,7 +33,7 @@ class CustomerController extends Controller
     private function scopedCounts(?User $user): array
     {
         $limit = static function ($q) use ($user) {
-            if ($user === null || $user->isCentralized()) {
+            if ($user === null || $user->readsAllLocations()) {
                 return;
             }
 

@@ -13,8 +13,8 @@ use Tests\Feature\Sets\SetTestCase;
  *
  * Extends SetTestCase for its location/user/product/stock builders. The extra
  * helpers here are the two things reports need that no other suite does:
- * granting report permissions to a LOCATION-SCOPED user (roles that hold
- * report_viewing are all centralized, so scoping is only reachable via an
+ * granting report permissions to a READ-SCOPED user (every role that holds
+ * report_viewing reads all locations, so scoping is only reachable via an
  * override), and resolving movement type ids by name.
  */
 abstract class ReportTestCase extends SetTestCase
@@ -30,10 +30,11 @@ abstract class ReportTestCase extends SetTestCase
     /**
      * Grant a permission to one user without touching their role.
      *
-     * This is the only way to produce a location-scoped user who can run
-     * reports: report_viewing is seeded to admin/inventory_analyst/auditor,
-     * all three of which are centralized. Promoting the user's role to get
-     * the permission would also make them centralized and test nothing.
+     * This is the only way to produce a read-scoped user who can run reports:
+     * report_viewing is seeded to admin, inventory_analyst, branch_manager and
+     * auditor, and all four read every location (User::readsAllLocations).
+     * Promoting the user's role to get the permission would widen their read
+     * scope with it and test nothing. warehouse_personnel is the role to use.
      */
     protected function grantPermission(User $user, string $feature, string $action): void
     {

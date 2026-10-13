@@ -130,10 +130,10 @@ class ReportController extends Controller
         $runs = ReportRun::query()
             ->with('generatedBy')
             // A run the user could not download must not be listed as though
-            // they could — see mayAccess(). A location-scoped holder of
+            // they could — see mayAccess(). A read-scoped holder of
             // report_viewing sees only their own; the SQL side of that is
             // here, and the report-level check is applied per row below.
-            ->when(! $user->isCentralized(), fn ($q) => $q->where('generated_by', $user->user_id))
+            ->when(! $user->readsAllLocations(), fn ($q) => $q->where('generated_by', $user->user_id))
             ->orderByDesc('report_run_id')
             ->paginate(20);
 
@@ -185,12 +185,12 @@ class ReportController extends Controller
      * cannot answer on its own:
      *
      * - report_viewing.read lives in an editable role-permission table, so a
-     *   location-scoped role can be granted it. Such a user must not read a
+     *   read-scoped role can be granted it. Such a user must not read a
      *   run of a report whose own availableTo() excludes them — User Activity
-     *   returns isCentralized(), and that boundary has to survive to read time
-     *   or it only ever guarded generation.
-     * - A run made by a centralized user covers every location. Serving it to
-     *   a location-scoped user undoes the forUser() scoping their own reports
+     *   returns readsAllLocations(), and that boundary has to survive to read
+     *   time or it only ever guarded generation.
+     * - A run made by an all-location reader covers every location. Serving it
+     *   to a read-scoped user undoes the forUser() scoping their own reports
      *   are built with, so they get only what they generated themselves.
      *
      * A run whose definition no longer exists is readable by its author alone:
@@ -203,7 +203,7 @@ class ReportController extends Controller
             return true;
         }
 
-        if (! $user->isCentralized()) {
+        if (! $user->readsAllLocations()) {
             return false;
         }
 

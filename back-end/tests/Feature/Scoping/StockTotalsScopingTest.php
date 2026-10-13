@@ -10,12 +10,13 @@ use Tests\TestCase;
 /**
  * Row-level scoping is not enough on its own: /api/products and /api/inventory
  * both attach a withSum() of quantity_on_hand over the product's inventories,
- * and that subquery spans every location. A branch manager was therefore served
- * correctly-filtered rows carrying an org-wide STOCK figure — the number the
- * Item Master column and its stat cards render.
+ * and that subquery spans every location. A read-scoped user was therefore
+ * served correctly-filtered rows carrying an org-wide STOCK figure — the number
+ * the Item Master column and its stat cards render.
  *
  * The aggregate must be computed over the same set of locations the caller is
- * allowed to see.
+ * allowed to see, which for warehouse_personnel=4 is one and for the branch
+ * manager is all of them (the last test here).
  */
 class StockTotalsScopingTest extends TestCase
 {
@@ -113,11 +114,11 @@ class StockTotalsScopingTest extends TestCase
 
     public function test_item_master_stock_total_covers_only_the_users_location(): void
     {
-        $bm = $this->userAt(3, $this->mine);
+        $wp = $this->userAt(4, $this->mine);
 
         $this->assertSame(
             4,
-            (int) $this->productRow($bm)['quantity'],
+            (int) $this->productRow($wp)['quantity'],
             'Item Master STOCK showed stock held at other locations.'
         );
     }
@@ -135,9 +136,9 @@ class StockTotalsScopingTest extends TestCase
 
     public function test_inventory_rows_carry_a_location_scoped_stock_total(): void
     {
-        $bm = $this->userAt(3, $this->mine);
+        $wp = $this->userAt(4, $this->mine);
 
-        $rows = $this->actingAs($bm)
+        $rows = $this->actingAs($wp)
             ->getJson('/api/inventory?per_page=200&location_id=' . $this->mine)
             ->assertStatus(200)
             ->json('data');
@@ -163,6 +164,32 @@ class StockTotalsScopingTest extends TestCase
 
         $row = collect($rows)->firstWhere('product_id', $this->productId);
         $this->assertNotNull($row);
+
+        $this->assertSame(504, (int) ($row['product']['stock_on_hand_total'] ?? -1));
+    }
+
+    public function test_branch_manager_sees_the_org_wide_stock_total(): void
+    {
+        $bm = $this->userAt(3, $this->mine);
+
+        $this->assertSame(
+            504,
+            (int) $this->productRow($bm)['quantity'],
+            'The branch manager reads every location, so Item Master STOCK is the org-wide figure.'
+        );
+    }
+
+    public function test_branch_manager_keeps_org_wide_total_on_inventory_rows(): void
+    {
+        $bm = $this->userAt(3, $this->mine);
+
+        $rows = $this->actingAs($bm)
+            ->getJson('/api/inventory?per_page=200&location_id=' . $this->mine)
+            ->assertStatus(200)
+            ->json('data');
+
+        $row = collect($rows)->firstWhere('product_id', $this->productId);
+        $this->assertNotNull($row, 'Expected the test product in /api/inventory.');
 
         $this->assertSame(504, (int) ($row['product']['stock_on_hand_total'] ?? -1));
     }

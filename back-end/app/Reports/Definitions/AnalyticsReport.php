@@ -51,7 +51,7 @@ class AnalyticsReport implements ReportDefinition
     public function build(ReportParameters $params, User $user): ReportDataset
     {
         $location = $params->int('location_id');
-        if (!$user->isCentralized()) {
+        if (!$user->readsAllLocations()) {
             $own = $user->scopedLocationId();
             $location = $own === null || ($location !== null && $location !== $own) ? -1 : $own;
         }

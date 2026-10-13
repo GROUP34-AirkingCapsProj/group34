@@ -85,12 +85,25 @@ class LabelPrintController extends Controller
             return $this->error('A single reprint sends exactly one label.', 422);
         }
 
-        /* forUser() is the same location scope Inventory, Receiving and
-           Issuance already apply. The client sends serial ids, so without it
-           a branch-scoped user could reprint labels for another branch's
-           stock simply by guessing ids. Centralized roles are unaffected. */
+        /* The client sends serial ids, so without a location scope a user could
+           reprint labels for another branch's stock simply by guessing ids.
+
+           This one is the WRITE scope, not forUser(): spooling a label sends a
+           job to a physical printer at the location the tag belongs to, which
+           is an act at that branch rather than a look at it. forUser() (read)
+           would let a branch manager, who reads every location, print into a
+           branch it does not operate — so the queue below it may list another
+           branch's tags while this refuses to print them. Roles that may choose
+           where they write (User::isCentralized) are unaffected. */
+        $user = $request->user();
+
         $serials = ItemSerial::with(['product.applianceDetail', 'product.installationMaterialDetail'])
-            ->forUser($request->user())
+            ->when(
+                $user->hasStrictLocation(),
+                fn ($q) => $user->scopedLocationId() === null
+                    ? $q->whereRaw('1 = 0')
+                    : $q->where('item_serial.location_id', $user->scopedLocationId())
+            )
             ->whereIn('serial_id', $ids)
             ->get();
 

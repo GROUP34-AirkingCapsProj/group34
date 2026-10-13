@@ -43,12 +43,13 @@ class PurchaseOrderController extends Controller
         try {
             $query = PurchaseOrder::with(self::WITH_RELATIONS);
 
-            // Location visibility: centralized roles (admin, inventory_analyst,
-            // auditor) see everything — the auditor must see every PO to verify it.
-            // Location-scoped roles (branch_manager, warehouse_personnel) see POs for
-            // their assigned location OR POs they personally created.
+            // Location visibility: all-location readers (admin, inventory_analyst,
+            // branch_manager, auditor) see everything — the auditor must see every
+            // PO to verify it, and the branch manager reads across branches. The one
+            // read-scoped role, warehouse_personnel, sees POs for its assigned
+            // location OR POs it personally created.
             $authUser = $request->user();
-            if ($authUser && ! $authUser->isCentralized()) {
+            if ($authUser && ! $authUser->readsAllLocations()) {
                 $userId     = (int) $authUser->user_id;
                 $locationId = $authUser->location_id ? (int) $authUser->location_id : null;
                 $query->where(function ($q) use ($userId, $locationId) {
@@ -81,7 +82,9 @@ class PurchaseOrderController extends Controller
             $perPage   = $request->get('per_page', 20);
             $paginated = $query->orderBy('created_at', 'desc')->paginate($perPage);
             $paginated->getCollection()->each(function ($po) {
-                $po->details->transform(fn ($d) => $this->transformPoDetail($d));
+                $balances = app(\App\Services\PoLineBalanceService::class)->forPo($po);
+                $this->attachLifecycle($po, $balances);
+                $po->details->transform(fn ($d) => $this->transformPoDetail($d, $balances[$d->po_detail_id] ?? null));
             });
 
             return $this->paginated($paginated, 'Purchase orders retrieved successfully');
@@ -156,6 +159,8 @@ class PurchaseOrderController extends Controller
 
             DB::beginTransaction();
 
+            $validated['status_id'] = 7;
+            $validated['approved_by'] = null;
             $po = PurchaseOrder::create(Arr::except($validated, ['details']));
 
             $totalAmount = 0;
@@ -200,7 +205,9 @@ class PurchaseOrderController extends Controller
             // with flat arrays.
             $airconGroups = $this->airconGroups($po->details);
 
-            $po->details->transform(fn ($d) => $this->transformPoDetail($d));
+            $balances = app(\App\Services\PoLineBalanceService::class)->forPo($po);
+            $this->attachLifecycle($po, $balances);
+            $po->details->transform(fn ($d) => $this->transformPoDetail($d, $balances[$d->po_detail_id] ?? null));
 
             // array_merge over toArray() rather than setting an attribute on
             // the model: the existing payload is reproduced byte for byte
@@ -334,6 +341,39 @@ class PurchaseOrderController extends Controller
 
             DB::beginTransaction();
 
+            $po = PurchaseOrder::whereKey($id)->lockForUpdate()->firstOrFail();
+            if ($request->user()?->role?->role_name === 'branch_manager'
+                && array_diff(array_keys($validated), ['status_id', 'approved_by', 'notes'])) {
+                throw ValidationException::withMessages(['po' => 'Branch Manager can approve or reject POs; purchasing edits belong to Inventory Analyst or Admin.']);
+            }
+            if (array_key_exists('approved_by', $validated) && ! in_array((int) ($validated['status_id'] ?? 0), [8, 10], true)) {
+                unset($validated['approved_by']);
+            }
+            $hasReceipts = $po->receivings()->exists() || $po->details()->whereHas('receivingDetails')->exists();
+            $protected = ['details', 'supplier_id', 'location_id', 'total_amount', 'grand_total'];
+            if (($hasReceipts || in_array((int) $po->status_id, [8, 10, 11, 12], true))
+                && array_intersect(array_keys($validated), $protected)) {
+                throw ValidationException::withMessages(['details' => 'Approved or received PO lines, prices, supplier and destination cannot be replaced.']);
+            }
+            if (isset($validated['status_id'])) {
+                $target = (int) $validated['status_id'];
+                if (! in_array($target, [7, 8, 9, 10], true)) {
+                    throw ValidationException::withMessages(['status_id' => 'Receiving statuses are calculated from receipts; use dedicated lifecycle actions.']);
+                }
+                if (($hasReceipts || in_array((int) $po->status_id, [8, 10, 11, 12], true))
+                    && $target !== (int) $po->status_id && ! ((int) $po->status_id === 8 && $target === 10 && ! $hasReceipts)) {
+                    throw ValidationException::withMessages(['status_id' => 'An approved/received PO cannot be reset or rejected through general editing.']);
+                }
+                if (in_array($target, [8, 10], true)) {
+                    if (! in_array($request->user()?->role?->role_name, ['admin', 'branch_manager'], true)) {
+                        throw ValidationException::withMessages(['status_id' => 'Only Admin or Branch Manager can approve a PO.']);
+                    }
+                    if ($po->verification_status !== 'verified') {
+                        throw ValidationException::withMessages(['status_id' => 'Auditor verification is required before approval.']);
+                    }
+                    $validated['approved_by'] = $request->user()->user_id;
+                }
+            }
             $header = Arr::except($validated, ['details']);
             if (!empty($header)) {
                 $po->update($header);
@@ -437,6 +477,8 @@ class PurchaseOrderController extends Controller
             $po = PurchaseOrder::findOrFail($id);
             $po->delete();
             return $this->success(null, 'Purchase order archived successfully');
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
         } catch (\Exception $e) {
             return $this->error('Failed to delete purchase order: ' . $e->getMessage(), 500);
         }
@@ -471,6 +513,10 @@ class PurchaseOrderController extends Controller
         $po = PurchaseOrder::onlyTrashed()->find($id);
         if (! $po) {
             return $this->notFound('Archived purchase order not found');
+        }
+        if ($po->receivings()->exists() || $po->purchaseReturns()->exists()
+            || $po->details()->where('short_closed_quantity', '>', 0)->exists()) {
+            return $this->error('This PO has permanent receiving or lifecycle evidence and must remain archived.', 409);
         }
         $po->forceDelete();
         return $this->success(null, 'Purchase order permanently deleted');
@@ -643,7 +689,18 @@ class PurchaseOrderController extends Controller
     // HELPERS
     // -----------------------------------------------------------------------
 
-    private function transformPoDetail($detail): array
+    private function attachLifecycle($po, array $balances): void
+    {
+        $state = \App\Support\PoLifecycle::compute(array_values($balances),
+            in_array((int) $po->status_id, [8, 10, 11, 12], true),
+            $po->lifecycle_status === \App\Support\PoLifecycle::CANCELLED);
+        $po->setAttribute('lifecycle_status', $state);
+        $po->setAttribute('lifecycle_label', \App\Support\PoLifecycle::LABELS[$state]);
+        $po->setAttribute('lifecycle_review_issues', DB::table('po_lifecycle_exceptions')
+            ->where('po_id', $po->po_id)->distinct()->pluck('code')->all());
+    }
+
+    private function transformPoDetail($detail, ?array $balance = null): array
     {
         $p  = $detail->product;
         $ad = $p?->applianceDetail;
@@ -656,6 +713,10 @@ class PurchaseOrderController extends Controller
             'quantity_ordered'   => $detail->quantity_ordered,
             'unit_price'         => $detail->unit_price,
             'subtotal'           => $detail->subtotal,
+            'quantity_balance'   => $balance,
+            'order_unit'         => $detail->order_unit,
+            'pieces_per_order_unit' => $detail->pieces_per_order_unit,
+            'short_closed_quantity' => $detail->short_closed_quantity,
             // Destination warehouse for this line (per-line warehouse PO shape)
             'location_id'        => $detail->location_id,
             'location_name'      => $detail->location?->location_name,
@@ -683,7 +744,7 @@ class PurchaseOrderController extends Controller
             'variant'            => $ad?->variant,
             'unit_name'          => $cd?->unit?->unit_name,
             'unit_abbreviation'  => $cd?->unit?->unit_abbreviation,
-            'pieces_per_package' => $cd?->pieces_per_package,
+            'pieces_per_package' => $detail->pieces_per_order_unit ?? $cd?->pieces_per_package,
             'package_unit'       => $cd?->package_unit,
             // Whether this line is counted by the package or by the piece.
             // The receiving screen's count-entry panel prompts and converts on
@@ -698,7 +759,7 @@ class PurchaseOrderController extends Controller
                 'product_name'       => $p->product_name,
                 'product_type'       => $p->product_type,
                 'is_serialized'      => $p->isSerialized(),
-                'pieces_per_package' => $cd?->pieces_per_package ?? 1,
+                'pieces_per_package' => $detail->pieces_per_order_unit ?? $cd?->pieces_per_package ?? 1,
                 'package_unit'       => $cd?->package_unit,
                 'count_unit'         => $cd?->count_unit ?? 'package',
                 'brand_name'         => $ad?->brand?->brand_name,

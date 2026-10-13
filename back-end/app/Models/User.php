@@ -257,8 +257,11 @@ class User extends Authenticatable
 
     /**
      * Roles that must transact at a single enforced location with no override.
-     * Now derived from the scope source of truth: strict == location-scoped == !centralized.
+     * Derived from the WRITE scope source of truth: strict == !centralized.
      * (branch_manager=3, warehouse_personnel=4)
+     *
+     * Note this is deliberately NOT readsAllLocations(): the branch manager reads
+     * every location but still writes only at its own.
      */
     public function hasStrictLocation(): bool
     {
@@ -266,9 +269,13 @@ class User extends Authenticatable
     }
 
     /**
-     * Centralized roles see all locations' data and may choose a location on writes.
-     * CENTRALIZED = admin(1), inventory_analyst(2), auditor(5). Single source of truth
-     * for BOTH read scoping and write enforcement (see spec §5).
+     * WRITE scope. Centralized roles may choose the location a write lands at;
+     * everyone else is pinned to users.location_id.
+     * CENTRALIZED = admin(1), inventory_analyst(2), auditor(5).
+     *
+     * Read scoping used to key off this method too, but the two boundaries are no
+     * longer the same shape — see readsAllLocations(). Call this one only where a
+     * record is being created or changed, never to decide what a user may see.
      */
     public function isCentralized(): bool
     {
@@ -276,10 +283,30 @@ class User extends Authenticatable
     }
 
     /**
-     * The location_id this user's data is restricted to.
-     * Returns null for centralized users (no restriction). For location-scoped
+     * READ scope. Roles that see every location's data.
+     * admin(1), inventory_analyst(2), branch_manager(3), auditor(5).
+     *
+     * The branch manager was added here because it acts as the admin's deputy and
+     * has to be able to look across branches. It is absent from isCentralized() on
+     * purpose: visibility widened, authority to post stock movements did not, so a
+     * manager still receives, issues and adjusts only at their own branch.
+     *
+     * warehouse_personnel(4) remains scoped on both sides.
+     */
+    public function readsAllLocations(): bool
+    {
+        return in_array((int) $this->role_id, [1, 2, 3, 5], true);
+    }
+
+    /**
+     * The location_id this user's WRITES are restricted to.
+     * Returns null for centralized users (no restriction). For write-scoped
      * roles (branch_manager=3, warehouse_personnel=4) returns users.location_id,
      * which may itself be null when unassigned (callers then deny — spec D3).
+     *
+     * A read-scoping caller must gate on readsAllLocations() before consulting
+     * this: a branch manager has a non-null value here and filtering a list by it
+     * would re-impose the single-location read scope this role no longer has.
      */
     public function scopedLocationId(): ?int
     {

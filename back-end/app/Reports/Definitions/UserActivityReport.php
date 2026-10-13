@@ -14,10 +14,16 @@ use App\Reports\ReportParameters;
  *
  * `login_activities` has no location_id — an authentication event does not
  * belong to a warehouse — so this report cannot be scoped the way the other
- * five are. availableTo() returns User::isCentralized() (admin,
- * inventory_analyst, auditor) rather than true: a location-scoped user is
- * not offered the card at all, rather than being offered it and either
+ * five are. availableTo() returns User::readsAllLocations() (admin,
+ * inventory_analyst, branch_manager, auditor) rather than true: a read-scoped
+ * user is not offered the card at all, rather than being offered it and either
  * hitting a 403 or, worse, seeing every location's login attempts.
+ *
+ * The branch manager qualifies on the read side, which is the only side that
+ * applies to a report: the one reason to withhold this card was that its rows
+ * cannot be narrowed to a single branch, and that role no longer needs them to
+ * be. Viewing authentication activity is not administration — managing the
+ * accounts behind it is, and that stays admin-only.
  *
  * The mock page originally described this card as "System usage and login
  * statistics", but this report covers logins only: when it was written there
@@ -73,12 +79,13 @@ class UserActivityReport implements ReportDefinition
 
     /**
      * login_activities carries no location column, so there is no way to
-     * scope this data by location — only centralized roles (admin,
-     * inventory_analyst, auditor) may see authentication activity at all.
+     * scope this data by location — only all-location readers (admin,
+     * inventory_analyst, branch_manager, auditor) may see authentication
+     * activity at all.
      */
     public function availableTo(User $user): bool
     {
-        return $user->isCentralized();
+        return $user->readsAllLocations();
     }
 
     public function build(ReportParameters $params, User $user): ReportDataset

@@ -264,7 +264,7 @@ class LocationPerformanceReport implements ReportDefinition
     {
         $query = Location::query();
 
-        if (! $user->isCentralized()) {
+        if (! $user->readsAllLocations()) {
             $scopedLocationId = $user->scopedLocationId();
             if ($scopedLocationId === null) {
                 return $query->whereRaw('1 = 0')->get();

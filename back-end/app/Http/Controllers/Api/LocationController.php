@@ -85,7 +85,7 @@ class LocationController extends Controller
         $location->load(['status', 'parent', 'children']);
 
         $user = $request->user();
-        if ($user && ($user->isCentralized() || $user->scopedLocationId() === (int) $location->location_id)) {
+        if ($user && ($user->readsAllLocations() || $user->scopedLocationId() === (int) $location->location_id)) {
             $location->load(['users', 'sales', 'purchaseOrders', 'adjustments']);
         }
 

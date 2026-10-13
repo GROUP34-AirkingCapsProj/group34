@@ -45,7 +45,7 @@ class PurchaseRequestController extends Controller
 
         $locationId = (int) $validated['location_id'];
         $user = $request->user();
-        if (! $user->isCentralized() && (int) $user->scopedLocationId() !== $locationId) {
+        if (! $user->readsAllLocations() && (int) $user->scopedLocationId() !== $locationId) {
             return $this->forbidden('You do not have access to this warehouse.');
         }
 

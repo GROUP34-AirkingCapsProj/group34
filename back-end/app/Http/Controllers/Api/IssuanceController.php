@@ -273,6 +273,10 @@ class IssuanceController extends Controller
      * branch either way. It does nothing for an action addressed by id, where
      * the record already exists and may belong to anyone, so the record's own
      * location is what has to be checked.
+     *
+     * isCentralized(), not readsAllLocations(): every caller of this is a write
+     * (cancel, update). A branch manager can see another branch's issuance on a
+     * list now, but acting on one is still that branch's own business.
      */
     private function mayActOn(Request $request, Issuance $issuance): bool
     {

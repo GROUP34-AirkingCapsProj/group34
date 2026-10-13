@@ -234,7 +234,7 @@ class LocationPerformanceReportTest extends ReportTestCase
     {
         $mine   = $this->makeLocation('Mine');
         $theirs = $this->makeLocation('Theirs');
-        $scoped = $this->makeUserAt($mine, 'branch_manager');
+        $scoped = $this->makeUserAt($mine, 'warehouse_personnel');
         $this->grantPermission($scoped, 'report_viewing', 'read');
 
         $dataset = app(LocationPerformanceReport::class)->build(
@@ -251,7 +251,7 @@ class LocationPerformanceReportTest extends ReportTestCase
     public function test_a_scoped_user_with_no_location_gets_zero_rows(): void
     {
         $location = $this->makeLocation();
-        $homeless = $this->makeUserAt($location, 'branch_manager');
+        $homeless = $this->makeUserAt($location, 'warehouse_personnel');
         $homeless->update(['location_id' => null]);
 
         $dataset = app(LocationPerformanceReport::class)->build(

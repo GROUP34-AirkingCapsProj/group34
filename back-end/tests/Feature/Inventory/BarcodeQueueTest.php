@@ -89,7 +89,22 @@ class BarcodeQueueTest extends TestCase
     }
 
     /** A non-centralized user pinned to one location. */
+    /**
+      * warehouse_personnel=4, the only role whose reads are still narrowed to one
+      * location. branch_manager=3 stood here until it became an all-location
+      * reader (User::readsAllLocations); see the branch-manager cases at the end.
+      */
     private function scopedUserAt(Location $location): User
+    {
+        $user = $this->user();
+        $user->role_id     = 4; // warehouse_personnel
+        $user->location_id = $location->location_id;
+        $user->save();
+
+        return $user;
+    }
+
+    private function branchManagerAt(Location $location): User
     {
         $user = $this->user();
         $user->role_id     = 3; // branch_manager
@@ -614,5 +629,25 @@ class BarcodeQueueTest extends TestCase
         $this->assertSame(205, $res->json('data.total'));
         $this->assertTrue($res->json('data.truncated'));
         $this->assertSame(200, $res->json('data.max'));
+    }
+
+    /* The branch manager reads every location, so the queue lists other
+       branches' tags for it. Printing them is a different question, and
+       BarcodeLabelPrintTest answers it: refused. */
+    public function test_a_branch_manager_sees_every_location(): void
+    {
+        $mine   = $this->location('BmMine');
+        $theirs = $this->location('BmTheirs');
+
+        $ours   = $this->tag($this->material(), ['location_id' => $mine->location_id]);
+        $others = $this->tag($this->material(), ['location_id' => $theirs->location_id]);
+
+        $bm = $this->branchManagerAt($mine);
+
+        $ids = collect($this->actingAs($bm)->getJson('/api/barcode-labels/queue')->json('data'))
+            ->pluck('serial_id');
+
+        $this->assertContains($ours->serial_id, $ids);
+        $this->assertContains($others->serial_id, $ids);
     }
 }

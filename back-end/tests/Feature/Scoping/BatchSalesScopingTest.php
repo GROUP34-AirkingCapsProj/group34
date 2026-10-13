@@ -12,7 +12,7 @@ use Tests\TestCase;
  * GET /api/batch carries no permission middleware, so every authenticated user
  * reaches it. Its `inventory` part already calls forUser(), and its
  * `transactions` part filters on the user's location — but the `sales` part
- * queried Sale unscoped, handing a branch manager every branch's sales.
+ * queried Sale unscoped, handing a read-scoped user every branch's sales.
  *
  * Sale carries ScopesToUserLocation and sales.location_id exists, so this part
  * must be filtered the same way its neighbours are.
@@ -66,8 +66,8 @@ class BatchSalesScopingTest extends TestCase
         $this->saleAt($mine->location_id);
         $this->saleAt($theirs->location_id);
 
-        $bm   = $this->userAt(3, $mine->location_id);
-        $rows = $this->actingAs($bm)
+        $wp   = $this->userAt(4, $mine->location_id);
+        $rows = $this->actingAs($wp)
             ->getJson('/api/batch?include=sales')
             ->assertStatus(200)
             ->json('data.sales.data');
@@ -107,6 +107,26 @@ class BatchSalesScopingTest extends TestCase
             1,
             $locations->count(),
             'A centralized role must keep seeing sales across locations.'
+        );
+    }
+
+    public function test_branch_manager_sees_every_location_sale_in_the_batch_payload(): void
+    {
+        $mine   = $this->loc();
+        $theirs = $this->loc();
+        $this->saleAt($mine->location_id);
+        $this->saleAt($theirs->location_id);
+
+        $bm   = $this->userAt(3, $mine->location_id);
+        $rows = $this->actingAs($bm)
+            ->getJson('/api/batch?include=sales')
+            ->assertStatus(200)
+            ->json('data.sales.data');
+
+        $this->assertGreaterThan(
+            1,
+            collect($rows)->pluck('location_id')->unique()->filter()->count(),
+            'The branch manager reads every location, so the sales part spans them.'
         );
     }
 }

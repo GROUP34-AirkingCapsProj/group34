@@ -1,16 +1,23 @@
 import { channelFor, badgeIncreased, REALTIME_EVENTS } from './realtimeChannel';
 
 describe('channelFor', () => {
-  test.each([1, 2, 5])('centralized role %i → org', (roleId) => {
+  // Mirrors User::readsAllLocations() on the backend, which is what
+  // ChannelAccess::canAccessOrg() asks. branch_manager (3) is in this group: it
+  // reads every location, even though it still writes only at its own.
+  test.each([1, 2, 3, 5])('all-location reader %i → org', (roleId) => {
     expect(channelFor({ role: { role_id: roleId }, location_id: 9 })).toBe('org');
   });
 
-  test('scoped branch_manager (3) → location channel from enforced_location_id', () => {
-    expect(channelFor({ role: { role_id: 3 }, enforced_location_id: 7 })).toBe('location.7');
+  test('branch_manager (3) → org even with an enforced location', () => {
+    expect(channelFor({ role: { role_id: 3 }, enforced_location_id: 7 })).toBe('org');
   });
 
-  test('scoped warehouse_personnel (4) → location channel from location_id', () => {
+  test('read-scoped warehouse_personnel (4) → location channel from location_id', () => {
     expect(channelFor({ role: { role_id: 4 }, location_id: 4 })).toBe('location.4');
+  });
+
+  test('read-scoped warehouse_personnel (4) → location channel from enforced_location_id', () => {
+    expect(channelFor({ role: { role_id: 4 }, enforced_location_id: 7 })).toBe('location.7');
   });
 
   test('scoped user without a location → null', () => {

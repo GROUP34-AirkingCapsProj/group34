@@ -159,7 +159,7 @@ class TransactionReportTest extends ReportTestCase
     {
         $mine   = $this->makeLocation('Mine');
         $theirs = $this->makeLocation('Theirs');
-        $scoped = $this->makeUserAt($mine, 'branch_manager');
+        $scoped = $this->makeUserAt($mine, 'warehouse_personnel');
         $this->grantPermission($scoped, 'report_viewing', 'read');
 
         $mineReceiving = $this->makeReceiving($mine->location_id);
@@ -184,7 +184,7 @@ class TransactionReportTest extends ReportTestCase
         $mine   = $this->makeLocation('Mine');
         $theirs = $this->makeLocation('Theirs');
         $elsewhere = $this->makeLocation('Elsewhere');
-        $scoped = $this->makeUserAt($mine, 'branch_manager');
+        $scoped = $this->makeUserAt($mine, 'warehouse_personnel');
 
         $inbound = Transfer::create([
             'from_location_id'           => $theirs->location_id,
@@ -278,7 +278,7 @@ class TransactionReportTest extends ReportTestCase
             'subtotal'   => 100.00,
         ]);
 
-        $homeless = $this->makeUserAt($location, 'branch_manager');
+        $homeless = $this->makeUserAt($location, 'warehouse_personnel');
         $homeless->update(['location_id' => null]);
 
         $dataset = app(TransactionReport::class)->build(

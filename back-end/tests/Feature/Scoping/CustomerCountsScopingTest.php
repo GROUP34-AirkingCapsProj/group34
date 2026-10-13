@@ -16,8 +16,9 @@ use Tests\TestCase;
  * carry a location_id.
  *
  * The customer list renders issuances_count as "Transactions", so an unscoped
- * count told a branch manager how much business a customer did at every other
- * branch.
+ * count told a read-scoped user how much business a customer did at every other
+ * branch. The branch manager is entitled to that whole figure and is checked
+ * for it below.
  */
 class CustomerCountsScopingTest extends TestCase
 {
@@ -89,11 +90,11 @@ class CustomerCountsScopingTest extends TestCase
     public function test_transaction_count_covers_only_the_users_location(): void
     {
         [$mine, $customer] = $this->seedCustomer();
-        $bm = $this->userAt(3, $mine->location_id);
+        $wp = $this->userAt(4, $mine->location_id);
 
         $this->assertSame(
             1,
-            $this->countFor($bm, $customer),
+            $this->countFor($wp, $customer),
             'The customer transaction count included other locations\' business.'
         );
     }
@@ -104,5 +105,17 @@ class CustomerCountsScopingTest extends TestCase
         $admin = $this->userAt(1, $mine->location_id);
 
         $this->assertSame(4, $this->countFor($admin, $customer));
+    }
+
+    public function test_branch_manager_sees_the_full_transaction_count(): void
+    {
+        [$mine, $customer] = $this->seedCustomer();
+        $bm = $this->userAt(3, $mine->location_id);
+
+        $this->assertSame(
+            4,
+            $this->countFor($bm, $customer),
+            'The branch manager reads every location, so the count covers all four transactions.'
+        );
     }
 }

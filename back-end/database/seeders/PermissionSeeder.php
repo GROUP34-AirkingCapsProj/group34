@@ -47,7 +47,7 @@ class PermissionSeeder extends Seeder
                 'read' => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
             ],
             'category_management' => [
-                'read'    => ['admin', 'inventory_analyst', 'auditor'],
+                'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
                 'create'  => ['admin', 'inventory_analyst'],
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
@@ -57,8 +57,13 @@ class PermissionSeeder extends Seeder
             // units of measure and issuable unit presets. The older
             // category_management / brand_management keys are retained and
             // still guard their own endpoints, so effective access is unchanged.
+            //
+            // The branch manager reads these catalogues (it does not maintain
+            // them) so the deputy role can see the same item reference data the
+            // analyst works from — granted on category_management.read too,
+            // since that is what gates the page the six lookups live on.
             'lookup_management' => [
-                'read'    => ['admin', 'inventory_analyst', 'auditor'],
+                'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
                 'create'  => ['admin', 'inventory_analyst'],
                 'update'  => ['admin', 'inventory_analyst'],
                 'archive' => ['admin'],
@@ -139,7 +144,7 @@ class PermissionSeeder extends Seeder
             'purchase_order_creation' => [
                 'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
                 'create'  => ['admin', 'inventory_analyst'],
-                'update'  => ['admin', 'inventory_analyst'],
+                'update'  => ['admin', 'inventory_analyst', 'branch_manager'],
                 'archive' => ['admin'],
             ],
             // read is granted to branch_manager as well: they approve PRs, and the
@@ -165,8 +170,13 @@ class PermissionSeeder extends Seeder
             // is a view concern, not a permission boundary. The page is read-only
             // apart from resolving a drift finding, which is the auditor's own act
             // and the only thing they can write.
+            // The branch manager holds read alongside the auditor: it already
+            // reads the audit trail and the exception list, and as the admin's
+            // deputy it needs the same evidence view when a discrepancy is
+            // raised. resolve_exception stays the auditor's alone — recording the
+            // outcome of a drift finding is that role's own act.
             'audit_evidence' => [
-                'read'              => ['admin', 'auditor'],
+                'read'              => ['admin', 'branch_manager', 'auditor'],
                 'resolve_exception' => ['auditor'],
             ],
             // PR Recommendation analytics (inline in Purchase Requests; Stock Parameters tab).
@@ -178,9 +188,9 @@ class PermissionSeeder extends Seeder
                 'update' => ['admin', 'inventory_analyst'],
             ],
             'delivery_receiving' => [
-                'read'    => ['admin', 'branch_manager', 'warehouse_personnel', 'auditor'],
-                'create'  => ['admin', 'branch_manager', 'warehouse_personnel'],
-                'update'  => ['admin', 'branch_manager', 'warehouse_personnel'],
+                'read'    => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],
+                'create'  => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel'],
+                'update'  => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel'],
                 'archive' => ['admin'],
             ],
             // Warehouse personnel pick, scan and print the delivery receipt, but the
@@ -281,11 +291,16 @@ class PermissionSeeder extends Seeder
                 // would make the maker the approver.
                 'approve' => ['admin', 'branch_manager'],
             ],
+            // The branch manager reads and generates reports. Every report
+            // narrows its rows through ReportDefinition::build($params, $user),
+            // which keys off User::readsAllLocations() — so the manager's output
+            // spans branches by the same rule its screens do, and no report
+            // definition needs a role check of its own.
             'report_viewing' => [
-                'read'   => ['admin', 'inventory_analyst', 'auditor'],
+                'read'   => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
                 // Generating writes a file and a report_runs row, so it is a
                 // separate action from viewing the catalog.
-                'create' => ['admin', 'inventory_analyst', 'auditor'],
+                'create' => ['admin', 'inventory_analyst', 'branch_manager', 'auditor'],
             ],
             'notification_panel' => [
                 'read' => ['admin', 'inventory_analyst', 'branch_manager', 'warehouse_personnel', 'auditor'],

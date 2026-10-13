@@ -119,12 +119,12 @@ class Transfer extends Model
 
     /**
      * Location read-scope for a two-location model (from/to).
-     * Centralized users: unfiltered. Scoped users: transfers they sent OR received.
+     * All-location readers: unfiltered. Scoped users: transfers they sent OR received.
      * Scoped users with no location: empty result (deny — spec D3).
      */
     public function scopeForUser(Builder $query, User $user): Builder
     {
-        if ($user->isCentralized()) {
+        if ($user->readsAllLocations()) {
             return $query;
         }
         $loc = $user->scopedLocationId();

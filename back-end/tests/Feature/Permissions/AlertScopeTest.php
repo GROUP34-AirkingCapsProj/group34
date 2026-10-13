@@ -7,11 +7,17 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
+/**
+ * Alert counts follow the READ scope (User::readsAllLocations), so the branch
+ * manager's badge now covers every location and only warehouse_personnel=4 is
+ * narrowed to its own. Both halves are asserted below: the scoped role must not
+ * see another location's pending work, and the branch manager must.
+ */
 class AlertScopeTest extends TestCase
 {
     use DatabaseTransactions;
 
-    public function test_branch_manager_alert_counts_are_scoped_to_their_location(): void
+    public function test_warehouse_personnel_alert_counts_are_scoped_to_their_location(): void
     {
         $uid = uniqid();
 
@@ -55,21 +61,22 @@ class AlertScopeTest extends TestCase
         $insertPr($locA);
         $insertPr($locB);
 
-        // Create a branch_manager (role_id 3) assigned to locA
-        $bm = User::create([
+        // Create a warehouse_personnel (role_id 4) assigned to locA — the only
+        // read-scoped role left.
+        $wp = User::create([
             'first_name'    => 'Alert',
-            'last_name'     => 'BM',
-            'username'      => 'alert_bm_' . $uid,
-            'email'         => 'alert_bm_' . $uid . '@rbac.test',
+            'last_name'     => 'WP',
+            'username'      => 'alert_wp_' . $uid,
+            'email'         => 'alert_wp_' . $uid . '@rbac.test',
             'password_hash' => bcrypt('x'),
-            'role_id'       => 3,
+            'role_id'       => 4,
             'location_id'   => $locA,
         ]);
 
         $admin = User::where('role_id', 1)->firstOrFail();
 
-        // Fetch alert settings for the BM (scoped) and admin (global)
-        $bmResp = $this->actingAs($bm, 'sanctum')->getJson('/api/alerts/settings');
+        // Fetch alert settings for the WP (scoped) and admin (global)
+        $bmResp = $this->actingAs($wp, 'sanctum')->getJson('/api/alerts/settings');
         $bmResp->assertStatus(200);
 
         $adminResp = $this->actingAs($admin, 'sanctum')->getJson('/api/alerts/settings');
@@ -79,11 +86,11 @@ class AlertScopeTest extends TestCase
         $bmBadge    = (int) data_get($bmResp->json(), 'data.badge_count', 0);
         $adminBadge = (int) data_get($adminResp->json(), 'data.badge_count', 0);
 
-        // Scoped BM badge must not exceed the global admin badge
+        // Scoped badge must not exceed the global admin badge
         $this->assertLessThanOrEqual(
             $adminBadge,
             $bmBadge,
-            "Scoped BM badge ({$bmBadge}) must not exceed the global admin badge ({$adminBadge})."
+            "Scoped WP badge ({$bmBadge}) must not exceed the global admin badge ({$adminBadge})."
         );
 
         // Stronger: isolate pending PRs via DB to confirm scoping is meaningful
@@ -96,12 +103,33 @@ class AlertScopeTest extends TestCase
             'Sanity: there must be pending PRs outside locA so the scoping is meaningful.'
         );
 
-        // Also assert that the BM's pending_pr_count equals exactly the PRs at locA
+        // Also assert that the scoped user's pending_pr_count equals exactly the
+        // PRs at locA
         $bmPrCount = (int) data_get($bmResp->json(), 'data.pending_pr_count', 0);
         $this->assertSame(
             $prA,
             $bmPrCount,
-            "BM pending_pr_count ({$bmPrCount}) should equal PRs at locA ({$prA}), not the global count ({$prAll})."
+            "WP pending_pr_count ({$bmPrCount}) should equal PRs at locA ({$prA}), not the global count ({$prAll})."
+        );
+
+        // And the branch manager, which reads every location, counts them all.
+        $bm = User::create([
+            'first_name'    => 'Alert',
+            'last_name'     => 'BM',
+            'username'      => 'alert_bm_' . $uid,
+            'email'         => 'alert_bm_' . $uid . '@rbac.test',
+            'password_hash' => bcrypt('x'),
+            'role_id'       => 3,
+            'location_id'   => $locA,
+        ]);
+
+        $bmResp2 = $this->actingAs($bm, 'sanctum')->getJson('/api/alerts/settings');
+        $bmResp2->assertStatus(200);
+
+        $this->assertSame(
+            $prAll,
+            (int) data_get($bmResp2->json(), 'data.pending_pr_count', 0),
+            'The branch manager reads every location, so its pending PR count is the global one.'
         );
     }
 }

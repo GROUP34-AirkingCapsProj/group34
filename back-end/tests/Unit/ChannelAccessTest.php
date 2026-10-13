@@ -16,22 +16,30 @@ class ChannelAccessTest extends TestCase
         return $u;
     }
 
-    public function test_centralized_roles_access_org(): void
+    /**
+      * Channel access follows the READ scope (User::readsAllLocations), which
+      * includes branch_manager=3 — a channel carries data to look at, and that
+      * role looks at every location even though it writes only at its own.
+      */
+    public function test_all_location_readers_access_org(): void
     {
-        foreach ([1, 2, 5] as $roleId) {
+        foreach ([1, 2, 3, 5] as $roleId) {
             $this->assertTrue(ChannelAccess::canAccessOrg($this->user($roleId, null)));
         }
     }
 
-    public function test_scoped_roles_cannot_access_org(): void
+    public function test_the_read_scoped_role_cannot_access_org(): void
     {
-        $this->assertFalse(ChannelAccess::canAccessOrg($this->user(3, 7)));
         $this->assertFalse(ChannelAccess::canAccessOrg($this->user(4, 7)));
     }
 
-    public function test_centralized_can_access_any_location(): void
+    public function test_an_all_location_reader_can_access_any_location(): void
     {
         $this->assertTrue(ChannelAccess::canAccessLocation($this->user(1, null), 99));
+        $this->assertTrue(
+            ChannelAccess::canAccessLocation($this->user(3, 7), 99),
+            'The branch manager reads every location, so no location channel is closed to it.'
+        );
     }
 
     public function test_scoped_user_only_accesses_own_location(): void

@@ -10,8 +10,13 @@ export const PALETTE = {
 
 export const fmt = (n) => Number(n || 0).toLocaleString();
 
-/** Centralized roles (admin=1, inventory_analyst=2, auditor=5) see all locations. */
-export const isCentralizedRole = (user) => [1, 2, 5].includes(Number(user?.role?.role_id));
+/**
+ * Roles that read every location: admin=1, inventory_analyst=2,
+ * branch_manager=3, auditor=5. Mirrors User::readsAllLocations() — the read
+ * half of the scope, which is the half a dashboard cares about. The branch
+ * manager still writes only at its own branch; see useUserLocation().
+ */
+export const readsAllLocations = (user) => [1, 2, 3, 5].includes(Number(user?.role?.role_id));
 
 /**
  * Fetches the (server-scoped) dashboard payload only.
@@ -20,8 +25,8 @@ export const isCentralizedRole = (user) => [1, 2, 5].includes(Number(user?.role?
 export function useRoleDashboard() {
   const { user: _user } = useAuth();
   const user = _user || {};
-  const centralized = isCentralizedRole(user);
-  const locationId = centralized ? null : (user?.location?.location_id ?? null);
+  const readsAll = readsAllLocations(user);
+  const locationId = readsAll ? null : (user?.location?.location_id ?? null);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);

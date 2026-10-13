@@ -24,8 +24,8 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $user          = $request->user();
-        $isCentralized = $user === null || $user->isCentralized();
-        $locId         = $isCentralized ? null : $user->scopedLocationId();
+        $readsAll = $user === null || $user->readsAllLocations();
+        $locId    = $readsAll ? null : $user->scopedLocationId();
 
         return response()->json([
             'stats'                    => $this->getStats($user),
@@ -214,7 +214,7 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         $scope = function ($query, $column) use ($user) {
-            if (! $user->isCentralized()) {
+            if (! $user->readsAllLocations()) {
                 $location = $user->scopedLocationId();
                 $location === null ? $query->whereRaw('1 = 0') : $query->where($column, $location);
             }
@@ -275,7 +275,7 @@ class DashboardController extends Controller
     {
         $includeHistory = request()->boolean('include_history');
         $user = request()->user();
-        $scoped = $user !== null && !$user->isCentralized();
+        $scoped = $user !== null && !$user->readsAllLocations();
         $locId = $user?->scopedLocationId();
 
         // Keep the default dashboard queue pending-only; alerts also show decisions.
@@ -364,21 +364,21 @@ class DashboardController extends Controller
     private function awaitingTransferCounts(): array
     {
         $user          = request()->user();
-        $isCentralized = $user === null || $user->isCentralized();
-        $locId         = $isCentralized ? null : $user->scopedLocationId();
+        $readsAll = $user === null || $user->readsAllLocations();
+        $locId    = $readsAll ? null : $user->scopedLocationId();
 
-        if (!$isCentralized && $locId === null) {
+        if (!$readsAll && $locId === null) {
             return ['fulfillment' => 0, 'receipt' => 0];
         }
 
         $fulfillment = Transfer::query()
             ->whereHas('status', fn ($q) => $q->where('status_name', 'Approved')->where('status_category', 'transfer'))
-            ->when(!$isCentralized, fn ($q) => $q->where('from_location_id', $locId))
+            ->when(!$readsAll, fn ($q) => $q->where('from_location_id', $locId))
             ->count();
 
         $receipt = Transfer::query()
             ->whereHas('status', fn ($q) => $q->where('status_name', 'In Transit')->where('status_category', 'transfer'))
-            ->when(!$isCentralized, fn ($q) => $q->where('to_location_id', $locId))
+            ->when(!$readsAll, fn ($q) => $q->where('to_location_id', $locId))
             ->count();
 
         return ['fulfillment' => $fulfillment, 'receipt' => $receipt];
@@ -386,16 +386,16 @@ class DashboardController extends Controller
 
     private function getStats(?User $user = null): array
     {
-        $isCentralized = $user === null || $user->isCentralized();
-        $locId         = $isCentralized ? null : $user->scopedLocationId();
-        $noData        = !$isCentralized && $locId === null;
+        $readsAll = $user === null || $user->readsAllLocations();
+        $locId    = $readsAll ? null : $user->scopedLocationId();
+        $noData   = !$readsAll && $locId === null;
 
         // ── pending_transfers: Transfer has from_location_id / to_location_id (no trait)
         // Scoped users see pending transfers that originate from OR arrive at their location.
         $pendingTransfersQuery = Transfer::whereHas('status', fn($q) => $q->where('status_name', 'Pending'));
         if ($noData) {
             $pendingTransfers = 0;
-        } elseif (!$isCentralized) {
+        } elseif (!$readsAll) {
             $pendingTransfers = (clone $pendingTransfersQuery)
                 ->where(fn($q) => $q->where('from_location_id', $locId)->orWhere('to_location_id', $locId))
                 ->count();
@@ -407,7 +407,7 @@ class DashboardController extends Controller
         $pendingPOsQuery = PurchaseOrder::where('status_id', 7);
         if ($noData) {
             $pendingPOs = 0;
-        } elseif (!$isCentralized) {
+        } elseif (!$readsAll) {
             $pendingPOs = (clone $pendingPOsQuery)->where('location_id', $locId)->count();
         } else {
             $pendingPOs = $pendingPOsQuery->count();
@@ -426,7 +426,7 @@ class DashboardController extends Controller
         // ── low_stock: correlated subquery over inventory — scope to user's location when scoped
         if ($noData) {
             $lowStock = 0;
-        } elseif (!$isCentralized) {
+        } elseif (!$readsAll) {
             $lowStock = (int) DB::table('products')
                 ->where('recommended_stocks', '>', 0)
                 ->whereRaw(
@@ -564,7 +564,7 @@ class DashboardController extends Controller
         // Scope the filtered charts to the user's location too, so a scoped
         // role using the date/category picker never sees other locations' data.
         $user  = $request->user();
-        $locId = ($user === null || $user->isCentralized()) ? null : $user->scopedLocationId();
+        $locId = ($user === null || $user->readsAllLocations()) ? null : $user->scopedLocationId();
 
         return response()->json([
             'success' => true,

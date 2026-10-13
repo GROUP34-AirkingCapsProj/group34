@@ -84,7 +84,7 @@ class PendingProduct extends Model
      */
     public function scopeForUser(Builder $query, User $user): Builder
     {
-        if ($user->isCentralized()) {
+        if ($user->readsAllLocations()) {
             return $query;
         }
         $loc = $user->scopedLocationId();

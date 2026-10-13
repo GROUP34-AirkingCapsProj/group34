@@ -17,9 +17,11 @@ use App\Models\PendingProduct;
 // `purchase_request_creation` (read/create) and `purchase_request_approval`
 // (approve) are granted ONLY to ['admin', 'inventory_analyst'] by default —
 // both of which are centralized roles under User::isCentralized(). The
-// scoped role (branch_manager, role_id 3) has NO default grant on either
-// permission, so none of these endpoints are reachable by a scoped user out
-// of the box. `PurchaseRequest::index()` (the one endpoint scoped roles CAN
+// branch manager (role_id 3) has since been granted
+// purchase_request_creation.read and purchase_request_approval.approve, and it
+// now reads every location by design (User::readsAllLocations) — so the
+// cross-location reads below are intended for it rather than a leak. No
+// read-scoped role holds either permission out of the box. `PurchaseRequest::index()` (the one endpoint scoped roles CAN
 // reach if granted `purchase_request_creation,read`) already filters
 // ->where('requested_by', $request->user()->user_id) — own PRs only, no
 // cross-location leak.
@@ -76,8 +78,8 @@ class PrPendingScopingTest extends TestCase
         $this->pending($a->location_id);
         $this->pending($b->location_id);
 
-        $bm = $this->userAt(3, $a->location_id);
-        $rows = PendingProduct::forUser($bm)->get();
+        $wp = $this->userAt(4, $a->location_id);
+        $rows = PendingProduct::forUser($wp)->get();
         $locs = $rows->pluck('opening_location_id')->unique()->all();
         $this->assertContains($a->location_id, $locs);
         $this->assertNotContains($b->location_id, $locs);
@@ -92,6 +94,19 @@ class PrPendingScopingTest extends TestCase
         $admin = $this->userAt(1, null);
         $rows = PendingProduct::forUser($admin)->get();
         $locs = $rows->pluck('opening_location_id')->unique()->all();
+        $this->assertContains($a->location_id, $locs);
+        $this->assertContains($b->location_id, $locs);
+    }
+
+    public function test_branch_manager_query_sees_every_locations_pending(): void
+    {
+        $a = $this->loc(); $b = $this->loc();
+        $this->pending($a->location_id);
+        $this->pending($b->location_id);
+
+        $bm = $this->userAt(3, $a->location_id);
+        $locs = PendingProduct::forUser($bm)->pluck('opening_location_id')->unique()->all();
+
         $this->assertContains($a->location_id, $locs);
         $this->assertContains($b->location_id, $locs);
     }

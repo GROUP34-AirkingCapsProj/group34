@@ -57,7 +57,7 @@ class IncidentInspectionController extends Controller
             ->join('incident_reports as ir', 'ir.incident_id', '=', 'incident_items.incident_id')
             ->select('incident_items.*');
 
-        if (! $user->isCentralized()) {
+        if (! $user->readsAllLocations()) {
             $scoped = $user->scopedLocationId();
 
             // A scoped user with no location assigned sees nothing, rather than
@@ -406,8 +406,10 @@ class IncidentInspectionController extends Controller
         $resolver = app(PermissionResolver::class);
 
         foreach ($candidates as $candidate) {
-            // A centralized role sees every location; a scoped one only reaches
-            // reports at its own.
+            // isCentralized(), not readsAllLocations(): the question here is who
+            // could RESOLVE this report, which is a write. A branch manager may
+            // read another branch's incident but resolves only its own, so it is
+            // not a second approver for a report filed elsewhere.
             $reachesLocation = $candidate->isCentralized()
                 || (int) $candidate->location_id === (int) $incident->location_id;
 

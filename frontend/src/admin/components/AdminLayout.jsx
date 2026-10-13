@@ -20,11 +20,12 @@ const AdminLayout = ({ children }) => {
   const location = useLocation();
   const { user: _user, clearSession, permissions, can } = useAuth();
   const user = _user || {};
-  const { locationName: userLocationName } = useUserLocation();
-
-  // Centralized roles: admin=1, inventory_analyst=2, auditor=5
-  // Scoped roles: branch_manager=3, warehouse_personnel=4
-  const isCentralized = [1, 2, 5].includes(Number(user?.role?.role_id));
+  // Header badge reflects the READ scope, which is what the screens below it
+  // show: all-location readers are admin=1, inventory_analyst=2,
+  // branch_manager=3 and auditor=5, leaving warehouse_personnel=4 as the only
+  // role whose data is pinned to one location. The branch manager still
+  // transacts only at its own branch — that is isStrictLocation, not this.
+  const { locationName: userLocationName, readsAllLocations } = useUserLocation();
 
   // Role-based setup
   const roleKey = useMemo(() => getRoleKey(user), [user]);
@@ -387,7 +388,7 @@ const AdminLayout = ({ children }) => {
           </button>
           <div className="header-actions">
             <LocationBadge
-              isCentralized={isCentralized}
+              isCentralized={readsAllLocations}
               locationName={userLocationName}
               className="header-location-badge"
             />

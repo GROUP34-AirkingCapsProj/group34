@@ -585,6 +585,13 @@ class AuthController extends Controller
                 'allowed_location_ids' => $allowedIds,
                 'allowed_locations'    => $allowedLocations,
                 'has_strict_location'  => $user->hasStrictLocation(),
+                // The read half of the scope, which no longer matches the write
+                // half: the branch manager is strict on writes (the flag above)
+                // and unrestricted on reads (this one). The frontend needs both
+                // or it either hides other branches' data from a role entitled
+                // to see it, or offers a location picker on a write it cannot
+                // redirect anyway.
+                'reads_all_locations'  => $user->readsAllLocations(),
                 'primary_location'     => $user->location ? [
                     'location_id'   => $user->location->location_id,
                     'location_name' => $user->location->location_name,

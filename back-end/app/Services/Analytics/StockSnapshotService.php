@@ -28,7 +28,7 @@ class StockSnapshotService
 
     public function forUser(User $user, ?int $locationId, ?int $categoryId): Collection
     {
-        if (! $user->isCentralized()) {
+        if (! $user->readsAllLocations()) {
             $own = $user->scopedLocationId();
             if ($own === null || ($locationId !== null && $locationId !== $own)) {
                 return collect();

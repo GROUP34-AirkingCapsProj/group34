@@ -37,7 +37,12 @@ class AnalyticsGeneratedReportTest extends ReportTestCase
     {
         $mine = $this->makeLocation('Mine');
         $theirs = $this->makeLocation('Theirs');
-        $user = $this->makeUserAt($mine, 'branch_manager');
+        // warehouse_personnel is the read-scoped role. It does not hold
+        // analytics_dashboard.read — no read-scoped role does since the branch
+        // manager moved into the all-location group — so availableTo() needs the
+        // per-user override an admin would grant, exactly as ReportApiTest does.
+        $user = $this->makeUserAt($mine, 'warehouse_personnel');
+        $this->grantPermission($user, 'analytics_dashboard', 'read');
         $product = $this->makeAppliance();
         $this->setStock($mine->location_id, $product->product_id, 2);
         $this->setStock($theirs->location_id, $product->product_id, 999);
@@ -132,5 +137,23 @@ class AnalyticsGeneratedReportTest extends ReportTestCase
         $this->assertStringContainsString('160.50', $html);
         $this->assertStringContainsString('&lt;script&gt;unsafe&lt;/script&gt;', $html);
         $this->assertStringNotContainsString('<script>unsafe</script>', $html);
+    }
+
+    public function test_the_analytics_reports_span_every_location_for_a_branch_manager(): void
+    {
+        $mine = $this->makeLocation('BM Mine');
+        $theirs = $this->makeLocation('BM Theirs');
+        $user = $this->makeUserAt($mine, 'branch_manager');
+        $product = $this->makeAppliance();
+        $this->setStock($mine->location_id, $product->product_id, 2);
+        $this->setStock($theirs->location_id, $product->product_id, 999);
+
+        $definition = app(ReportRegistry::class)->get('analytics-stock-level');
+        $this->assertTrue($definition->availableTo($user));
+
+        // Unfiltered: both locations' rows. Filtered to the other location: its
+        // rows, not an empty set as a read-scoped user would get.
+        $this->assertCount(2, $definition->build(new ReportParameters([]), $user)->rows);
+        $this->assertCount(1, $definition->build(new ReportParameters(['location_id' => $theirs->location_id]), $user)->rows);
     }
 }
