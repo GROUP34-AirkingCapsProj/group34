@@ -34,6 +34,17 @@ if [ ! -L public/storage ]; then
 fi
 
 # --- Optional: run migrations on boot --------------------------------------
+# Read the runtime database environment before any migration.
+php artisan config:clear >/dev/null 2>&1 || true
+
+# Render Free has no Shell. Enable this targeted repair from Environment,
+# deploy once, then remove the flag after the logs confirm success.
+if [ "${RUN_PURCHASE_APPROVAL_REPAIR:-false}" = "true" ]; then
+    log "Running branch manager purchase approval permission repair"
+    php artisan migrate --path=database/migrations/2026_10_13_000008_restore_branch_manager_purchase_approval_access.php --force --no-interaction
+    log "Purchase approval permission repair complete"
+fi
+
 # Off by default. With more than one instance running, two containers booting
 # together would migrate concurrently. Prefer a Render "Pre-Deploy Command" of
 # `php artisan migrate --force`, or flip RUN_MIGRATIONS=true for a single-instance
