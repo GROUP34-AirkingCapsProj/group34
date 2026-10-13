@@ -1555,7 +1555,7 @@ const PurchaseRequestPage = () => {
                 </div>
                 <div className="po-status-card-right">
                   <span className="po-status-total-label">PR TOTAL</span>
-                  <span className="po-status-total-amount" style={{ color: isOver ? 'var(--text-danger)' : undefined }}>
+                  <span className="po-status-total-amount">
                     {fmtPeso(prTotal)}
                   </span>
                 </div>
