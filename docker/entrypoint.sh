@@ -45,6 +45,24 @@ if [ "${RUN_PURCHASE_APPROVAL_REPAIR:-false}" = "true" ]; then
     log "Purchase approval permission repair complete"
 fi
 
+# Render Free has no Shell. Same one-shot pattern as the repair above: enable
+# from Environment, deploy once, then remove the flag after the logs confirm.
+#
+# Grants inventory_analyst delivery_receiving (read/create/update) and re-keys
+# the /inventory-operation nav bundle to that feature, so a purchasing analyst
+# can receive without gaining transfer or issuance rights. Targeted on purpose:
+# a blanket `migrate` here would also apply drop_budget_management and the
+# transfer data migrations, which are a separate decision.
+#
+# Safe to leave enabled by accident: the migration returns early when its
+# system_settings backup row already exists, so a second run is a no-op rather
+# than a second rewrite.
+if [ "${RUN_PO_RECEIVING_GRANT:-false}" = "true" ]; then
+    log "Granting inventory analyst PO receiving permissions"
+    php artisan migrate --path=database/migrations/2026_10_13_000006_grant_po_receiving_permissions.php --force --no-interaction
+    log "PO receiving permission grant complete"
+fi
+
 # Off by default. With more than one instance running, two containers booting
 # together would migrate concurrently. Prefer a Render "Pre-Deploy Command" of
 # `php artisan migrate --force`, or flip RUN_MIGRATIONS=true for a single-instance
