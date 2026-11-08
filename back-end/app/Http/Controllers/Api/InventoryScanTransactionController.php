@@ -81,6 +81,8 @@ class InventoryScanTransactionController extends Controller
                 'issuance'  => $this->processIssuance($request, $product, $validated, $quantity),
                 default     => $this->error('Unsupported transaction type', 400),
             };
+        } catch (ValidationException $e) {
+            return $this->success(['action' => 'rejected', 'reason' => $e->getMessage()], 'Receiving blocked');
         } catch (\Throwable $e) {
             return $this->error('Scan transaction failed: '.$e->getMessage(), 500);
         }
@@ -217,6 +219,9 @@ class InventoryScanTransactionController extends Controller
 
         $poId             = ! empty($validated['po_id']) ? (int) $validated['po_id'] : 0;
         $poDetailIdDirect = ! empty($validated['po_detail_id']) ? (int) $validated['po_detail_id'] : null;
+        if (! $poId && $poDetailIdDirect) {
+            $poId = (int) PurchaseOrderDetail::whereKey($poDetailIdDirect)->value('po_id');
+        }
         $poDetail         = null;
         $remaining        = null;
 
@@ -292,12 +297,17 @@ class InventoryScanTransactionController extends Controller
                     ->sum('quantity_amount');
             }
 
+            if (! $poDetailIdDirect && PurchaseOrderDetail::where('po_id', $poId)->where('product_id', $product->product_id)->count() !== 1) {
+                return $this->success(['action' => 'rejected', 'reason' => 'Select the exact PO line for this product.'], 'Rejected');
+            }
+            $piecesPerPackage = max(1, (int) $poDetail->pieces_per_order_unit);
+            $quantity = $isSerialized ? 1 : $piecesPerPackage;
             // quantity_ordered is in packages for installation materials, individual units for serialized.
             // alreadyReceived and $quantity are both in pieces, so convert ordered to pieces.
             $orderedPieces = $isSerialized
                 ? (int) $poDetail->quantity_ordered
                 : (int) $poDetail->quantity_ordered * $piecesPerPackage;
-            $remaining = $orderedPieces - $alreadyReceived;
+            $remaining = $orderedPieces - $alreadyReceived - (int) $poDetail->short_closed_quantity;
 
             if ($remaining <= 0) {
                 $label = $isSerialized
@@ -349,12 +359,18 @@ class InventoryScanTransactionController extends Controller
                 $isSerialized ? null : $packagesReceived
             )
             : null;
-        if ($overage !== null && ! $request->boolean('accept_overage')) {
-            return $this->success($overage, 'Over-receipt requires confirmation');
+        if ($overage !== null) {
+            return $this->success($overage, 'Over-receipt blocked (0% tolerance)');
         }
 
         DB::beginTransaction();
         try {
+            if ($poDetail) {
+                $poDetail = app(\App\Services\PoReceivingGuard::class)->lock($poDetail, (int) $locationId, (int) $product->product_id);
+                $alreadyReceived = (int) ReceivingDetail::where('po_detail_id', $poDetail->po_detail_id)->sum('quantity_amount');
+                $remaining = (int) $poDetail->quantity_ordered * max(1, (int) $poDetail->pieces_per_order_unit)
+                    - $alreadyReceived - (int) $poDetail->short_closed_quantity;
+            }
             Inventory::where('location_id', $locationId)
                 ->where('product_id', $product->product_id)
                 ->lockForUpdate()

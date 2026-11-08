@@ -15,6 +15,7 @@ use App\Models\Sale;
 use App\Models\Adjustment;
 use App\Models\Transfer;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderDetail;
 
 /**
  * Location read-scoping across the core domain lists.
@@ -66,25 +67,55 @@ class CoreDomainScopingTest extends TestCase
             'po_number'           => 'PO-' . uniqid(),
             'location_id'         => $locationId,
             'verification_status' => 'verified',
-            'status_id'           => 1,
+            // Approved/Open — PoReceivingGuard only receives from a receivable status.
+            'status_id'           => 8,
             'order_date'          => now()->toDateString(),
         ]);
     }
 
+    /**
+     * A receipt must name the exact PO line it fulfils, so make sure one exists
+     * for (po, location, product) with room for $qty before posting. Topping up
+     * quantity_ordered keeps repeat calls against the same line receivable.
+     */
+    protected function poLine(PurchaseOrder $po, int $loc, int $prod, int $qty): PurchaseOrderDetail
+    {
+        $line = PurchaseOrderDetail::firstOrCreate(
+            ['po_id' => $po->po_id, 'location_id' => $loc, 'product_id' => $prod],
+            ['quantity_ordered' => 0, 'unit_price' => 100, 'subtotal' => 0]
+        );
+        $line->quantity_ordered = (int) $line->quantity_ordered + $qty;
+        $line->subtotal = $line->quantity_ordered * 100;
+        $line->save();
+
+        return $line;
+    }
+
     protected function receive(User $u, PurchaseOrder $po, int $loc, int $prod, int $qty, string $bc): void
     {
+        $line = $this->poLine($po, $loc, $prod, $qty);
+
+        // Serialized items (every product here is an appliance) are received one
+        // unit per line, each carrying its own serial. These tests only assert
+        // which locations show up, so $qty pieces as $qty lines is equivalent.
+        $details = [];
+        for ($i = 1; $i <= $qty; $i++) {
+            $details[] = [
+                'po_detail_id'    => $line->po_detail_id,
+                'product_id'      => $prod,
+                'quantity_amount' => 1,
+                'condition'       => 'Good',
+                'scanned_barcode' => $bc . '-' . $i,
+                'zone_label'      => 'Location 1',
+            ];
+        }
+
         $this->actingAs($u)->postJson('/api/receivings', [
             'pc_id'            => $po->po_id,
             'location_id'      => $loc,
             'receiving_number' => 'RCV-' . uniqid(),
             'receiving_date'   => now()->toDateString(),
-            'details'          => [[
-                'product_id'      => $prod,
-                'quantity_amount' => $qty,
-                'condition'       => 'Good',
-                'scanned_barcode' => $bc,
-                'zone_label'      => 'Location 1',
-            ]],
+            'details'          => $details,
         ])->assertStatus(201);
     }
 

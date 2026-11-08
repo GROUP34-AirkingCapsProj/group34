@@ -83,7 +83,7 @@ class ReceiveVerifyController extends Controller
             ], 'Rejected');
         }
 
-        $piecesPerPackage = $product->getPiecesPerPackage();
+        $piecesPerPackage = max(1, (int) $poDetail->pieces_per_order_unit);
         $packages         = (int) $validated['packages'];
         $actualPieces     = (int) $validated['actual_pieces'];
         $expected         = $packages * $piecesPerPackage;
@@ -94,9 +94,9 @@ class ReceiveVerifyController extends Controller
         // different over-receipt rules depending on how the stock was entered
         // would be impossible to explain to an auditor.
         if ($delta > 0) {
-            $overage = $posting->checkOverage($poDetail, $product, $posted + $delta);
-            if ($overage !== null && ! $request->boolean('accept_overage')) {
-                return $this->success($overage, 'Over-receipt requires confirmation');
+            $overage = $posting->checkOverage($poDetail, $product, $delta);
+            if ($overage !== null) {
+                return $this->success($overage, 'Over-receipt blocked (0% tolerance)');
             }
         }
 
@@ -104,6 +104,14 @@ class ReceiveVerifyController extends Controller
 
         DB::beginTransaction();
         try {
+            $poDetail = app(\App\Services\PoReceivingGuard::class)->lock($poDetail, (int) $locationId, (int) $product->product_id, true);
+            $po = $poDetail->purchaseOrder;
+            $posted = (int) ReceivingDetail::where('po_detail_id', $poDetail->po_detail_id)->sum('quantity_amount');
+            $delta = $actualPieces - $posted;
+            if ($delta > 0) {
+                app(\App\Services\PoReceivingGuard::class)->lock($poDetail, (int) $locationId, (int) $product->product_id);
+                app(\App\Services\PoReceivingGuard::class)->assertQuantity($poDetail, $delta);
+            }
             $inventory = Inventory::where('location_id', $locationId)
                 ->where('product_id', $product->product_id)
                 ->lockForUpdate()
@@ -174,34 +182,6 @@ class ReceiveVerifyController extends Controller
             $row = $rows->first();
 
             if ($row) {
-                // The batch is found exactly as ReceivingPostingService::
-                // accumulateBatch() finds it, so the delta lands on the same
-                // batch the scans accumulated into.
-                //
-                // This relies on scans accumulating into ONE batch per
-                // receiving header + product + location, which is what
-                // accumulateBatch() guarantees today — so a line's delta always
-                // has exactly one batch to land on. If a line ever spans
-                // several batches, this needs a rule for distributing the delta
-                // between them; there is no such rule yet.
-                $batch = InventoryBatch::where('receiving_id', $row->receiving_id)
-                    ->where('product_id', $product->product_id)
-                    ->where('location_id', $locationId)
-                    ->first();
-
-                if ($batch) {
-                    // Both columns move by the same delta. Verification
-                    // corrects what ARRIVED, not what was consumed: pieces that
-                    // were never in the box were never received either. Moving
-                    // only quantity_remaining would leave the batch reading
-                    // "100 received, 97 remaining" — indistinguishable from
-                    // three pieces having been issued, and enough to make the
-                    // PO group's total_received overstate the delivery.
-                    $batch->quantity_received  = max(0, (int) $batch->quantity_received + $delta);
-                    $batch->quantity_remaining = max(0, (int) $batch->quantity_remaining + $delta);
-                    $batch->save();
-                }
-
                 // The expectation columns are ROW-scoped, exactly as the count
                 // path writes them: each row states what its OWN entry should
                 // have held. Every row of the line is stamped, not only the
@@ -271,6 +251,43 @@ class ReceiveVerifyController extends Controller
                     }
                 }
 
+                // Reconcile each affected receipt batch, not only the newest one.
+                $operation = (string) \Illuminate\Support\Str::uuid();
+                foreach ($headerDeltas as $receivingId => $headerDelta) {
+                    if ($headerDelta === 0) {
+                        continue;
+                    }
+                    $batch = InventoryBatch::where('receiving_id', $receivingId)
+                        ->where('product_id', $product->product_id)->where('location_id', $locationId)
+                        ->lockForUpdate()->first();
+                    if (! $batch || (int) $batch->quantity_remaining + $headerDelta < 0
+                        || (int) $batch->quantity_received + $headerDelta < 0) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'receiving' => 'This receipt batch has already been consumed or needs reconciliation. Use an audited adjustment.',
+                        ]);
+                    }
+                    $batch->quantity_received = (int) $batch->quantity_received + $headerDelta;
+                    $batch->quantity_remaining = (int) $batch->quantity_remaining + $headerDelta;
+                    $batch->save();
+                    $value = $batch->unit_cost === null ? null : DB::selectOne(
+                        'SELECT CAST(CAST(? AS DECIMAL(18,4)) * ? AS DECIMAL(18,2)) AS value',
+                        [$batch->unit_cost, abs($headerDelta)]
+                    )->value;
+                    app(\App\Services\Ledger\LedgerPoster::class)->post([
+                        'direction' => $headerDelta < 0 ? 'out' : 'in', 'movement_type' => 'receiving_verification',
+                        'product_id' => $product->product_id, 'batch_id' => $batch->batch_id,
+                        'quantity' => abs($headerDelta), 'unit_cost' => $batch->unit_cost,
+                        'extended_value' => $value, 'cost_basis' => $batch->cost_basis ?? 'unavailable',
+                        'from_location_id' => $headerDelta < 0 ? $locationId : null,
+                        'to_location_id' => $headerDelta > 0 ? $locationId : null,
+                        'source_type' => 'receivings', 'source_id' => $receivingId,
+                        'correlation_id' => 'receiving-verification:'.$operation,
+                        'actor_user_id' => $request->user()?->user_id,
+                        'posting_key' => 'receiving-verification:'.$operation.':'.$receivingId,
+                        'notes' => 'Verified carton contents for PO line '.$poDetail->po_detail_id,
+                    ]);
+                }
+
                 // Every row is saved, not only the ones the delta moved: when
                 // the delta is zero the loop above never runs, and each row
                 // still carries the verification stamp that records it as
@@ -304,6 +321,9 @@ class ReceiveVerifyController extends Controller
             }
 
             DB::commit();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return $this->success(['action' => 'rejected', 'reason' => $e->getMessage()], 'Verification blocked');
         } catch (\Throwable $e) {
             DB::rollBack();
 

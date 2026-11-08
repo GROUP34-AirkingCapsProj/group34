@@ -1132,21 +1132,24 @@ Route::middleware(['auth:sanctum', 'auditor.readonly', 'location.scope', 'extend
     | or a per-user override, and it takes effect here with no code change.
     |--------------------------------------------------------------------------
     */
-    Route::middleware('permission:barcode_inventory_processing,create')->group(function () {
-        Route::post('/inventory/scan-barcode', [InventoryController::class, 'scanBarcode']);
-        Route::post('/inventory/scan-transaction', [InventoryScanTransactionController::class, 'store']);
+    Route::post('/inventory/scan-transaction', [InventoryScanTransactionController::class, 'store'])
+        ->middleware(\App\Http\Middleware\InventoryOperationPermission::class);
+    Route::middleware('permission:delivery_receiving,create')->group(function () {
         Route::post('/inventory/receive-count', \App\Http\Controllers\Api\ReceiveCountController::class);
         Route::post('/inventory/receive-verify', \App\Http\Controllers\Api\ReceiveVerifyController::class);
         Route::post('/inventory/receive-topup', \App\Http\Controllers\Api\ReceiveTopUpController::class);
         // Staged PO receiving: scans and counts land in a draft the clerk can
         // review and correct, and only /submit moves stock.
         Route::get('/receiving-drafts', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'show']);
-        Route::post('/receiving-drafts', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'store']);
-        Route::post('/receiving-drafts/{draft}/items', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'storeItem']);
-        Route::patch('/receiving-drafts/{draft}/items/{item}', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'updateItem']);
-        Route::delete('/receiving-drafts/{draft}/items/{item}', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'destroyItem']);
-        Route::delete('/receiving-drafts/{draft}', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'destroy']);
+        Route::post('/receiving-drafts', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'store'])->middleware(\App\Http\Middleware\ReceivingDraftMutationLock::class);
+        Route::post('/receiving-drafts/{draft}/items', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'storeItem'])->middleware(\App\Http\Middleware\ReceivingDraftMutationLock::class);
+        Route::patch('/receiving-drafts/{draft}/items/{item}', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'updateItem'])->middleware(\App\Http\Middleware\ReceivingDraftMutationLock::class);
+        Route::delete('/receiving-drafts/{draft}/items/{item}', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'destroyItem'])->middleware(\App\Http\Middleware\ReceivingDraftMutationLock::class);
+        Route::delete('/receiving-drafts/{draft}', [\App\Http\Controllers\Api\ReceivingDraftController::class, 'destroy'])->middleware(\App\Http\Middleware\ReceivingDraftMutationLock::class);
         Route::post('/receiving-drafts/{draft}/submit', \App\Http\Controllers\Api\ReceivingDraftSubmitController::class);
+    });
+    Route::middleware('permission:barcode_inventory_processing,create')->group(function () {
+        Route::post('/inventory/scan-barcode', [InventoryController::class, 'scanBarcode']);
         Route::post('/barcode/scan', [BarcodeScanController::class, 'scanLookup']);
         Route::get('/barcode-scans', [BarcodeScanController::class, 'index']);
         Route::post('/barcode-scans', [BarcodeScanController::class, 'store']);

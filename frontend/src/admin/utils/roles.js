@@ -80,7 +80,7 @@ export const ROUTE_ACCESS = {
   '/pending-installation-materials': [ROLES.ADMIN, ROLES.BRANCH_MANAGER],
   '/categories': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
   '/brands': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.AUDITOR],
-  '/inventory-operation': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
+  '/inventory-operation': [ROLES.ADMIN, ROLES.INVENTORY_ANALYST, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
   '/scan': [ROLES.ADMIN, ROLES.BRANCH_MANAGER, ROLES.WAREHOUSE_PERSONNEL],
   /* Reprinting a damaged label is warehouse work, so it matches the scan
      pages rather than the read-only reports. The queue endpoints behind it

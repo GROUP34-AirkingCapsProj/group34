@@ -14,6 +14,10 @@ use App\Traits\Auditable;
 class ReceivingDetail extends Model
 {
     use Auditable;
+    protected static function booted(): void
+    {
+        static::saved(fn () => \App\Services\IncomingStockService::markDirty());
+    }
     protected $table = 'receiving_details';
     protected $primaryKey = 'receiving_detail_id';
 

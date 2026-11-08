@@ -117,7 +117,7 @@ const PurchaseOrderPage = () => {
   const canCreatePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'create'));
   // Purchase order approval: admin and branch manager (update permission). Mirrors the
   // gate the retired Approval Queue used for approve/reject.
-  const canApprovePO = isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'update'));
+  const canApprovePO = (isAdmin || roleKey === ROLES.BRANCH_MANAGER) && (isAdmin || (typeof can === 'function' && can('purchase_order_creation', 'update')));
   // Purchase order verification (auditor maker-checker gate).
   const canVerifyPO = typeof can === 'function' && can('purchase_order_verification', 'verify');
   // Purchase order archiving: admin + anyone granted the archive action.
@@ -673,7 +673,7 @@ const PurchaseOrderPage = () => {
     return (
       <div className="po-status-list">
         {poStatusList.map((po) => {
-          const statusCfg = getStatusConfig(po.status?.status_name, po.verification_status);
+          const statusCfg = getStatusConfig(po.lifecycle_label || po.status?.status_name, po.verification_status);
           const amount    = Number(po.grand_total || po.total_amount || 0);
           const itemCount = po.details?.length ?? 0;
           const priCfg    = getPriorityFromAmount(amount, itemCount);
@@ -1426,7 +1426,7 @@ const PurchaseOrderPage = () => {
             ) : (
               <div className="rh-record-list">
                 {poStatusList.map((po) => {
-                  const cfg = getStatusConfig(po.status?.status_name, po.verification_status);
+                  const cfg = getStatusConfig(po.lifecycle_label || po.status?.status_name, po.verification_status);
                   const amt = Number(po.grand_total || po.total_amount || 0);
                   return (
                     <div key={po.po_id} className="rh-record-row">
@@ -1456,7 +1456,7 @@ const PurchaseOrderPage = () => {
       <Modal isOpen={!!selectedPO} onClose={() => setSelectedPO(null)} title="" hideHeader maxWidth={700}>
         {selectedPO && (() => {
           const d         = selectedPO;
-          const statusCfg = getStatusConfig(d.status?.status_name, d.verification_status);
+          const statusCfg = getStatusConfig(d.lifecycle_label || d.status?.status_name, d.verification_status);
           const amount    = Number(d.grand_total || d.total_amount || 0);
           const priCfg    = getPriorityFromAmount(amount, d.details?.length ?? 0);
           const createdByName = d.created_by
@@ -1527,6 +1527,10 @@ const PurchaseOrderPage = () => {
               </div>
 
               <div className="po-detail-body">
+                {d.lifecycle_review_issues?.length > 0 && <p role="status" style={{ color: 'var(--ink-amber)' }}>
+                  Historical PO data needs review: {d.lifecycle_review_issues.map(issue => issue.replaceAll('_', ' ')).join('; ')}.
+                  Review quantity balances and promised dates before relying on this historical data.
+                </p>}
                 <div className="po-detail-address-grid">
                   <div className="po-detail-address-block">
                     <div className="po-detail-address-block-title">Supplier / Vendor</div>
@@ -1648,7 +1652,12 @@ const PurchaseOrderPage = () => {
                                         </span>
                                       </td>
                                       <td style={{ fontSize: 12, color: 'var(--ink-blue-500)' }}>{poLineLabel(item)}</td>
-                                      <td>{item.quantity_ordered}</td>
+                                      <td>
+                                        {item.quantity_ordered} {item.order_unit || ''}
+                                        {item.quantity_balance && <small style={{ display: 'block' }}>
+                                          Received {item.quantity_balance.received} · Closed {item.quantity_balance.short_closed} · Remaining {item.quantity_balance.remaining} pcs
+                                        </small>}
+                                      </td>
                                       <td>₱{Number(item.unit_price || 0).toLocaleString('en-PH')}</td>
                                       <td className="po-detail-table-sub">₱{Number(item.subtotal || 0).toLocaleString('en-PH')}</td>
                                     </tr>

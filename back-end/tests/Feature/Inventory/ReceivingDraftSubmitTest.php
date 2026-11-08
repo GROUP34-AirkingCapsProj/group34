@@ -245,7 +245,7 @@ class ReceivingDraftSubmitTest extends TestCase
         $this->assertSame(6, $draft->items()->count());
     }
 
-    public function test_accepting_the_overage_lets_the_same_draft_through(): void
+    public function test_accept_overage_does_not_allow_draft_overfill(): void
     {
         $user     = $this->makeUser();
         $location = $this->makeLocation();
@@ -260,9 +260,9 @@ class ReceivingDraftSubmitTest extends TestCase
 
         $result = app(ReceivingDraftSubmitService::class)->submit($draft->fresh(), (int) $user->user_id, true);
 
-        $this->assertSame('submitted', $result['action']);
+        $this->assertSame('failed', $result['action']);
         $this->assertSame(
-            300,
+            0,
             (int) ReceivingDetail::where('po_detail_id', $line->po_detail_id)->sum('quantity_amount')
         );
     }

@@ -17,6 +17,15 @@ class RestockScopingTest extends TestCase
 {
     use DatabaseTransactions;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // The rows below are a current snapshot fixture; this suite tests read
+        // scoping, while purchasing-change refresh has its own integration test.
+        $version = \Illuminate\Support\Facades\DB::table('system_settings')->where('key', 'po_incoming_changed')->value('value');
+        \Illuminate\Support\Facades\DB::table('system_settings')->updateOrInsert(['key' => 'po_incoming_refreshed'], ['value' => $version]);
+    }
+
     protected function loc(string $type = 'warehouse'): \App\Models\Location
     {
         return \App\Models\Location::create([

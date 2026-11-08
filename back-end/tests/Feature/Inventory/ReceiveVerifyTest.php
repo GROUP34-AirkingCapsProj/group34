@@ -407,7 +407,7 @@ class ReceiveVerifyTest extends TestCase
         );
     }
 
-    public function test_over_filling_past_the_po_needs_confirmation(): void
+    public function test_over_filling_past_the_po_is_blocked_even_with_confirmation(): void
     {
         [$location, $product, $user, $po, $d] = $this->scaffold(2); // only 100 pieces ordered
         $this->scanBoxes($user, $location, $po, $d, 2);             // 100 pieces posted
@@ -451,18 +451,18 @@ class ReceiveVerifyTest extends TestCase
             '/api/inventory/receive-verify',
             $payload + ['accept_overage' => true]
         );
-        $res->assertOk()->assertJsonPath('data.action', 'applied');
+        $res->assertOk()->assertJsonPath('data.action', 'over_receipt');
 
         $this->assertSame(
-            110,
+            100,
             Inventory::where('product_id', $product->product_id)->first()->quantity_on_hand
         );
         $batch = InventoryBatch::where('product_id', $product->product_id)->first();
-        $this->assertSame(110, (int) $batch->quantity_remaining);
+        $this->assertSame(100, (int) $batch->quantity_remaining);
         $this->assertSame(
-            110,
+            100,
             (int) $batch->quantity_received,
-            'Extra pieces found in the boxes did arrive, so the batch must record them as received.'
+            'The legacy confirmation flag cannot bypass the PO limit.'
         );
     }
 }

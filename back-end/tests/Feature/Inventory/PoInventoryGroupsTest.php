@@ -9,6 +9,7 @@ use App\Models\Location;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderDetail;
 
 class PoInventoryGroupsTest extends TestCase
 {
@@ -33,19 +34,43 @@ class PoInventoryGroupsTest extends TestCase
             'po_number'           => 'PO-' . uniqid(),
             'location_id'         => $locationId,
             'verification_status' => 'verified',
-            'status_id'           => 1,
+            'status_id'           => 8,
             'order_date'          => now()->toDateString(),
         ]);
     }
 
+    /**
+     * A receipt must resolve to exactly one PO line, so ensure one exists for
+     * (po, location, product) with room for $qty. Topping up quantity_ordered
+     * keeps repeat receipts against the same line receivable.
+     */
+    protected function poLine(PurchaseOrder $po, int $loc, int $prod, int $qty): PurchaseOrderDetail
+    {
+        $line = PurchaseOrderDetail::firstOrCreate(
+            ['po_id' => $po->po_id, 'location_id' => $loc, 'product_id' => $prod],
+            ['quantity_ordered' => 0, 'unit_price' => '1.00', 'subtotal' => 0]
+        );
+        // Order at least what has already landed plus this receipt, so repeat
+        // calls never double-count and a pre-ordered line is left alone.
+        $received = (int) \Illuminate\Support\Facades\DB::table('receiving_details')
+            ->where('po_detail_id', $line->po_detail_id)->sum('quantity_amount');
+        $line->quantity_ordered = max((int) $line->quantity_ordered, $received + $qty);
+        $line->save();
+
+        return $line;
+    }
+
     protected function receive(User $u, PurchaseOrder $po, int $loc, int $prod, int $qty, string $bc, ?string $zone = 'Location 1'): void
     {
+        $line = $this->poLine($po, $loc, $prod, $qty);
+
         $this->actingAs($u)->postJson('/api/receivings', [
             'pc_id'            => $po->po_id,
             'location_id'      => $loc,
             'receiving_number' => 'RCV-' . uniqid(),
             'receiving_date'   => now()->toDateString(),
             'details'          => [[
+                'po_detail_id'    => $line->po_detail_id,
                 'product_id'      => $prod,
                 'quantity_amount' => $qty,
                 'condition'       => 'Good',
@@ -63,6 +88,10 @@ class PoInventoryGroupsTest extends TestCase
         $user = $this->makeUser();
 
         $po = $this->makePo($wh->location_id);
+        // Both lines are ordered up front: a PO that is briefly Fully Received
+        // between the two receipts would refuse the second one.
+        $this->poLine($po, $wh->location_id, $p1->product_id, 12);
+        $this->poLine($po, $wh->location_id, $p2->product_id, 8);
         $this->receive($user, $po, $wh->location_id, $p1->product_id, 12, 'BC-1-' . uniqid());
         $this->receive($user, $po, $wh->location_id, $p2->product_id, 8, 'BC-2-' . uniqid());
 

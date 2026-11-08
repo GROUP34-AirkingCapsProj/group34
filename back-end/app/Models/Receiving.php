@@ -21,6 +21,13 @@ class Receiving extends Model
     protected $table = 'receivings';
     protected $primaryKey = 'receiving_id';
 
+    protected static function booted(): void
+    {
+        static::deleting(function () {
+            throw \Illuminate\Validation\ValidationException::withMessages(['receiving' => 'Posted receipts must be retained permanently.']);
+        });
+    }
+
     protected $fillable = [
         'po_id',
         'supplier_id',

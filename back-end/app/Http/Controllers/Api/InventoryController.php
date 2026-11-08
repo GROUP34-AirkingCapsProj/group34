@@ -138,13 +138,15 @@ class InventoryController extends Controller
      */
     private function withQuarantined($page)
     {
+        $incoming = app(\App\Services\IncomingStockService::class)->byWarehouse();
         $byLocation = [];
 
         foreach ($page->getCollection()->pluck('location_id')->unique() as $locationId) {
             $byLocation[(int) $locationId] = \App\Models\IncidentItem::quarantinedQuantities((int) $locationId);
         }
 
-        $page->getCollection()->transform(function ($row) use ($byLocation) {
+        $page->getCollection()->transform(function ($row) use ($byLocation, $incoming) {
+            $row->on_order_quantity = (int) ($incoming[(int) $row->location_id][(int) $row->product_id] ?? 0);
             $held = (int) ($byLocation[(int) $row->location_id][(int) $row->product_id] ?? 0);
 
             $row->quarantined_quantity = $held;
@@ -202,6 +204,9 @@ class InventoryController extends Controller
         if (!$inventory) {
             return $this->notFound('Inventory not found');
         }
+
+        $incoming = app(\App\Services\IncomingStockService::class)->byWarehouse();
+        $inventory->on_order_quantity = (int) ($incoming[(int) $inventory->location_id][(int) $inventory->product_id] ?? 0);
 
         return $this->success($inventory, 'Inventory retrieved successfully');
     }
@@ -717,6 +722,7 @@ class InventoryController extends Controller
                 'quantity_on_hand'   => $inventory->quantity_on_hand,
                 'packages_on_hand'   => $inventory->packages_on_hand,
                 'available_quantity' => $inventory->available_quantity,
+                'on_order_quantity' => (int) (app(\App\Services\IncomingStockService::class)->byWarehouse()[(int) $inventory->location_id][(int) $inventory->product_id] ?? 0),
                 'reorder_level'      => $inventory->reorder_level,
                 'last_updated'       => $inventory->last_updated ?? $inventory->updated_at,
                 'status_name'        => $inventory->status?->status_name ?? 'Active',

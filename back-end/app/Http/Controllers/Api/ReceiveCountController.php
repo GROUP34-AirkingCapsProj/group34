@@ -91,7 +91,7 @@ class ReceiveCountController extends Controller
             $piecesExpected   = null;
         } else {
             // The expectation comes from the item master, never from the clerk.
-            $piecesExpected   = $unitsEntered * $product->getPiecesPerPackage();
+            $piecesExpected   = $unitsEntered * max(1, (int) $poDetail->pieces_per_order_unit);
             $packagesReceived = $unitsEntered;
             $pieces           = isset($validated['actual_pieces'])
                 ? (int) $validated['actual_pieces']
@@ -101,12 +101,13 @@ class ReceiveCountController extends Controller
         // A piece-counted line has no package concept, so it passes null and
         // is bounded by pieces alone, exactly as it always was.
         $overage = $posting->checkOverage($poDetail, $product, $pieces, $packagesReceived);
-        if ($overage !== null && ! $request->boolean('accept_overage')) {
-            return $this->success($overage, 'Over-receipt requires confirmation');
+        if ($overage !== null) {
+            return $this->success($overage, 'Over-receipt blocked (0% tolerance)');
         }
 
         DB::beginTransaction();
         try {
+            $poDetail = app(\App\Services\PoReceivingGuard::class)->lock($poDetail, (int) $locationId, (int) $product->product_id);
             Inventory::where('location_id', $locationId)
                 ->where('product_id', $product->product_id)
                 ->lockForUpdate()
@@ -135,6 +136,9 @@ class ReceiveCountController extends Controller
             }
 
             DB::commit();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return $this->success(['action' => 'rejected', 'reason' => $e->getMessage()], 'Receiving blocked');
         } catch (\Throwable $e) {
             DB::rollBack();
 

@@ -33,7 +33,7 @@ class RestockAnalyticsService
     public const LEAD_TIME_SAMPLE   = 5;    // most recent POs per product
 
     /** status_lookup: PO statuses with deliveries still outstanding. */
-    public const OPEN_PO_STATUSES = [7, 8, 10, 12];
+    public const OPEN_PO_STATUSES = [8, 10, 12];
     /** status_lookup: voided issuances are not demand. */
     public const ISSUANCE_VOIDED_STATUS = 32;
     /** status_lookup: inactive product. */
@@ -296,6 +296,18 @@ class RestockAnalyticsService
         });
     }
 
+    /** Refresh the disposable recommendation snapshot without touching suggestions. */
+    public function refreshRecommendations(): void
+    {
+        $result = $this->analyze();
+        DB::transaction(function () use ($result) {
+            DB::table('restock_recommendations')->delete();
+            foreach ($result['recommendations'] as $rec) {
+                RestockRecommendation::create($rec + ['run_at' => $result['run_at']]);
+            }
+        });
+    }
+
     // -------------------------------------------------------------------
     // Data gathering
     // -------------------------------------------------------------------
@@ -425,49 +437,7 @@ class RestockAnalyticsService
     /** @return array<int, array<int,int>> locationId => [productId => open-PO qty not yet received] */
     private function openPoByWarehouse(): array
     {
-        // quantity_ordered means PACKAGES for installation materials and units
-        // (pieces) for appliances. Received quantities are always pieces, so
-        // convert ordered -> pieces before netting.
-        $ordered = DB::table('purchase_order_details as pod')
-            ->join('purchase_orders as po', 'po.po_id', '=', 'pod.po_id')
-            ->join('products as p', 'p.product_id', '=', 'pod.product_id')
-            ->leftJoin('installation_material_details as imd', 'imd.product_id', '=', 'pod.product_id')
-            ->whereIn('po.status_id', self::OPEN_PO_STATUSES)
-            ->whereNull('po.deleted_at')
-            ->whereNotNull('pod.location_id')
-            ->groupBy('pod.location_id', 'pod.product_id')
-            ->selectRaw(
-                "pod.location_id, pod.product_id,
-                 SUM(CASE WHEN p.product_type = 'installation_material'
-                          THEN pod.quantity_ordered * GREATEST(COALESCE(imd.pieces_per_package, 1), 1)
-                          ELSE pod.quantity_ordered END) as qty"
-            )
-            ->get();
-
-        $received = DB::table('receiving_details as rd')
-            ->join('receivings as r', 'r.receiving_id', '=', 'rd.receiving_id')
-            ->join('purchase_orders as po', 'po.po_id', '=', 'r.po_id')
-            ->whereIn('po.status_id', self::OPEN_PO_STATUSES)
-            ->whereNull('po.deleted_at')
-            ->whereNotNull('r.location_id')
-            ->groupBy('r.location_id', 'rd.product_id')
-            ->selectRaw('r.location_id, rd.product_id, SUM(rd.quantity_amount) as qty')
-            ->get();
-
-        $recvMap = [];
-        foreach ($received as $r) {
-            $recvMap[(int) $r->location_id][(int) $r->product_id] = (int) $r->qty;
-        }
-
-        // Nets received against ordered per warehouse; assumes a PO line's delivery
-        // destination (pod.location_id) is where it is received (receivings.location_id).
-        $out = [];
-        foreach ($ordered as $o) {
-            $loc = (int) $o->location_id;
-            $pid = (int) $o->product_id;
-            $out[$loc][$pid] = max(0, (int) $o->qty - (int) ($recvMap[$loc][$pid] ?? 0));
-        }
-        return $out;
+        return app(\App\Services\IncomingStockService::class)->byWarehouse();
     }
 
     /**

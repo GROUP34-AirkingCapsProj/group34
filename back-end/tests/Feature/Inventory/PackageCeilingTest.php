@@ -117,7 +117,7 @@ class PackageCeilingTest extends TestCase
         );
     }
 
-    public function test_confirming_the_extra_package_posts_it(): void
+    public function test_confirming_the_extra_package_is_still_blocked(): void
     {
         [$location, , $user, $po, $d] = $this->scaffold(82, 3);
 
@@ -138,29 +138,11 @@ class PackageCeilingTest extends TestCase
             'accept_overage' => true,
         ]);
 
-        $res->assertOk();
-        $res->assertJsonPath('data.action', 'applied');
-        $res->assertJsonPath('data.quantity_received', 10);
-
-        $this->assertSame(
-            3,
-            ReceivingDetail::where('po_detail_id', $d->po_detail_id)->count(),
-            'A confirmed over-receipt still has to post.'
-        );
-        $this->assertSame(
-            4,
-            (int) ReceivingDetail::where('po_detail_id', $d->po_detail_id)
-                ->sum(DB::raw('COALESCE(packages_received, 0)')),
-            'The confirmed fourth carton is now on the record as a fourth package.'
-        );
+        $res->assertOk()->assertJsonPath('data.action', 'over_receipt');
+        $this->assertSame(2, ReceivingDetail::where('po_detail_id', $d->po_detail_id)->count());
+        $this->assertSame(3, (int) ReceivingDetail::where('po_detail_id', $d->po_detail_id)->sum('packages_received'));
     }
 
-    /**
-     * The piece ceiling has to keep firing on its own account. Two cases:
-     * one where only pieces overflow (packages still fit), and one where
-     * both ceilings would fire — the package ceiling is checked first, so
-     * that is the refusal the clerk sees.
-     */
     public function test_the_piece_ceiling_still_fires_independently(): void
     {
         // Packages fit (1 of 3), pieces do not (900 against 246).

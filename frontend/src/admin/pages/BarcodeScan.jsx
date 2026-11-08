@@ -664,6 +664,7 @@ const BarcodeScan = () => {
   const isAdminRole = roleKey === ROLES.ADMIN;
   // Barcode inventory processing: admin, branch manager, and warehouse personnel.
   const canScan = isAdminRole || (typeof can === 'function' && can('barcode_inventory_processing', 'create'));
+  const canReceive = isAdminRole || (typeof can === 'function' && can('delivery_receiving', 'create'));
   /** The receiver's own warehouse for PO-receiving line scoping; null (no filtering) for centralized/admin users who are not locked to one location. */
   const myLocationId = useMemo(
     () => (isStrictLocation && enforcedLocationId ? String(enforcedLocationId) : null),
@@ -692,10 +693,10 @@ const BarcodeScan = () => {
   /* ── view state ── */
   const [scanMode, setScanMode]     = useState(null); // null = home, or MODES[i]
   useEffect(() => {
-    if (new URLSearchParams(notificationSearch).get('mode') === 'receive-po' && canScan) {
+    if (new URLSearchParams(notificationSearch).get('mode') === 'receive-po' && canReceive) {
       setScanMode(MODES.find((mode) => mode.key === 'receive-po'));
     }
-  }, [notificationSearch, canScan]);
+  }, [notificationSearch, canReceive]);
   const [modeIndex, setModeIndex]   = useState(0);
 
   /* ── scan state ── */
@@ -3746,7 +3747,7 @@ const BarcodeScan = () => {
                     </>
                   )}
                   {cameraError && <p className="bs-cam-err">{cameraError}</p>}
-                  {cameraActive && canScan && (
+                  {cameraActive && canReceive && (
                     <button type="button" className="bs-cam-shutter" onClick={manualFrameScan} aria-label="Capture barcode from current camera frame">
                       <span className="bs-cam-shutter-inner"/><span className="bs-cam-shutter-label">{bsrCaptureArmed ? 'Stop scanning' : 'Capture now'}</span>
                     </button>
@@ -3790,7 +3791,7 @@ const BarcodeScan = () => {
                     type="button"
                     className="bsr-capture-btn"
                     onClick={handleBsrCaptureClick}
-                    disabled={!canScan || bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || bsrVerifyMode || bsrTopUpMode || !!bsrPendingOverage || bsrScanInput.trim().length < 4}
+                    disabled={!canReceive || bsrScanning || !bsrActiveLine || !!bsrScanSuccess || !!bsrAlertModal || bsrPoStatusLoading || bsrCountMode || bsrVerifyMode || bsrTopUpMode || !!bsrPendingOverage || bsrScanInput.trim().length < 4}
                     aria-label="Submit barcode"
                   >
                     {bsrScanning ? 'Scanning…' : 'Submit'}
@@ -4010,57 +4011,19 @@ const BarcodeScan = () => {
                 })()}
 
                 {bsrPendingOverage && (
-                  <div className="bsr-overage-confirm" role="alertdialog" aria-label="Confirm over-receipt">
+                  <div className="bsr-overage-confirm" role="alert" aria-label="Over-receipt blocked">
                     <p className="bsr-overage-text">
                       {bsrPendingOverage.limit === 'packages'
                         // Package ceiling: no piece keys on this payload — reading
                         // ordered_pieces/remaining here would render blanks.
                         ? (() => {
                             const ordered = Number(bsrPendingOverage.ordered_packages || 0);
-                            const nth = Number(bsrPendingOverage.received_packages ?? ordered) + 1;
-                            const suffix = nth % 10 === 1 && nth % 100 !== 11 ? 'st'
-                              : nth % 10 === 2 && nth % 100 !== 12 ? 'nd'
-                              : nth % 10 === 3 && nth % 100 !== 13 ? 'rd' : 'th';
-                            return `You have received all ${ordered} packages for this line. Confirm to receive a ${nth}${suffix}?`;
+                            return `You have received all ${ordered} packages for this line. An additional package is blocked (0% tolerance).`;
                           })()
                         : `You counted ${bsrPendingOverage.counted} pcs but only ${bsrPendingOverage.remaining} pcs
                       remain on this line (${bsrPendingOverage.overage} pcs over).`}
                     </p>
                     <div className="bsr-overage-actions">
-                      <button
-                        type="button"
-                        className="bsr-overage-confirm-btn"
-                        disabled={bsrCountBusy || bsrScanning}
-                        onClick={() => {
-                          // A scan-originated overage must be re-posted through the
-                          // SCAN path — routing it through the count endpoint would
-                          // record a hand count instead of the barcode receipt.
-                          if (bsrPendingOverage.viaScan) {
-                            handleBsrScan(bsrPendingOverage.barcode, true);
-                          } else if (bsrPendingOverage.viaVerify) {
-                            // A verify-originated overage reconciles a line that
-                            // is already in stock. Posting it as a count would
-                            // receive the goods a second time.
-                            bsrPostVerify(bsrPendingOverage.packages, bsrPendingOverage.actualPieces, true);
-                          } else if (bsrPendingOverage.viaTopUp) {
-                            // A top-up overage must be re-posted through the TOP-UP
-                            // endpoint — routing it through receiveCount would claim
-                            // a whole package and reintroduce the "extra order"
-                            // over-count bug this feature exists to fix.
-                            bsrPostTopUp(bsrPendingOverage.pieces, true);
-                          } else {
-                            // Re-sends the COUNTED pieces alongside the units —
-                            // dropping actualPieces here would post the
-                            // per-package expectation instead.
-                            bsrPostCount(
-                              { units: bsrPendingOverage.units, actualPieces: bsrPendingOverage.actualPieces ?? null },
-                              true,
-                            );
-                          }
-                        }}
-                      >
-                        Confirm over-receipt
-                      </button>
                       <button
                         type="button"
                         className="bsr-overage-cancel-btn"
@@ -4209,16 +4172,7 @@ const BarcodeScan = () => {
                         {bsrSubmitting ? 'Submitting…' : 'Submit to inventory'}
                       </button>
 
-                      {bsrSubmitFailures.some((f) => f.detail?.action === 'over_receipt') && (
-                        <button
-                          type="button"
-                          className="bsr-btn-accept-overage"
-                          disabled={bsrSubmitting}
-                          onClick={() => handleBsrSubmitDraft(true)}
-                        >
-                          Accept the overage and submit anyway
-                        </button>
-                      )}
+<p>Over-receipts cannot be submitted. Correct the flagged quantities (0% tolerance).</p>
                     </div>
                   </div>
                 )}
@@ -4286,7 +4240,7 @@ const BarcodeScan = () => {
                       });
                     }
                   }}
-                  disabled={!canScan || !canPrintGrn}
+                  disabled={!canReceive || !canPrintGrn}
                 ><BsrCheckIcon /> Done</button>
               </div>
             </div>

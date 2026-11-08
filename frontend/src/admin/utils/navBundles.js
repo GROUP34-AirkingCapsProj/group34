@@ -20,7 +20,7 @@ export const NAV_BUNDLES = [
   { name: 'Incident Reports',      routePath: '/incidents',        required: ['incident_reports.read'] },
   { name: 'Transactions',          routePath: '/transactions',     required: ['sales_recording.read'] },
   { name: 'Customer Registry',     routePath: '/customers',        required: ['customer_management.read'] },
-  { name: 'Scan Barcode',          routePath: '/inventory-operation', required: ['barcode_inventory_processing.create'] },
+  { name: 'Scan Barcode',          routePath: '/inventory-operation', required: ['delivery_receiving.create'] },
   { name: 'Compliance Review',     routePath: '/compliance',       required: ['exception_detection.read'] },
   { name: 'Warranty Records',      routePath: '/warranties',       required: ['warranty_records.read'] },
   { name: 'Audit Trail',           routePath: '/audit',            required: ['audit_trail_viewing.read'] },

@@ -207,6 +207,7 @@ class RestockAnalyticsServiceTest extends TestCase
         ], 'receiving_id');
         DB::table('receiving_details')->insert([
             'receiving_id' => $receivingId, 'product_id' => $pid,
+            'po_detail_id' => DB::table('purchase_order_details')->where('po_id', $poId)->value('po_detail_id'),
             'quantity_amount' => 5, 'prod_price' => 80,
             'created_at' => now(), 'updated_at' => now(),
         ]);
@@ -276,8 +277,8 @@ class RestockAnalyticsServiceTest extends TestCase
 
         $this->assertNotNull($rec);
         $this->assertEqualsWithDelta(6.0, (float) $rec['lead_time_days'], 0.001);
-        $this->assertSame(1, $rec['on_order_quantity']);
-        $this->assertSame(28, $rec['recommended_quantity']);
+        $this->assertSame(0, $rec['on_order_quantity']);
+        $this->assertSame(29, $rec['recommended_quantity']);
     }
 
     // ---------------------------------------------------------------
@@ -296,7 +297,7 @@ class RestockAnalyticsServiceTest extends TestCase
         $poId = DB::table('purchase_orders')->insertGetId([
             'po_number'  => 'PO-TST-' . uniqid(),
             'order_date' => $this->asOf->copy()->subDays(2)->toDateString(),
-            'status_id'  => 7, // Pending -> open
+            'status_id'  => 8, // Approved/Open
             'created_at' => now(),
             'updated_at' => now(),
         ], 'po_id');
@@ -406,7 +407,7 @@ class RestockAnalyticsServiceTest extends TestCase
         $poId = DB::table('purchase_orders')->insertGetId([
             'po_number'  => 'PO-TST-' . uniqid(),
             'order_date' => $this->asOf->copy()->subDays(2)->toDateString(),
-            'status_id'  => 7, // Pending -> open
+            'status_id'  => 8, // Approved/Open
             'created_at' => now(), 'updated_at' => now(),
         ], 'po_id');
         DB::table('purchase_order_details')->insert([
@@ -458,13 +459,13 @@ class RestockAnalyticsServiceTest extends TestCase
         $poId = DB::table('purchase_orders')->insertGetId([
             'po_number'  => 'PO-TST-' . uniqid(),
             'order_date' => $this->asOf->copy()->subDays(2)->toDateString(),
-            'status_id'  => 7, // Pending -> open
+            'status_id'  => 8, // Approved/Open
             'created_at' => now(),
             'updated_at' => now(),
         ], 'po_id');
         DB::table('purchase_order_details')->insert([
             'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
-            'quantity_ordered' => 2, // PACKAGES
+            'quantity_ordered' => 2, 'pieces_per_order_unit' => 5, // PACKAGES
             'unit_price' => 80, 'subtotal' => 160, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
@@ -492,13 +493,13 @@ class RestockAnalyticsServiceTest extends TestCase
         $poId = DB::table('purchase_orders')->insertGetId([
             'po_number'  => 'PO-TST-' . uniqid(),
             'order_date' => $this->asOf->copy()->subDays(9)->toDateString(),
-            'status_id'  => 7, // Pending -> open
+            'status_id'  => 8, // Approved/Open
             'created_at' => now(),
             'updated_at' => now(),
         ], 'po_id');
         DB::table('purchase_order_details')->insert([
             'po_id' => $poId, 'product_id' => $pid, 'location_id' => $this->warehouseId,
-            'quantity_ordered' => 2, // PACKAGES
+            'quantity_ordered' => 2, 'pieces_per_order_unit' => 5, // PACKAGES
             'unit_price' => 80, 'subtotal' => 160, 'created_at' => now(), 'updated_at' => now(),
         ]);
         $receivingId = DB::table('receivings')->insertGetId([
@@ -509,6 +510,7 @@ class RestockAnalyticsServiceTest extends TestCase
         ], 'receiving_id');
         DB::table('receiving_details')->insert([
             'receiving_id' => $receivingId, 'product_id' => $pid,
+            'po_detail_id' => DB::table('purchase_order_details')->where('po_id', $poId)->value('po_detail_id'),
             'quantity_amount' => 4, // PIECES (always)
             'prod_price' => 80, 'created_at' => now(), 'updated_at' => now(),
         ]);
@@ -533,7 +535,7 @@ class RestockAnalyticsServiceTest extends TestCase
         $poId = DB::table('purchase_orders')->insertGetId([
             'po_number'  => 'PO-TST-' . uniqid(),
             'order_date' => $this->asOf->copy()->subDays(2)->toDateString(),
-            'status_id'  => 7, // Pending -> open
+            'status_id'  => 8, // Approved/Open
             'created_at' => now(),
             'updated_at' => now(),
         ], 'po_id');

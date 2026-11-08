@@ -84,3 +84,9 @@ back-end/scripts/*
 !back-end/scripts/check-aiven.ps1
 !back-end/scripts/backup-aiven.ps1
 back-end/tinker_tmp.php
+
+# Scratch mysqld data dir from the PO step-2 migration rehearsal (199 MB of .ibd files)
+back-end/storage/framework/po-step2-mysql-test/
+
+# Python bytecode from docs/tools scripts
+__pycache__/

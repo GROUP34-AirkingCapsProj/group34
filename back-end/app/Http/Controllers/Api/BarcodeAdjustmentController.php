@@ -222,6 +222,10 @@ class BarcodeAdjustmentController extends Controller
             if (! $rd) {
                 return response()->json(['success' => false, 'message' => 'Receiving detail not found.'], 404);
             }
+            if ($rd->receiving?->po_id !== null) {
+                return response()->json(['success' => false,
+                    'message' => 'PO receipts cannot be rewritten through legacy barcode correction. Use carton verification or an authorized inventory adjustment.'], 422);
+            }
 
             $originalProduct = $rd->product;
             if ($originalProduct && ! $originalProduct->relationLoaded('applianceDetail')) {

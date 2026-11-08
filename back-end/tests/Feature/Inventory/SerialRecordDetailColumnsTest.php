@@ -251,7 +251,11 @@ class SerialRecordDetailColumnsTest extends TestCase
         ]);
         $po = PurchaseOrder::create([
             'po_number' => 'PO-' . uniqid(), 'location_id' => $location->location_id,
-            'verification_status' => 'verified', 'status_id' => 1, 'order_date' => now()->toDateString(),
+            'verification_status' => 'verified', 'status_id' => 8, 'order_date' => now()->toDateString(),
+        ]);
+        $po->details()->create([
+            'product_id' => $product->product_id, 'location_id' => $location->location_id,
+            'quantity_ordered' => 1, 'unit_price' => '1.00',
         ]);
         $serial = 'SN-' . uniqid();
 

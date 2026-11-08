@@ -50,7 +50,7 @@ class NavBundleSeeder extends Seeder
             // SALES & LOGISTICS
             ['Transactions',         '/transactions',         'SALES & LOGISTICS',       'globaltransactions', 'sales_recording',     'read'],
             ['Customer Registry',    '/customers',            'SALES & LOGISTICS',       'customers',          'customer_management', 'read'],
-            ['Scan Barcode',         '/inventory-operation',  'SALES & LOGISTICS',       'scan',               'barcode_inventory_processing', 'create'],
+            ['Scan Barcode',         '/inventory-operation',  'SALES & LOGISTICS',       'scan',               'delivery_receiving', 'create'],
 
             // COMPLIANCE & SUPPORT
             ['Compliance Review',    '/compliance',           'COMPLIANCE & SUPPORT',    'compliance',         'exception_detection',     'read'],

@@ -1477,6 +1477,10 @@ const InventoryManagement = () => {
                         <span className="invd-value">{historyData?.inventory?.available_quantity ?? '—'}</span>
                       </div>
                       <div className="invd-field">
+                        <span className="invd-label">On Order (pieces)</span>
+                        <span className="invd-value">{historyData?.inventory?.on_order_quantity ?? viewingItem?.on_order_quantity ?? 0}</span>
+                      </div>
+                      <div className="invd-field">
                         <span className="invd-label">Reorder Level</span>
                         <span className="invd-value">{historyData?.inventory?.reorder_level ?? getItemReorder(viewingItem)}</span>
                       </div>

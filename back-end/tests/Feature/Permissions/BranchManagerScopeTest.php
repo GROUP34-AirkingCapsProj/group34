@@ -5,6 +5,7 @@ namespace Tests\Feature\Permissions;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderDetail;
 use App\Models\Receiving;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -120,8 +121,22 @@ class BranchManagerScopeTest extends TestCase
             'po_number'           => 'PO-' . uniqid(),
             'location_id'         => $theirs->location_id,
             'verification_status' => 'verified',
-            'status_id'           => 1,
+            // Approved/Open: receiving is only permitted from a receivable status.
+            'status_id'           => 8,
             'order_date'          => now()->toDateString(),
+        ]);
+
+        // The receipt must name an exact PO line, and PoReceivingGuard requires
+        // that line's warehouse to be the one actually received into. The write
+        // lands at $mine (see below), so the line belongs to $mine even though
+        // the PO header points at $theirs.
+        $line = PurchaseOrderDetail::create([
+            'po_id'            => $po->po_id,
+            'location_id'      => $mine->location_id,
+            'product_id'       => $product->product_id,
+            'quantity_ordered' => 5,
+            'unit_price'       => 100,
+            'subtotal'         => 500,
         ]);
 
         $bm = $this->userAt(3, $mine->location_id);
@@ -134,6 +149,7 @@ class BranchManagerScopeTest extends TestCase
             'receiving_number' => 'RCV-' . uniqid(),
             'receiving_date'   => now()->toDateString(),
             'details'          => [[
+                'po_detail_id'    => $line->po_detail_id,
                 'product_id'      => $product->product_id,
                 'quantity_amount' => 1,
                 'condition'       => 'Good',

@@ -18,7 +18,7 @@ export const EXTRA_FEATURES_BY_ROUTE = {
   '/items':               ['barcode_assignment'],
   '/categories':          ['category_management', 'brand_management'],
   '/transactions':        ['delivery_receipt_generation'],
-  '/inventory-operation': ['delivery_receiving', 'inventory_issuance', 'inventory_adjustments'],
+  '/inventory-operation': ['barcode_inventory_processing', 'inventory_issuance', 'inventory_adjustments'],
   '/warranties':          ['warranty_claims'],
 };
 

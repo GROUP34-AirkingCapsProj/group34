@@ -30,10 +30,7 @@ class ReceivingDraftSubmitService
     }
 
     /**
-     * @param  bool  $acceptOverage  Receiving more than was ordered is a real
-     *         thing that happens; this is how an authorized user accepts it.
-     *         Unlike the old per-scan confirm, the clerk sets this on a
-     *         deliberate re-submit after seeing the full list of what is over.
+     * @param  bool  $acceptOverage  Retained for API compatibility; never bypasses the 0% limit.
      * @return array{action: 'submitted'|'failed', ...}
      */
     public function submit(ReceivingDraft $draft, ?int $userId, bool $acceptOverage = false): array
@@ -58,6 +55,22 @@ class ReceivingDraftSubmitService
 
         DB::beginTransaction();
         try {
+            \App\Models\PurchaseOrder::whereKey($draft->po_id)->lockForUpdate()->first();
+            $draft = ReceivingDraft::whereKey($draft->draft_id)->lockForUpdate()->firstOrFail();
+            if ($draft->status !== 'open') {
+                throw new \RuntimeException('This delivery has already been submitted.');
+            }
+            $items = $draft->items()->with(['product.applianceDetail', 'product.installationMaterialDetail'])->get();
+            if ($items->isEmpty()) {
+                throw new \RuntimeException('There is nothing staged to submit.');
+            }
+            foreach ($items as $item) {
+                $line = PurchaseOrderDetail::find($item->po_detail_id);
+                if (! $line || (int) $line->po_id !== (int) $draft->po_id) {
+                    throw new \RuntimeException('Every staged item must belong to this PO.');
+                }
+                app(PoReceivingGuard::class)->lock($line, (int) $draft->location_id, (int) $item->product_id);
+            }
             // Lock every inventory row this draft will touch, up front, per
             // ReceivingPostingService's documented transaction contract. Locking
             // the distinct set before posting anything also avoids two
@@ -164,7 +177,7 @@ class ReceivingDraftSubmitService
                 $item->packages_received === null ? null : (int) $item->packages_received
             );
 
-            if ($overage !== null && ! $acceptOverage) {
+            if ($overage !== null) {
                 return ['failure' => $this->failure($item, $this->explainOverage($overage), $overage)];
             }
         }

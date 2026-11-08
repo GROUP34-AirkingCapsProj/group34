@@ -35,6 +35,11 @@ class RestockEndpointsTest extends TestCase
         $this->seed(PermissionSeeder::class);
         $this->seed(RolePermissionsSeeder::class);
 
+        // These endpoint fixtures deliberately supply an already current stored
+        // snapshot. Purchasing-change refresh is tested separately.
+        $version = DB::table('system_settings')->where('key', 'po_incoming_changed')->value('value');
+        DB::table('system_settings')->updateOrInsert(['key' => 'po_incoming_refreshed'], ['value' => $version]);
+
         $this->secondWarehouseId = (int) DB::table('locations')->insertGetId([
             'location_code' => 'TST-WH-' . uniqid(),
             'location_name' => 'Test Warehouse',

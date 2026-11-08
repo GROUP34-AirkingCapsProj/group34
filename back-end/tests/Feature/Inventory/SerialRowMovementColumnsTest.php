@@ -54,23 +54,37 @@ class SerialRowMovementColumnsTest extends TestCase
             'po_number'           => 'PO-' . uniqid(),
             'location_id'         => $loc->location_id,
             'verification_status' => 'verified',
-            'status_id'           => 1,
+            'status_id'           => 8,
         ]);
 
-        // Two receiving batches, each with a distinct scanned barcode so both become rows.
-        foreach ([['BC-A', 12], ['BC-B', 8]] as [$bc, $qty]) {
-            $this->actingAs($user)->postJson('/api/receivings', [
-                'pc_id'            => $po->po_id,
+        // Seeded as rows, not posted through /api/receivings. Receiving an
+        // installation material now mints a material tag per receipt, and a
+        // tag deliberately reports no per-row quantity (InventoryController
+        // blanks row_* for tags: one tag can stand for a lot whose pieces drain
+        // over time). The numeric per-batch columns under test therefore belong
+        // to receipts that carry no tag — historical rows booked before tagging
+        // existed, which is exactly what the endpoint's untagged-row branch is
+        // there to render. Seeding that shape is the only way to reach it.
+        foreach ([['BC-A', 12], ['BC-B', 8]] as $i => [$bc, $qty]) {
+            $receivingId = DB::table('receivings')->insertGetId([
+                'po_id'            => $po->po_id,
                 'location_id'      => $loc->location_id,
                 'receiving_number' => 'RCV-' . uniqid(),
                 'receiving_date'   => now()->toDateString(),
-                'details'          => [[
-                    'product_id'      => $product->product_id,
-                    'quantity_amount' => $qty,
-                    'condition'       => 'Good',
-                    'scanned_barcode' => $bc . '-' . uniqid(),
-                ]],
-            ])->assertStatus(201);
+                'received_by'      => $user->user_id,
+                'created_at'       => now(),
+                'updated_at'       => now(),
+            ]);
+            DB::table('receiving_details')->insert([
+                'receiving_id'    => $receivingId,
+                'product_id'      => $product->product_id,
+                'quantity_amount' => $qty,
+                'condition'       => 'Good',
+                'scanned_barcode' => $bc . '-' . uniqid(),
+                // Distinct seconds so "the FIRST batch" is unambiguous.
+                'created_at'      => now()->subMinutes(10 - $i),
+                'updated_at'      => now()->subMinutes(10 - $i),
+            ]);
         }
         // Resolve the two receiving_ids for this product at this location, oldest first.
         $rows = DB::table('receiving_details')

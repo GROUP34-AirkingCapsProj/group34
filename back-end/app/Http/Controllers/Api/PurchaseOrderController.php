@@ -471,6 +471,131 @@ class PurchaseOrderController extends Controller
         return $this->success($po->fresh()->load(self::WITH_RELATIONS), 'Purchase order rejected');
     }
 
+    /**
+     * Resolve a purchase-order status id by name.
+     *
+     * By name rather than by literal, because the ids are seeded data: the
+     * frontend used to read status_lookup itself and send the id back, which
+     * made the client the authority on which status an approval lands in.
+     */
+    private function poStatusId(string $name): ?int
+    {
+        $id = DB::table('status_lookup')
+            ->where('status_category', 'purchase_order')
+            ->where('status_name', $name)
+            ->value('status_id');
+
+        return $id === null ? null : (int) $id;
+    }
+
+    /**
+     * Already decided, so neither approve() nor decline() may move it again.
+     * Approved(8), Authorized(10), Completed(11), Partially Received(12) — the
+     * same set reject() refuses on, and for the same reason: once goods can be
+     * received against a PO, the approval decision is spent.
+     */
+    private const SETTLED_STATUS_IDS = [8, 10, 11, 12];
+
+    /**
+     * Authorise a purchase order — the approval decision, as distinct from the
+     * auditor's verification above and the analyst's editing in update().
+     *
+     * This decision used to ride on PUT /purchase-orders/{id}, so the only
+     * accounts that could take it were the ones allowed to rewrite a PO's
+     * prices, quantities and supplier. The branch manager approves the purchase
+     * request behind the PO but holds no editing right, so it could not take the
+     * matching decision here — the approval was unreachable for the role that
+     * owns it. It now has its own action (purchase_order_approval.approve) and
+     * its own endpoint; update() keeps the editing right it always had.
+     */
+    public function approve(Request $request, $id)
+    {
+        $po = PurchaseOrder::find($id);
+        if (! $po) {
+            return $this->error('Purchase order not found', 404);
+        }
+
+        try {
+            $validated = $request->validate(['note' => 'nullable|string|max:500']);
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        }
+
+        if (in_array((int) $po->status_id, self::SETTLED_STATUS_IDS, true)) {
+            return $this->error('This purchase order has already been approved', 422);
+        }
+        if ((int) $po->status_id === 9) {
+            return $this->error('This purchase order was rejected and can no longer be approved', 422);
+        }
+
+        $statusId = $this->poStatusId('Authorized');
+        if ($statusId === null) {
+            return $this->error(
+                'No "Authorized" status is configured for purchase orders. Run the migrations and try again.',
+                422,
+            );
+        }
+
+        $po->update(array_filter([
+            'status_id'      => $statusId,
+            'approved_by'    => $request->user()->user_id,
+            'approval_notes' => $validated['note'] ?? null,
+        ], fn ($value) => $value !== null));
+
+        RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'status_changed');
+
+        return $this->success($po->fresh()->load(self::WITH_RELATIONS), 'Purchase order approved');
+    }
+
+    /**
+     * Decline a purchase order at the approval stage: the other half of the same
+     * decision, so it answers to the same permission rather than to a second one
+     * — the same shape the PR workflow uses, where approve and reject sit
+     * together under purchase_request_approval.approve.
+     *
+     * Distinct from reject() above, which is the auditor's verification verdict
+     * and leaves the PO Pending. This one settles the PO as Rejected.
+     *
+     * A reason is required. The auditor's rejection has demanded one since it was
+     * written, and a declined PO that records no reason leaves the analyst who
+     * raised it with nothing to act on.
+     */
+    public function decline(Request $request, $id)
+    {
+        $po = PurchaseOrder::find($id);
+        if (! $po) {
+            return $this->error('Purchase order not found', 404);
+        }
+
+        try {
+            $validated = $request->validate(['reason' => 'required|string|max:500']);
+        } catch (ValidationException $e) {
+            return $this->validationError($e->errors());
+        }
+
+        if (in_array((int) $po->status_id, self::SETTLED_STATUS_IDS, true)) {
+            return $this->error('This purchase order has already been approved and can no longer be declined', 422);
+        }
+
+        $statusId = $this->poStatusId('Rejected');
+        if ($statusId === null) {
+            return $this->error(
+                'No "Rejected" status is configured for purchase orders. Run the migrations and try again.',
+                422,
+            );
+        }
+
+        $po->update([
+            'status_id'      => $statusId,
+            'approved_by'    => $request->user()->user_id,
+            'approval_notes' => $validated['reason'],
+        ]);
+
+        RealtimeBroadcaster::purchaseOrderChanged((int) $po->location_id, 'status_changed');
+
+        return $this->success($po->fresh()->load(self::WITH_RELATIONS), 'Purchase order declined');
+    }
+
     public function destroy($id)
     {
         try {

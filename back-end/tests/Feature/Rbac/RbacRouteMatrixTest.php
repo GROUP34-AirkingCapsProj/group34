@@ -127,8 +127,11 @@ class RbacRouteMatrixTest extends TestCase
             'issuances store'                   => ['POST',  '/api/issuances',                       'warehouse_personnel', 'inventory_analyst'],
             // Feature: sales_recording.create
             'sales store'                       => ['POST',  '/api/sales',                           'branch_manager',      'inventory_analyst'],
-            // Feature: delivery_receiving.create
-            'receivings store'                  => ['POST',  '/api/receivings',                      'warehouse_personnel', 'inventory_analyst'],
+            // Feature: delivery_receiving.create — no row here on purpose. Since
+            // inventory_analyst gained delivery_receiving.create (PO receiving
+            // policy), auditor is the only role still denied, and its 403 would
+            // come from AuditorReadOnly rather than the permission gate. The
+            // grant itself is covered by PoReceivingPermissionMigrationTest.
             // Feature: item_master_management.create
             'products store'                    => ['POST',  '/api/products',                        'inventory_analyst',   'branch_manager'],
             // Feature: category_management.create

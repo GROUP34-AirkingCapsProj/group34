@@ -120,6 +120,11 @@ class ReceivingController extends Controller
 
     public function store(Request $request)
     {
+        // Only this method's own transaction may be rolled back. Validation and
+        // the PO verification check run before beginTransaction(), so an
+        // unguarded rollBack() there would discard the CALLER's transaction.
+        $ownsTransaction = false;
+
         try {
             $validated = $request->validate([
                 'pc_id'                          => 'required|exists:purchase_orders,po_id',
@@ -135,7 +140,7 @@ class ReceivingController extends Controller
                 'details.*.po_detail_id'         => 'nullable|exists:purchase_order_details,po_detail_id',
                 'details.*.product_id'           => 'required|exists:products,product_id',
                 'details.*.prod_price'           => 'nullable|numeric|min:0',
-                'details.*.quantity_amount'      => 'required|integer|min:0',
+                'details.*.quantity_amount'      => 'required|integer|min:1',
                 'details.*.condition'            => 'nullable|string|max:100',
                 'details.*.scanned_barcode'      => 'nullable|string|max:191',
                 'details.*.zone_label'           => 'nullable|string|max:100',
@@ -151,6 +156,9 @@ class ReceivingController extends Controller
             }
 
             DB::beginTransaction();
+            $ownsTransaction = true;
+
+            PurchaseOrder::whereKey($poId)->lockForUpdate()->firstOrFail();
 
             $receivingData = Arr::except($validated, ['details']);
             $receivingData['po_id'] = $receivingData['pc_id'];
@@ -158,6 +166,8 @@ class ReceivingController extends Controller
             // Insert with a short-lived unique value; the primary-key based GRN
             // is assigned immediately after creation.
             $receivingData['receiving_number'] = 'PENDING-' . str_replace('.', '', uniqid('', true));
+            $receivingData['total_quantity_received'] = 0;
+            $receivingData['received_by'] = $uid;
             $receiving = Receiving::create($receivingData);
             $receiving->assignReadableNumber();
 
@@ -174,42 +184,24 @@ class ReceivingController extends Controller
                 $product = Product::with(['applianceDetail', 'installationMaterialDetail'])->find($productId);
                 $isSerialized = $product ? $product->isSerialized() : false;
 
-                ReceivingDetail::create([
-                    'receiving_id'    => $receiving->receiving_id,
-                    'po_detail_id'    => $detail['po_detail_id'] ?? null,
-                    'product_id'      => $productId,
-                    'quantity_amount' => $qty,
-                    'prod_price'      => $detail['prod_price'] ?? 0,
-                    'condition'       => $detail['condition'] ?? 'Good',
-                    'scanned_barcode' => $scannedBarcode,
-                ]);
-
-                if ($isSerialized && $scannedBarcode) {
-                    ItemSerial::create([
-                        'product_id'    => $productId,
-                        'location_id'   => $locationId,
-                        'receiving_id'  => $receiving->receiving_id,
-                        'scanned_by'    => $uid,
-                        'serial_number' => $scannedBarcode,
-                        'serial_type'   => 'received',
-                        'status_id'     => 26,
-                    ]);
+                $lineQuery = PurchaseOrderDetail::where('po_id', $poId)->where('product_id', $productId);
+                if (! empty($detail['po_detail_id'])) {
+                    $lineQuery->whereKey($detail['po_detail_id']);
                 }
-
-                // Update inventory at receiving location — lock the row before mutating it
-                // and before calling InventoryBatchService, per its documented contract.
-                $inventory = $this->lockInventory($locationId, $productId);
-                $rcvPpp = ($product && ! $isSerialized) ? $product->getPiecesPerPackage() : 0;
-                $inventory->setPieces((int) $inventory->quantity_on_hand + $qty, $rcvPpp);
-                $inventory->save();
-
-                app(InventoryBatchService::class)->createBatch(
-                    $productId,
-                    $locationId,
-                    $receiving->receiving_id,
-                    $qty,
-                    $receiving->receiving_date ?? now(),
-                    $zoneLabel
+                $lines = $lineQuery->get();
+                if ($lines->count() !== 1) {
+                    throw ValidationException::withMessages(['details' => 'Select the exact PO line for each receipt item.']);
+                }
+                $line = app(\App\Services\PoReceivingGuard::class)->lock($lines->first(), $locationId, $productId);
+                if ($isSerialized && ($qty !== 1 || ! $scannedBarcode)) {
+                    throw ValidationException::withMessages(['details' => 'Serialized items require one unit and its serial per receipt line.']);
+                }
+                app(\App\Services\ReceivingPostingService::class)->post(
+                    product: $product, locationId: $locationId, pieces: $qty,
+                    entryMode: $scannedBarcode ? 'scanned' : 'counted', poDetail: $line,
+                    supplierBarcode: $scannedBarcode, zoneLabel: $zoneLabel, userId: $uid,
+                    unitsEntered: $qty, contentsVerified: true, receivingHeader: $receiving,
+                    condition: $detail['condition'] ?? 'Good'
                 );
 
                 $totalReceived += $qty;
@@ -219,17 +211,11 @@ class ReceivingController extends Controller
                 $receiving->update(['total_quantity_received' => $totalReceived]);
             }
 
-            // Update PO status: Completed (11) or Partially Received (12)
-            $totalOrdered  = PurchaseOrderDetail::where('po_id', $poId)->sum('quantity_ordered');
-            $totalReceivedForPO = ReceivingDetail::whereIn(
-                'receiving_id',
-                Receiving::where('po_id', $poId)->pluck('receiving_id')
-            )->sum('quantity_amount');
-
-            $newPoStatus = ($totalReceivedForPO >= $totalOrdered) ? 11 : 12;
-            PurchaseOrder::where('po_id', $poId)->update(['status_id' => $newPoStatus]);
+            app(\App\Services\PoReceivingStatusService::class)->sync($poId, $uid);
+            $newPoStatus = (int) PurchaseOrder::whereKey($poId)->value('status_id');
 
             DB::commit();
+            $ownsTransaction = false;
 
             RealtimeBroadcaster::inventoryChanged((int) $receiving->location_id, 'stock_received');
             if ($newPoStatus === 11) {
@@ -243,9 +229,14 @@ class ReceivingController extends Controller
                 201
             );
         } catch (ValidationException $e) {
+            if ($ownsTransaction) {
+                DB::rollBack();
+            }
             return $this->validationError($e->errors());
         } catch (\Exception $e) {
-            DB::rollBack();
+            if ($ownsTransaction) {
+                DB::rollBack();
+            }
             return $this->error('Failed to create receiving: ' . $e->getMessage(), 500);
         }
     }
@@ -333,8 +324,8 @@ class ReceivingController extends Controller
             $validated = $request->validate([
                 'receiving_date'          => 'sometimes|date',
                 'received_by'             => 'nullable|exists:users,user_id',
-                'total_quantity_received' => 'nullable|integer|min:0',
-                'total_quantity_damaged'  => 'nullable|integer|min:0',
+                'total_quantity_received' => 'prohibited',
+                'total_quantity_damaged'  => 'prohibited',
                 'profit_loss_id'          => 'nullable|exists:profit_loss,profit_loss_id',
                 'status_id'               => 'nullable|exists:status_lookup,status_id',
             ]);
@@ -353,8 +344,7 @@ class ReceivingController extends Controller
     {
         try {
             $receiving = Receiving::findOrFail($id);
-            $receiving->delete();
-            return $this->success(null, 'Receiving deleted successfully');
+            return $this->error('Posted receipts are retained permanently. Use an audited stock correction.', 409);
         } catch (\Exception $e) {
             return $this->error('Failed to delete receiving: ' . $e->getMessage(), 500);
         }
@@ -369,7 +359,7 @@ class ReceivingController extends Controller
         try {
             $details = PurchaseOrderDetail::with('product')
                 ->where('po_id', $poId)
-                ->get(['po_detail_id', 'product_id', 'quantity_ordered']);
+                ->get(['po_detail_id', 'product_id', 'quantity_ordered', 'pieces_per_order_unit', 'short_closed_quantity']);
 
             if ($details->isEmpty()) {
                 return $this->success(['lines' => [], 'scan_history' => []], 'No line items found for this PO');
@@ -418,6 +408,8 @@ class ReceivingController extends Controller
                 'po_detail_id'     => $d->po_detail_id,
                 'product_id'       => $d->product_id,
                 'already_received'          => (int) ($receivedSums[$d->po_detail_id] ?? 0),
+                'remaining' => max(0, (int) $d->quantity_ordered * max(1, (int) $d->pieces_per_order_unit)
+                    - (int) ($receivedSums[$d->po_detail_id] ?? 0) - (int) $d->short_closed_quantity),
                 'already_received_packages' => (int) ($receivedPackageSums[$d->po_detail_id] ?? 0),
                 'scanned_barcodes'          => $scannedByLine[$d->po_detail_id] ?? [],
                 // Serialized lines are exempt: an appliance is one unit carrying
@@ -433,7 +425,7 @@ class ReceivingController extends Controller
             $productInfo = $details->keyBy('product_id')->map(fn($d) => [
                 'name' => $d->product?->product_name ?? 'Unknown',
                 'type' => $d->product?->product_type ?? 'installation_material',
-                'pcs'  => (int) ($d->product?->pieces_per_package ?? 1),
+                'pcs'  => max(1, (int) $d->pieces_per_order_unit),
             ]);
 
             $scanHistory = ReceivingDetail::whereIn('po_detail_id', $detailIds)

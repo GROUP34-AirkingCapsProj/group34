@@ -2,11 +2,10 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\User;
-use App\Traits\Auditable;
 
 /**
  * PurchaseOrderDetail (ERD: purchase_order_detail)
@@ -16,7 +15,9 @@ use App\Traits\Auditable;
 class PurchaseOrderDetail extends Model
 {
     use Auditable;
+
     protected $table = 'purchase_order_details';
+
     protected $primaryKey = 'po_detail_id';
 
     protected $fillable = [
@@ -27,13 +28,33 @@ class PurchaseOrderDetail extends Model
         'quantity_ordered',
         'unit_price',
         'subtotal',
+        'order_unit',
+        'pieces_per_order_unit',
+        'quantity_snapshot_source',
+        'short_closed_quantity',
+        'replacement_for_po_detail_id',
     ];
 
     protected $casts = [
         'quantity_ordered' => 'integer',
-        'unit_price'       => 'decimal:2',
-        'subtotal'         => 'decimal:2',
+        'unit_price' => 'decimal:2',
+        'subtotal' => 'decimal:2',
+        'pieces_per_order_unit' => 'integer',
+        'short_closed_quantity' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        static::saved(fn () => \App\Services\IncomingStockService::markDirty());
+        static::deleted(fn () => \App\Services\IncomingStockService::markDirty());
+        static::creating(function (self $line) {
+            $product = Product::withTrashed()->with('installationMaterialDetail')->find($line->product_id);
+            $material = $product?->product_type === 'installation_material';
+            $line->order_unit = $material ? 'package' : 'piece';
+            $line->pieces_per_order_unit = $material ? max(1, (int) $product->getPiecesPerPackage()) : 1;
+            $line->quantity_snapshot_source = 'creation';
+        });
+    }
 
     public function purchaseOrder(): BelongsTo
     {
@@ -68,5 +89,4 @@ class PurchaseOrderDetail extends Model
     {
         return $this->belongsTo(User::class, 'approved_by', 'user_id');
     }
-
 }

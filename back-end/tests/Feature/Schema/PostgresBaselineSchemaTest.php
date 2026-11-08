@@ -27,11 +27,12 @@ class PostgresBaselineSchemaTest extends TestCase
     // ledger_drift_findings.
     /**
      * Was 89 until `drop_budget_management` removed budget_allocations and its
-     * sibling. A migration that adds or drops a table has to move this number
-     * too, or the only signal is this assertion failing with no explanation of
-     * which table changed.
+     * sibling, then 87 until `add_po_lifecycle_foundation` added
+     * po_lifecycle_exceptions. A migration that adds or drops a table has to
+     * move this number too, or the only signal is this assertion failing with
+     * no explanation of which table changed.
      */
-    private const EXPECTED_TABLES = 87;
+    private const EXPECTED_TABLES = 88;
 
     private string $sql;
 

@@ -30,8 +30,10 @@ class ReceivingStoresZoneLabelTest extends TestCase
         ]);
         $po = PurchaseOrder::create([
             'po_number' => 'PO-' . uniqid(), 'location_id' => $location->location_id,
-            'verification_status' => 'verified', 'status_id' => 1,
+            'verification_status' => 'verified', 'status_id' => 8,
         ]);
+
+        $po->details()->create(['product_id' => $product->product_id, 'location_id' => $location->location_id, 'quantity_ordered' => 20, 'unit_price' => '1.00']);
 
         $this->actingAs($user)->postJson('/api/receivings', [
             'pc_id' => $po->po_id,
@@ -65,8 +67,10 @@ class ReceivingStoresZoneLabelTest extends TestCase
         ]);
         $po = PurchaseOrder::create([
             'po_number' => 'PO-' . uniqid(), 'location_id' => $location->location_id,
-            'verification_status' => 'verified', 'status_id' => 1,
+            'verification_status' => 'verified', 'status_id' => 8,
         ]);
+
+        $po->details()->create(['product_id' => $product->product_id, 'location_id' => $location->location_id, 'quantity_ordered' => 20, 'unit_price' => '1.00']);
 
         $this->actingAs($user)->postJson('/api/receivings', [
             'pc_id' => $po->po_id,
@@ -100,8 +104,10 @@ class ReceivingStoresZoneLabelTest extends TestCase
         ]);
         $po = PurchaseOrder::create([
             'po_number' => 'PO-' . uniqid(), 'location_id' => $location->location_id,
-            'verification_status' => 'verified', 'status_id' => 1,
+            'verification_status' => 'verified', 'status_id' => 8,
         ]);
+
+        $po->details()->create(['product_id' => $product->product_id, 'location_id' => $location->location_id, 'quantity_ordered' => 20, 'unit_price' => '1.00']);
 
         $this->actingAs($user)->postJson('/api/receivings', [
             'pc_id' => $po->po_id,

@@ -109,12 +109,13 @@ class ReceiveTopUpController extends Controller
         // is exactly right, and the intent stays legible next to the count
         // path that passes a real package figure.
         $overage = $posting->checkOverage($poDetail, $product, $pieces, 0);
-        if ($overage !== null && ! $request->boolean('accept_overage')) {
-            return $this->success($overage, 'Over-receipt requires confirmation');
+        if ($overage !== null) {
+            return $this->success($overage, 'Over-receipt blocked (0% tolerance)');
         }
 
         DB::beginTransaction();
         try {
+            $poDetail = app(\App\Services\PoReceivingGuard::class)->lock($poDetail, (int) $locationId, (int) $product->product_id);
             Inventory::where('location_id', $locationId)
                 ->where('product_id', $product->product_id)
                 ->lockForUpdate()
@@ -153,6 +154,9 @@ class ReceiveTopUpController extends Controller
             }
 
             DB::commit();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return $this->success(['action' => 'rejected', 'reason' => $e->getMessage()], 'Receiving blocked');
         } catch (\Throwable $e) {
             DB::rollBack();
 

@@ -64,18 +64,33 @@ class StockHistoryMovementSummaryTest extends TestCase
             'po_number'           => 'PO-' . uniqid(),
             'location_id'         => $source->location_id,
             'verification_status' => 'verified',
-            'status_id'           => 1,
+            'status_id'           => 8,
         ]);
-        foreach ([12, 8] as $qty) {
-            $this->actingAs($user)->postJson('/api/receivings', [
-                'pc_id'            => $po->po_id,
+        // Seeded as rows rather than posted through /api/receivings: receiving
+        // an installation material now mints a material tag, and tagged
+        // receipts are represented by their tags instead of per-batch receiving
+        // rows. The FIFO allocation asserted below operates on those receiving
+        // rows, so the case under test is historical untagged receipts — the
+        // shape the endpoint's unlinked-issue-out branch exists to reconcile.
+        foreach ([12, 8] as $i => $qty) {
+            $receivingId = DB::table('receivings')->insertGetId([
+                'po_id'            => $po->po_id,
                 'location_id'      => $source->location_id,
                 'receiving_number' => 'RCV-' . uniqid(),
                 'receiving_date'   => now()->toDateString(),
-                'details'          => [
-                    ['product_id' => $product->product_id, 'quantity_amount' => $qty, 'condition' => 'Good'],
-                ],
-            ])->assertStatus(201);
+                'received_by'      => $user->user_id,
+                'created_at'       => now(),
+                'updated_at'       => now(),
+            ]);
+            DB::table('receiving_details')->insert([
+                'receiving_id'    => $receivingId,
+                'product_id'      => $product->product_id,
+                'quantity_amount' => $qty,
+                'condition'       => 'Good',
+                // Distinct seconds so the oldest-first FIFO order is unambiguous.
+                'created_at'      => now()->subMinutes(10 - $i),
+                'updated_at'      => now()->subMinutes(10 - $i),
+            ]);
         }
 
         // Stock Out (sold): one issuance of 5 pieces at the source location.

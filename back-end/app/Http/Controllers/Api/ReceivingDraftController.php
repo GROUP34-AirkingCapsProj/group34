@@ -153,8 +153,8 @@ class ReceivingDraftController extends Controller
         }
 
         [$pieces, $packages, $expected, $units] = $entryMode === 'scanned'
-            ? $this->scanQuantities($product, $request->filled('quantity') ? (int) $request->input('quantity') : null)
-            : $this->countQuantities($product, (int) $request->input('quantity', 1), $request->input('actual_pieces'));
+            ? $this->scanQuantities($product, (int) $poDetail->pieces_per_order_unit, $request->filled('quantity') ? (int) $request->input('quantity') : null)
+            : $this->countQuantities($product, (int) $poDetail->pieces_per_order_unit, (int) $request->input('quantity', 1), $request->input('actual_pieces'));
 
         $check = $this->staging->check($draft, $poDetail, $product, $pieces, $packages, $barcode);
 
@@ -224,7 +224,7 @@ class ReceivingDraftController extends Controller
 
         if ($request->has('packages') && $item->packages_received !== null) {
             $packages = (int) $request->input('packages');
-            $ppp      = max(1, (int) $item->product?->getPiecesPerPackage());
+            $ppp      = max(1, (int) PurchaseOrderDetail::whereKey($item->po_detail_id)->value('pieces_per_order_unit'));
 
             $changes['packages_received'] = $packages;
             $changes['units_entered']     = $packages;
@@ -295,13 +295,13 @@ class ReceivingDraftController extends Controller
      *
      * @return array{0: int, 1: ?int, 2: ?int, 3: int} pieces, packages, expected, units
      */
-    private function scanQuantities(Product $product, ?int $pieces = null): array
+    private function scanQuantities(Product $product, int $snapshotSize, ?int $pieces = null): array
     {
         if ($product->isSerialized()) {
             return [1, null, null, 1];
         }
 
-        $ppp = $product->getPiecesPerPackage();
+        $ppp = max(1, $snapshotSize);
 
         if ($pieces !== null) {
             $packages = $pieces % $ppp === 0 ? intdiv($pieces, $ppp) : null;
@@ -314,7 +314,7 @@ class ReceivingDraftController extends Controller
     /**
      * @return array{0: int, 1: ?int, 2: ?int, 3: int} pieces, packages, expected, units
      */
-    private function countQuantities(Product $product, int $units, $actualPieces): array
+    private function countQuantities(Product $product, int $snapshotSize, int $units, $actualPieces): array
     {
         $countUnit = $product->installationMaterialDetail?->count_unit ?? 'package';
 
@@ -325,7 +325,7 @@ class ReceivingDraftController extends Controller
         }
 
         // The expectation comes from the item master, never from the clerk.
-        $expected = $units * $product->getPiecesPerPackage();
+        $expected = $units * max(1, $snapshotSize);
         $pieces   = $actualPieces !== null ? (int) $actualPieces : $expected;
 
         return [$pieces, $units, $expected, $units];

@@ -196,9 +196,9 @@ class ReceiveTopUpTest extends TestCase
         ]);
 
         $res->assertOk();
-        $res->assertJsonPath('data.action', 'applied');
+        $res->assertJsonPath('data.action', 'over_receipt');
         $this->assertSame(
-            252,
+            232,
             (int) Inventory::where('location_id', $location->location_id)
                 ->where('product_id', $product->product_id)
                 ->value('quantity_on_hand')

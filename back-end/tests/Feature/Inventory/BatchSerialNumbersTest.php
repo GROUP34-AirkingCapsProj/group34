@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Models\Inventory;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderDetail;
 
 class BatchSerialNumbersTest extends TestCase
 {
@@ -28,14 +29,38 @@ class BatchSerialNumbersTest extends TestCase
         ]);
     }
 
+    /**
+     * A receipt must resolve to exactly one PO line, so ensure one exists for
+     * (po, location, product) with room for $qty. Topping up quantity_ordered
+     * keeps repeat receipts against the same line receivable.
+     */
+    private function poLine(PurchaseOrder $po, int $loc, int $prod, int $qty): PurchaseOrderDetail
+    {
+        $line = PurchaseOrderDetail::firstOrCreate(
+            ['po_id' => $po->po_id, 'location_id' => $loc, 'product_id' => $prod],
+            ['quantity_ordered' => 0, 'unit_price' => '1.00', 'subtotal' => 0]
+        );
+        // Order at least what has already landed plus this receipt, so repeat
+        // calls never double-count and a pre-ordered line is left alone.
+        $received = (int) \Illuminate\Support\Facades\DB::table('receiving_details')
+            ->where('po_detail_id', $line->po_detail_id)->sum('quantity_amount');
+        $line->quantity_ordered = max((int) $line->quantity_ordered, $received + $qty);
+        $line->save();
+
+        return $line;
+    }
+
     private function receive(User $user, PurchaseOrder $po, int $locationId, int $productId, int $qty, string $barcode): void
     {
+        $line = $this->poLine($po, $locationId, $productId, $qty);
+
         $this->actingAs($user)->postJson('/api/receivings', [
             'pc_id'            => $po->po_id,
             'location_id'      => $locationId,
             'receiving_number' => 'RCV-' . uniqid(),
             'receiving_date'   => now()->toDateString(),
             'details'          => [[
+                'po_detail_id'    => $line->po_detail_id,
                 'product_id'      => $productId,
                 'quantity_amount' => $qty,
                 'condition'       => 'Good',
@@ -67,7 +92,7 @@ class BatchSerialNumbersTest extends TestCase
             'po_number'           => 'PO-' . uniqid(),
             'location_id'         => $loc->location_id,
             'verification_status' => 'verified',
-            'status_id'           => 1,
+            'status_id'           => 8,
         ]);
 
         $serial = 'SN-' . uniqid();
@@ -114,7 +139,7 @@ class BatchSerialNumbersTest extends TestCase
             'po_number'           => 'PO-' . uniqid(),
             'location_id'         => $loc->location_id,
             'verification_status' => 'verified',
-            'status_id'           => 1,
+            'status_id'           => 8,
         ]);
 
         $barcode = 'BC-' . uniqid();

@@ -216,7 +216,7 @@ class ReceiveCountTest extends TestCase
         $this->assertFalse($inventoryExists);
     }
 
-    public function test_accepting_overage_posts_full_counted_quantity_and_completes_po(): void
+    public function test_accept_overage_cannot_bypass_zero_tolerance(): void
     {
         $user = $this->makeUser();
         $location = $this->makeLocation();
@@ -246,17 +246,9 @@ class ReceiveCountTest extends TestCase
             'accept_overage' => true,
         ]);
 
-        $res->assertOk();
-        $res->assertJsonPath('data.action', 'applied');
-
-        $inventory = Inventory::where('location_id', $location->location_id)
-            ->where('product_id', $product->product_id)
-            ->first();
-        $this->assertNotNull($inventory);
-        $this->assertSame(55, (int) $inventory->quantity_on_hand, 'Over-received quantity must not be clamped to the ordered amount.');
-
-        $po->refresh();
-        $this->assertSame(11, (int) $po->status_id, 'An over-received PO must reach Completed status, not hang open.');
+        $res->assertOk()->assertJsonPath('data.action', 'over_receipt');
+        $this->assertFalse(Inventory::where('product_id', $product->product_id)->exists());
+        $this->assertSame(8, (int) $po->fresh()->status_id);
     }
 
     public function test_unverified_po_is_rejected_and_no_stock_moves(): void

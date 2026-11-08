@@ -3,70 +3,32 @@
 namespace App\Services;
 
 use App\Models\PurchaseOrder;
-use App\Models\PurchaseOrderDetail;
-use App\Models\ReceivingDetail;
+use App\Support\PoLifecycle;
 
 class PoReceivingStatusService
 {
     public function sync(int $poId, $userId = null): void
     {
-        $details = PurchaseOrderDetail::with('product.installationMaterialDetail')
-            ->where('po_id', $poId)
-            ->get(['po_detail_id', 'product_id', 'quantity_ordered']);
-
-        if ($details->isEmpty()) {
+        $po = PurchaseOrder::find($poId);
+        if (! $po) {
             return;
         }
-
-        $totalOrdered  = 0;
-        $totalReceived = 0;
-
-        foreach ($details as $d) {
-            $product = $d->product;
-            if (! $product) {
-                continue;
-            }
-
-            // Ensure extension tables are loaded before calling V5 helpers.
-            if (! $product->relationLoaded('applianceDetail')) {
-                $product->load('applianceDetail');
-            }
-            if (! $product->relationLoaded('installationMaterialDetail')) {
-                $product->load('installationMaterialDetail');
-            }
-
-            $isSerialized  = $product->isSerialized();
-            $pcsPerPackage = $product->getPiecesPerPackage();
-
-            // quantity_ordered is in units for appliances, packages for installation materials.
-            // quantity_amount is always stored in pieces — convert ordered to pieces.
-            $orderedPieces = $isSerialized
-                ? (int) $d->quantity_ordered
-                : (int) $d->quantity_ordered * $pcsPerPackage;
-
-            $receivedPieces = (int) ReceivingDetail::where('po_detail_id', $d->po_detail_id)
-                ->sum('quantity_amount');
-
-            $totalOrdered  += $orderedPieces;
-            $totalReceived += $receivedPieces;
+        $lines = app(PoLineBalanceService::class)->forPo($po);
+        if ($lines === []) {
+            return;
         }
-
-        $updateData = [];
-
-        if ($totalReceived > 0) {
-            // V5 status IDs — hardcoded; no DB string lookup needed.
-            // 11 = Completed, 12 = Partially Received
-            $newStatusId             = ($totalReceived >= $totalOrdered) ? 11 : 12;
-            $updateData['status_id'] = $newStatusId;
-
-            if ($userId !== null) {
-                $updateData['received_by'] = $userId;
-            }
-
-            PurchaseOrder::where('po_id', $poId)->update($updateData);
-        } elseif ($userId !== null) {
-            // No items received yet — still stamp received_by on the PO.
-            PurchaseOrder::where('po_id', $poId)->update(['received_by' => $userId]);
+        $state = PoLifecycle::compute(array_values($lines), in_array((int) $po->status_id, [8, 10, 11, 12], true),
+            $po->lifecycle_status === PoLifecycle::CANCELLED);
+        $update = ['lifecycle_status' => $state];
+        // Legacy IDs remain compatible until Step 2 replaces receiving guards.
+        if ($state === PoLifecycle::FULLY_RECEIVED) {
+            $update['status_id'] = 11;
+        } elseif ($state === PoLifecycle::PARTIALLY_RECEIVED) {
+            $update['status_id'] = 12;
         }
+        if ($userId !== null) {
+            $update['received_by'] = $userId;
+        }
+        $po->update($update);
     }
 }

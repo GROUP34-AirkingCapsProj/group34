@@ -53,8 +53,20 @@ class ReceivingPostingService
         int $unitsEntered = 1,
         ?int $packagesReceived = null,
         ?int $piecesExpected = null,
-        ?bool $contentsVerified = null
+        ?bool $contentsVerified = null,
+        ?Receiving $receivingHeader = null,
+        string $condition = 'Good'
     ): array {
+        if (DB::transactionLevel() === 0) {
+            throw new \LogicException('Receiving stock must be posted inside a database transaction.');
+        }
+        if ($product->isSerialized() && $pieces !== 1) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['receiving' => 'Serialized items require one piece per serial.']);
+        }
+        if ($poDetail) {
+            $poDetail = app(PoReceivingGuard::class)->lock($poDetail, $locationId, (int) $product->product_id);
+            app(PoReceivingGuard::class)->assertQuantity($poDetail, $pieces, $packagesReceived);
+        }
         $piecesPerPackage = $product->isSerialized() ? 0 : $product->getPiecesPerPackage();
 
         $inventory = Inventory::firstOrCreate(
@@ -66,10 +78,11 @@ class ReceivingPostingService
                 'reorder_level'      => 0,
             ]
         );
+        $inventory = Inventory::whereKey($inventory->inventory_id)->lockForUpdate()->firstOrFail();
         $inventory->setPieces((int) $inventory->quantity_on_hand + $pieces, $piecesPerPackage);
         $inventory->save();
 
-        $receiving = $this->resolveReceiving($poDetail, $locationId, $userId);
+        $receiving = $receivingHeader ?? $this->resolveReceiving($poDetail, $locationId, $userId);
         $receiving->increment('total_quantity_received', $pieces);
 
         $lineCost = $this->costs->costForReceivingLine($poDetail, $product);
@@ -94,7 +107,7 @@ class ReceivingPostingService
             // list cost, which is a stand-in that made every valuation downstream
             // wrong. Falls back to the list cost only when there is no PO line.
             'prod_price'        => $lineCost['unit_cost'] ?? 0,
-            'condition'         => 'Good',
+            'condition'         => $condition,
             'scanned_barcode'   => $supplierBarcode ?: null,
             'entry_mode'        => $entryMode,
         ]);
@@ -185,13 +198,13 @@ class ReceivingPostingService
             }
         }
 
-        $piecesPerPackage = $product->isSerialized() ? 1 : $product->getPiecesPerPackage();
+        $piecesPerPackage = max(1, (int) $poDetail->pieces_per_order_unit);
         $orderedPieces    = $product->isSerialized()
             ? (int) $poDetail->quantity_ordered
             : (int) $poDetail->quantity_ordered * $piecesPerPackage;
 
         $alreadyReceived = (int) ReceivingDetail::where('po_detail_id', $poDetail->po_detail_id)->sum('quantity_amount');
-        $remaining       = max(0, $orderedPieces - $alreadyReceived);
+        $remaining       = max(0, $orderedPieces - $alreadyReceived - (int) $poDetail->short_closed_quantity);
 
         if ($pieces <= $remaining) {
             return null;
